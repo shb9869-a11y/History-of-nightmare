@@ -252,11 +252,22 @@
   const sensorTip=document.getElementById('sensorTip');
 
   async function requestMotionPermissions(){
+    // iOS 전용 권한 요청: 사용자 제스처 콜스택 안에서 즉시 실행되도록 설계
     try{
       if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
-        const r=await DeviceOrientationEvent.requestPermission();
-        if(r==='granted') sensorsReady=true;
+        // await 사용 시 제스처 컨텍스트가 끊길 수 있어 then() 사용
+        DeviceOrientationEvent.requestPermission().then((r)=>{ if(r==='granted') sensorsReady=true; }).catch(()=>{});
       }else{ sensorsReady=true; }
+    }catch(e){}
+    try{
+      if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
+        DeviceMotionEvent.requestPermission().then((r)=>{ if(r==='granted') sensorsReady=true; }).catch(()=>{});
+      }
+    }catch(e){}
+    // 팁 표시 업데이트는 약간 지연시켜 실제 권한 결과 반영
+    setTimeout(()=>{ sensorTip.style.display = sensorsReady? 'none':'block'; }, 300);
+    return sensorsReady;
+  }
     }catch(e){}
     try{
       if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
@@ -332,9 +343,24 @@
   const overlayContent=document.getElementById('overlayContent');
   const welcomeBtn=document.getElementById('welcomeBtn');
 
-  welcomeBtn.addEventListener('click', async ()=>{
-    // 오디오/센서/마이크 시작
+  welcomeBtn.addEventListener('click', ()=>{
+    // ⚠️ iOS: 권한 팝업은 사용자 제스처 콜스택 안에서 동기적으로 호출되어야 함.
+    // 1) 센서 권한 요청을 가장 먼저, await 사용하지 않고 실행
+    requestMotionPermissions();
+
+    // 2) 오디오/마이크/리스너는 비동기지만 'await' 없이 시작해 제스처 컨텍스트를 깨지 않음
     initAudio();
+    if(audioCtx && audioCtx.state==='suspended'){
+      audioCtx.resume().catch(()=>{});
+    }
+    startMic().catch(()=>{});
+    initOrientationListener();
+    controlLoop();
+
+    // 3) 바로 오버레이 닫기
+    overlayContent.classList.add('hidden');
+    setTimeout(()=>{ overlay.style.display='none'; }, 450);
+  });
     if(audioCtx.state==='suspended'){ try{ await audioCtx.resume(); }catch{} }
     await startMic().catch(()=>{});
     initOrientationListener();
