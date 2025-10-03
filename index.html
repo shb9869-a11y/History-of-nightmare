@@ -71,7 +71,8 @@
     try{
       const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
       camVideo.srcObject=s; await camVideo.play().catch(()=>{});
-    }catch(e){console.warn("카메라 실패:", e);}    
+      return true;
+    }catch(e){ throw e; }
   }
   function resizeAll(){
     const dpr=window.devicePixelRatio||1;
@@ -106,7 +107,10 @@
     }
     vctx.drawImage(proc,0,0,W,H);
   }
-  await attachCamera(); loop();
+  // iOS: 사용자 제스처 이후에 카메라를 요청해야 팝업이 뜸. 초기 자동 요청 제거.
+let _loopStarted=false;
+function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
+
 
   function keepAlive(){
     attachCamera();
@@ -344,9 +348,39 @@
   const welcomeBtn=document.getElementById('welcomeBtn');
 
   welcomeBtn.addEventListener('click', ()=>{
-    // ⚠️ iOS: 권한 팝업은 사용자 제스처 콜스택 안에서 동기적으로 호출되어야 함.
-    // 1) 센서 권한 요청을 가장 먼저, await 사용하지 않고 실행
+    // 0) 보안 컨텍스트 체크(HTTPS)
+    if(!window.isSecureContext){
+      overlayContent.innerHTML = '<div class="lineWrap"><span class="line">이 페이지는 보안 연결(HTTPS)에서만 카메라/마이크가 동작합니다. 
+HTTPS로 접속해 주세요.</span></div>';
+      return;
+    }
+
+    // 1) 센서 권한: 제스처 콜스택에서 즉시 호출
     requestMotionPermissions();
+
+    // 2) 오디오/마이크/리스너 시작 (await 없음)
+    initAudio();
+    if(audioCtx && audioCtx.state==='suspended'){
+      audioCtx.resume().catch(()=>{});
+    }
+    startMic().catch(()=>{});
+    initOrientationListener();
+    controlLoop();
+
+    // 3) 카메라 요청은 반드시 제스처 직후 호출
+    attachCamera().then(()=>{
+      ensureLoop();
+      overlayContent.classList.add('hidden');
+      setTimeout(()=>{ overlay.style.display='none'; }, 450);
+    }).catch((e)=>{
+      console.warn('getUserMedia error', e);
+      const msg = (e && e.name)==='NotAllowedError' ?
+        '카메라 접근이 차단되었습니다. 주소창의 aA → 웹사이트 설정에서 "카메라 허용"으로 변경하거나,
+설정 > Safari > 카메라 허용을 확인하세요.' :
+        ( (e && e.name)==='NotFoundError' ? '사용 가능한 카메라를 찾을 수 없습니다.' : '카메라 접근 중 오류가 발생했습니다.' );
+      overlayContent.innerHTML = `<div class="lineWrap"><span class="line">${msg}</span></div>`;
+    });
+  });
 
     // 2) 오디오/마이크/리스너는 비동기지만 'await' 없이 시작해 제스처 컨텍스트를 깨지 않음
     initAudio();
