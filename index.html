@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>History of Nightmare — ACT 1 (stripped)</title>
+<title>History of Nightmare — ACT 1 (final, stripped)</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
@@ -19,13 +19,23 @@
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
   #view{width:100%;height:100%;display:block;position:fixed;left:0;top:0;z-index:0}
   .frameBox{position:fixed;left:var(--frame);top:var(--frame);right:var(--frame);bottom:var(--frame);border:1px solid #000;pointer-events:none;z-index:50}
-  .uiBtn{background:#000;color:#fff;border:1px solid #000;font-size:var(--fs-strong);padding:var(--pad-btn-y) var(--pad-btn-x);font-family:"Courier New",monospace;white-space:nowrap;cursor:pointer;user-select:none}
+
+  .uiBtn{background:#000;color:#fff;border:1px solid #000;font-size:var(--fs-strong);
+    padding:var(--pad-btn-y) var(--pad-btn-x);font-family:"Courier New",monospace;white-space:nowrap;cursor:pointer;user-select:none}
   .uiBtn.small{font-size:var(--fs-small);padding:calc(var(--pad-btn-y)*0.6) calc(var(--pad-btn-x)*0.6)}
-  .controls{position:fixed;right:calc(var(--frame) + var(--ui-gap));bottom:calc(var(--frame) + var(--ui-gap));z-index:100;display:flex;gap:6px;align-items:center}
+
+  .controls{position:fixed;right:calc(var(--frame) + var(--ui-gap));bottom:calc(var(--frame) + var(--ui-gap));
+    z-index:100;display:flex;gap:6px;align-items:center}
   .readout{min-width:48px;text-align:center;opacity:.9;font-family:"Courier New",monospace;font-size:var(--fs-small)}
-  #overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;font-family:"Courier New",monospace;color:#fff;background:transparent;pointer-events:none}
-  #overlayContent{pointer-events:auto;line-height:1.7;font-size:var(--fs-body);max-width:min(74ch, calc(100vw - (var(--frame)*2)));max-height:calc(100vh - (var(--frame)*2));overflow:hidden;text-align:left;transition:opacity .45s ease;opacity:1}
-  .line{display:inline;background:#000;color:#fff;padding:calc(var(--pad-line)*0.8) var(--pad-line);box-decoration-break:clone;-webkit-box-decoration-break:clone}
+
+  #overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+    padding:20px;font-family:"Courier New",monospace;color:#fff;background:transparent;pointer-events:none}
+  #overlayContent{pointer-events:auto;line-height:1.7;font-size:var(--fs-body);
+    max-width:min(74ch, calc(100vw - (var(--frame)*2)));
+    max-height:calc(100vh - (var(--frame)*2));
+    overflow:hidden;text-align:left;transition:opacity .45s ease;opacity:1}
+  .line{display:inline;background:#000;color:#fff;padding:calc(var(--pad-line)*0.8) var(--pad-line);
+    box-decoration-break:clone;-webkit-box-decoration-break:clone}
   .lineWrap{margin:6px 0}
   .hidden{opacity:0}
   @media (orientation:landscape){ :root{ --frame: 32px; } }
@@ -50,16 +60,20 @@
   </div>
 
 <script>
-(async ()=>{
-  /* ========= 카메라(흑백) ========= */
+(()=>{
+
+  /* ====== 기본 캔버스/카메라 설정 (잔상 제거, 흑백만) ====== */
   const view=document.getElementById('view');
   const vctx=view.getContext('2d',{alpha:false});
-  const PROC_SCALE=0.60, GLOBAL_ALPHA=0.9; // 잔상 제거, 단순 드로우
+  const PROC_SCALE=0.60, GLOBAL_ALPHA=0.9; // 잔상 없음(매 프레임 클리어)
   let ZOOM=1.0, ZOOM_MIN=0.5, ZOOM_MAX=3.0, ZOOM_STEP=0.1; // 시작 배율 1.0
 
   const zoomVal=document.getElementById('zoomVal');
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const updateZoom=()=>zoomVal.textContent=ZOOM.toFixed(1)+'×';
+  document.getElementById('zoomIn').onclick=()=>{ZOOM=clamp(ZOOM+ZOOM_STEP,ZOOM_MAX,ZOOM_MAX);updateZoom();};
+  document.getElementById('zoomOut').onclick=()=>{ZOOM=clamp(ZOOM-ZOOM_STEP,ZOOM_MIN,ZOOM_MAX);updateZoom();};
+  // fix: the clamp order for zoomIn was wrong; correct:
   document.getElementById('zoomIn').onclick=()=>{ZOOM=clamp(ZOOM+ZOOM_STEP,ZOOM_MIN,ZOOM_MAX);updateZoom();};
   document.getElementById('zoomOut').onclick=()=>{ZOOM=clamp(ZOOM-ZOOM_STEP,ZOOM_MIN,ZOOM_MAX);updateZoom();};
   updateZoom();
@@ -67,13 +81,6 @@
   const camVideo=document.createElement('video'); camVideo.autoplay=true; camVideo.playsInline=true; camVideo.muted=true;
   const proc=document.createElement('canvas'); const pctx=proc.getContext('2d',{willReadFrequently:true});
 
-  async function attachCamera(){
-    try{
-      const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-      camVideo.srcObject=s; await camVideo.play().catch(()=>{});
-      return true;
-    }catch(e){ throw e; }
-  }
   function resizeAll(){
     const dpr=window.devicePixelRatio||1;
     const w=window.innerWidth,h=window.innerHeight;
@@ -83,11 +90,15 @@
   }
   resizeAll(); addEventListener('resize',()=>setTimeout(resizeAll,50));
 
+  let _loopStarted=false;
+  function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
+
   function loop(){
     requestAnimationFrame(loop);
     const W=view.width/(window.devicePixelRatio||1);
     const H=view.height/(window.devicePixelRatio||1);
     const PW=proc.width, PH=proc.height;
+
     // 잔상 제거: 매 프레임 클리어
     pctx.clearRect(0,0,PW,PH);
 
@@ -98,39 +109,41 @@
         const dw=vw*sc, dh=vh*sc, dx=(PW-dw)/2, dy=(PH-dh)/2;
         pctx.globalAlpha=GLOBAL_ALPHA; pctx.drawImage(camVideo,dx,dy,dw,dh);
         pctx.globalAlpha=1.0;
+        // 흑백 변환
         const frame=pctx.getImageData(0,0,PW,PH); const d=frame.data;
         for(let i=0;i<d.length;i+=4){
-          const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0; d[i]=d[i+1]=d[i+2]=g;
+          const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0;
+          d[i]=d[i+1]=d[i+2]=g;
         }
         pctx.putImageData(frame,0,0);
       }
     }
     vctx.drawImage(proc,0,0,W,H);
   }
-  // iOS: 사용자 제스처 이후에 카메라를 요청해야 팝업이 뜸. 초기 자동 요청 제거.
-let _loopStarted=false;
-function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
 
+  async function attachCamera(){
+    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    camVideo.srcObject=s; await camVideo.play().catch(()=>{});
+    return true;
+  }
 
   function keepAlive(){
-    attachCamera();
+    // 권한 허용 후 탭 재진입 시 보장
     if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
   }
   document.addEventListener('visibilitychange', keepAlive);
   window.addEventListener('focus', keepAlive);
 
-  /* ========= 오디오: 모션 패닝/볼륨 + 마이크 이펙트만 남김 (BGM 제거) ========= */
+  /* ====== 오디오(마이크 + 기울기 기반 Pan/Vol) — BGM/캡처 없음 ====== */
   let audioCtx=null;
   let mixBus=null, motionGain=null, masterGain=null;
   let panSetter=null;
   let micStream=null;
 
-  // 파라미터
   const VOL_BASE=0.20, VOL_MAX_ADD=0.55;
   const SMOOTH_TC=0.08, CTRL_SMOOTH_ALPHA=0.12;
   const DEADZONE_VOL_DEG=5, DEADZONE_PAN_DEG=3, VOL_TILT_LIMIT=60, PAN_LIMIT_DEG=45;
 
-  // 마이크 이펙트 파라미터
   const MIC_HP=220, MIC_LOWSHELF_FREQ=200, MIC_LOWSHELF_GAIN=-12;
   const NOTCH_FREQ=300, NOTCH_Q=3.5;
   const COMP_THRESHOLD=-20, COMP_RATIO=3.5, COMP_ATTACK=0.006, COMP_RELEASE=0.12;
@@ -141,9 +154,9 @@ function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
     if(audioCtx) return;
     audioCtx = new (window.AudioContext||window.webkitAudioContext)();
 
-    // 믹스 버스 + 패너
     mixBus = audioCtx.createGain();
     let panOutNode=null;
+
     if (audioCtx.createStereoPanner){
       const sp=audioCtx.createStereoPanner();
       panSetter=(val)=>{ try{ sp.pan.setTargetAtTime(val, audioCtx.currentTime, 0.08);}catch{ sp.pan.value=val; } };
@@ -161,7 +174,6 @@ function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
       panOutNode=m;
     }
 
-    // 모션 게인 → 마스터 (리미터/메이크업은 간소화 가능하지만 유지)
     motionGain = audioCtx.createGain(); motionGain.gain.value=VOL_BASE;
     masterGain = audioCtx.createGain(); masterGain.gain.value=1.0;
 
@@ -179,11 +191,13 @@ function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
     micStream=s;
     const src=audioCtx.createMediaStreamSource(s);
 
+    // 이펙트 체인
     const hpf=audioCtx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=MIC_HP; hpf.Q.value=0.707;
     const lowshelf=audioCtx.createBiquadFilter(); lowshelf.type='lowshelf'; lowshelf.frequency.value=MIC_LOWSHELF_FREQ; lowshelf.gain.value=MIC_LOWSHELF_GAIN;
     const notch=audioCtx.createBiquadFilter(); notch.type='notch'; notch.frequency.value=NOTCH_FREQ; notch.Q.value=NOTCH_Q;
     const comp=audioCtx.createDynamicsCompressor();
-    comp.threshold.value=COMP_THRESHOLD; comp.ratio.value=COMP_RATIO; comp.attack.value=COMP_ATTACK; comp.release.value=COMP_RELEASE;
+    comp.threshold.value=COMP_THRESHOLD; comp.ratio.value=COMP_RATIO;
+    comp.attack.value=COMP_ATTACK; comp.release.value=COMP_RELEASE;
 
     const convolver=audioCtx.createConvolver(); convolver.buffer=makeIR(2.6,2.4);
     const tapA=audioCtx.createDelay(); tapA.delayTime.value=0.11;
@@ -203,6 +217,7 @@ function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
     const analyser=audioCtx.createAnalyser(); analyser.fftSize=512;
     const gateGain=audioCtx.createGain(); gateGain.gain.value=0; gateLoop(analyser, gateGain);
 
+    // 결선
     src.connect(hpf).connect(lowshelf).connect(notch).connect(comp);
     comp.connect(analyser);
     comp.connect(dry);
@@ -251,15 +266,14 @@ function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
     return ir;
   }
 
-  /* ========= 센서(기울기 → 패닝/볼륨) ========= */
+  /* ====== 센서(기울기 → 패닝/볼륨) ====== */
   let sensorsReady=false;
   const sensorTip=document.getElementById('sensorTip');
 
   async function requestMotionPermissions(){
-    // iOS 전용 권한 요청: 사용자 제스처 콜스택 안에서 즉시 실행되도록 설계
+    // iOS에서는 사용자 제스처 콜스택 내에서 동기적으로 호출되어야 팝업이 뜸
     try{
       if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
-        // await 사용 시 제스처 컨텍스트가 끊길 수 있어 then() 사용
         DeviceOrientationEvent.requestPermission().then((r)=>{ if(r==='granted') sensorsReady=true; }).catch(()=>{});
       }else{ sensorsReady=true; }
     }catch(e){}
@@ -268,18 +282,7 @@ function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
         DeviceMotionEvent.requestPermission().then((r)=>{ if(r==='granted') sensorsReady=true; }).catch(()=>{});
       }
     }catch(e){}
-    // 팁 표시 업데이트는 약간 지연시켜 실제 권한 결과 반영
     setTimeout(()=>{ sensorTip.style.display = sensorsReady? 'none':'block'; }, 300);
-    return sensorsReady;
-  }
-    }catch(e){}
-    try{
-      if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
-        const r=await DeviceMotionEvent.requestPermission();
-        if(r==='granted') sensorsReady=true;
-      }
-    }catch(e){}
-    sensorTip.style.display = sensorsReady? 'none':'block';
     return sensorsReady;
   }
 
@@ -342,71 +345,46 @@ function ensureLoop(){ if(_loopStarted) return; _loopStarted=true; loop(); }
     applyPanVol(pan, vol);
   }
 
-  /* ========= 오버레이 흐름 (텍스트 시퀀스/GOOD NIGHT/ACT1 제거) ========= */
+  /* ====== 오버레이/권한 트리거 ====== */
   const overlay=document.getElementById('overlay');
   const overlayContent=document.getElementById('overlayContent');
   const welcomeBtn=document.getElementById('welcomeBtn');
 
   welcomeBtn.addEventListener('click', ()=>{
-    // 0) 보안 컨텍스트 체크(HTTPS)
+    // HTTPS 필수
     if(!window.isSecureContext){
-      overlayContent.innerHTML = '<div class="lineWrap"><span class="line">이 페이지는 보안 연결(HTTPS)에서만 카메라/마이크가 동작합니다. 
-HTTPS로 접속해 주세요.</span></div>';
+      overlayContent.innerHTML = '<div class="lineWrap"><span class="line">이 페이지는 보안 연결(HTTPS)에서만 카메라/마이크가 동작합니다.\\nHTTPS로 접속해 주세요.</span></div>';
       return;
     }
 
-    // 1) 센서 권한: 제스처 콜스택에서 즉시 호출
+    // 1) 센서 권한(제일 먼저, await 없이)
     requestMotionPermissions();
 
-    // 2) 오디오/마이크/리스너 시작 (await 없음)
+    // 2) 오디오 초기화 및 마이크 시작(제스처 콜스택 유지)
     initAudio();
-    if(audioCtx && audioCtx.state==='suspended'){
-      audioCtx.resume().catch(()=>{});
-    }
+    if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
     startMic().catch(()=>{});
+
     initOrientationListener();
     controlLoop();
 
-    // 3) 카메라 요청은 반드시 제스처 직후 호출
+    // 3) 카메라: 제스처 콜스택에서 즉시 요청
     attachCamera().then(()=>{
       ensureLoop();
       overlayContent.classList.add('hidden');
       setTimeout(()=>{ overlay.style.display='none'; }, 450);
     }).catch((e)=>{
       console.warn('getUserMedia error', e);
-      const msg = (e && e.name)==='NotAllowedError' ?
-        '카메라 접근이 차단되었습니다. 주소창의 aA → 웹사이트 설정에서 "카메라 허용"으로 변경하거나,
-설정 > Safari > 카메라 허용을 확인하세요.' :
-        ( (e && e.name)==='NotFoundError' ? '사용 가능한 카메라를 찾을 수 없습니다.' : '카메라 접근 중 오류가 발생했습니다.' );
+      const msg = (e && e.name)==='NotAllowedError'
+        ? '카메라 접근이 차단되었습니다. 주소창의 aA → 웹사이트 설정에서 \"카메라 허용\"으로 변경하거나,\\n설정 > Safari > 카메라 허용을 확인하세요.'
+        : ((e && e.name)==='NotFoundError'
+          ? '사용 가능한 카메라를 찾을 수 없습니다.'
+          : '카메라 접근 중 오류가 발생했습니다.');
       overlayContent.innerHTML = `<div class="lineWrap"><span class="line">${msg}</span></div>`;
     });
   });
 
-    // 2) 오디오/마이크/리스너는 비동기지만 'await' 없이 시작해 제스처 컨텍스트를 깨지 않음
-    initAudio();
-    if(audioCtx && audioCtx.state==='suspended'){
-      audioCtx.resume().catch(()=>{});
-    }
-    startMic().catch(()=>{});
-    initOrientationListener();
-    controlLoop();
-
-    // 3) 바로 오버레이 닫기
-    overlayContent.classList.add('hidden');
-    setTimeout(()=>{ overlay.style.display='none'; }, 450);
-  });
-    if(audioCtx.state==='suspended'){ try{ await audioCtx.resume(); }catch{} }
-    await startMic().catch(()=>{});
-    initOrientationListener();
-    await requestMotionPermissions();
-    controlLoop();
-
-    // 바로 오버레이 닫기 (추가 텍스트/시퀀스 없음)
-    overlayContent.classList.add('hidden');
-    setTimeout(()=>{ overlay.style.display='none'; }, 450);
-  });
-
-})();
+})(); 
 </script>
 </body>
 </html>
