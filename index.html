@@ -3,13 +3,15 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>History of Nightmare — Rezolume Only (Transparent)</title>
+<title>History of Nightmare — Rezolume Only + Proscenium</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
+
   /* 카메라(흑백) */
   #view{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+
   /* 레졸룸 오버레이: 배경 투명 + 화면 100% + 50% 블렌드 */
   #ninjaOverlay{
     position:fixed; inset:0; width:100vw; height:100vh;
@@ -17,12 +19,40 @@
     opacity:0; transition:opacity .35s ease;
     background:transparent;
   }
+
+  /* 프로시니엄(얇은 테두리 선) */
+  :root{
+    --proscenium-gap: 32px;          /* 화면 가장자리에서 안쪽 여백 */
+    --proscenium-color: rgba(255,255,255,.9);
+    --proscenium-width: 1px;
+    --proscenium-radius: 2px;
+  }
+  @media (orientation:landscape){
+    :root{ --proscenium-gap: 24px; }
+  }
+  .proscenium{
+    position:fixed;
+    left:var(--proscenium-gap); right:var(--proscenium-gap);
+    top:var(--proscenium-gap); bottom:var(--proscenium-gap);
+    border:var(--proscenium-width) solid var(--proscenium-color);
+    border-radius:var(--proscenium-radius);
+    box-sizing:border-box;
+    z-index:90;                 /* 레졸룸(10) 위, 컨트롤(100) 아래 */
+    pointer-events:none;
+  }
+
   /* IN/OUT */
   .controls{position:fixed;right:20px;bottom:20px;z-index:100;display:flex;gap:8px}
-  .uiBtn{background:#000;color:#fff;border:1px solid #333;font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none}
+  .uiBtn{
+    background:#000;color:#fff;border:1px solid #333;
+    font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none
+  }
+
   /* 웰컴 오버레이 */
-  #overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
-           font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.7)}
+  #overlay{
+    position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+    padding:20px;font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.7)
+  }
   #overlayContent{line-height:1.7;text-align:center;transition:opacity .45s ease}
   .hidden{opacity:0}
 </style>
@@ -38,6 +68,9 @@
           style="background:transparent"
           referrerpolicy="no-referrer"
           src="about:blank"></iframe>
+
+  <!-- 프로시니엄 선 -->
+  <div class="proscenium" aria-hidden="true"></div>
 
   <!-- IN / OUT -->
   <div class="controls">
@@ -62,7 +95,7 @@ const ROOM_ID = "YOURROOMID"; // ← 네 룸 아이디로 변경
 const injectedCss = encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
   #container,.container{background:transparent!important;}
-  /* video/canvas를 뷰포트에 정확히 맞춤 (비율 무시하고 꽉 채움; 원하면 object-fit:contain/cover로 변경 가능) */
+  /* video/canvas를 뷰포트에 정확히 맞춤 (비율 무시하고 꽉 채움) */
   video,canvas{
     position:fixed!important; inset:0!important;
     width:100vw!important; height:100vh!important;
@@ -72,9 +105,9 @@ const injectedCss = encodeURIComponent(`
 
 /* transparent=1 로 배경 투명화, css= 로 내부 스타일 강제 */
 const base =
-  `https://vdo.ninja/?view=${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo` +
-  `&transparent=1&css=${injectedCss}`;
-const ninjaUrl = () => `${base}&ts=${Date.now()}`; // 캐시 우회
+  \`https://vdo.ninja/?view=\${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo\` +
+  \`&transparent=1&css=\${injectedCss}\`;
+const ninjaUrl = () => \`\${base}&ts=\${Date.now()}\`; // 캐시 우회
 
 /* ========== 요소 ========== */
 const view = document.getElementById('view');
@@ -195,13 +228,12 @@ function ctlLoop(){
   if(motionGain){ const now=audioCtx.currentTime; try{ motionGain.gain.setTargetAtTime(smVol,now,SMOOTH_TC);}catch{ motionGain.gain.value=smVol; } }
 }
 
-/* ========== 레졸룸 오버레이: 프리로드 + IN/OUT ==========
-   투명 배경 페이지를 로드하고, IN에서 0.5 블렌딩 */
+/* ========== 레졸룸 오버레이: 프리로드 + IN/OUT ========== */
 (function preloadOverlay(){
   ninja.src = ninjaUrl(); // 투명 배경/여백 제거된 페이지
 })();
 function setOverlay(on){
-  ninja.style.opacity = on ? '0.5' : '0';
+  ninja.style.opacity = on ? '0.5' : '0';  // 50% 블렌딩
   if (on && !ninja.contentWindow) ninja.src = ninjaUrl();
 }
 btnIn.addEventListener('click', ()=> setOverlay(true));
