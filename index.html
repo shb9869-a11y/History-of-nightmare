@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>History of Nightmare — Audience (IN/OUT)</title>
+<title>History of Nightmare — 50/50 Blend</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
@@ -16,17 +16,20 @@
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
   /* 카메라 렌더 캔버스(흑백) */
   #view{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-  /* VDO.Ninja 오버레이(겹치기) */
+
+  /* 레졸룸(VDO.Ninja) 오버레이 – 50% 투명도 */
   #ninjaOverlay{
     position:fixed; inset:0; width:100%; height:100%;
     border:0; z-index:10;
-    opacity:0; transition:opacity .45s ease;
-    pointer-events:none;  /* UI 통과 */
+    opacity:0;                 /* OUT일 때 */
+    transition:opacity .35s ease;
+    pointer-events:none;       /* UI 통과 */
+    /* 필요시 블렌드 모드도 테스트 가능: mix-blend-mode: screen; */
   }
-  /* IN/OUT 두 버튼만 */
+
+  /* IN / OUT 두 버튼만 */
   .controls{
-    position:fixed; right:calc(var(--frame));
-    bottom:calc(var(--frame));
+    position:fixed; right:var(--frame); bottom:var(--frame);
     z-index:100; display:flex; gap:8px;
   }
   .uiBtn{
@@ -34,6 +37,7 @@
     font-family:"Courier New",monospace; font-size:var(--fs-strong);
     padding:.6em 1.2em; cursor:pointer; user-select:none;
   }
+
   /* 웰컴 오버레이 */
   #overlay{
     position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
@@ -55,7 +59,7 @@
           referrerpolicy="no-referrer"
           src="about:blank"></iframe>
 
-  <!-- IN / OUT 두 버튼만 -->
+  <!-- IN / OUT -->
   <div class="controls">
     <button class="uiBtn" id="btnIn">IN</button>
     <button class="uiBtn" id="btnOut">OUT</button>
@@ -74,9 +78,9 @@
 /* ===================== 설정 ===================== */
 // ↓ 여기만 네 룸 아이디로 변경 (예: DIALOGUE2025)
 const ROOM_ID = "YOURROOMID";
-// iOS 호환을 위해 codec=vp8, 깔끔/무음/단독 재생 + 캐시 우회 파라미터
+// iOS 호환: VP8 + 깔끔/무음/단독 + 캐시우회
 const base = `https://vdo.ninja/?view=${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo`;
-const ninjaUrl = () => `${base}&ts=${Date.now()}`; // 새 세션 유도
+const ninjaUrl = () => `${base}&ts=${Date.now()}`;
 
 /* ===================== 요소 ===================== */
 const view = document.getElementById('view');
@@ -346,31 +350,31 @@ function controlLoop(){
   applyPanVol(pan, vol);
 }
 
-/* ===================== IN / OUT (오버레이 표시/숨김) ===================== */
+/* ===================== IN / OUT (50% 겹치기) ===================== */
 let overlayOn=false;
 
-// 페이지 로드시 백그라운드 프리로드 (연결 준비)
+// 로드시 프리로드(연결 유지, 숨김)
 (function preloadOverlay(){
   ninja.src = ninjaUrl();
-  ninja.style.opacity = '0';       // 숨겨둠 (연결은 유지)
+  ninja.style.opacity = '0';
   ninja.style.pointerEvents = 'none';
 })();
 
 function setOverlay(on){
   overlayOn = on;
   if (on){
-    // 연결이 끊겼다면 재연결
-    if (!ninja.contentWindow) ninja.src = ninjaUrl();
-    ninja.style.opacity = '1';
+    // 50% 투명도로 카메라 위에 겹치기
+    if (!ninja.contentWindow) ninja.src = ninjaUrl(); // 끊겼으면 재연결
+    ninja.style.opacity = '0.5';
   } else {
-    // 연결은 끊지 않고 숨김만 (재협상 지연 방지)
+    // 연결은 유지, 화면만 숨김
     ninja.style.opacity = '0';
   }
 }
 btnIn.addEventListener('click', ()=> setOverlay(true));
 btnOut.addEventListener('click', ()=> setOverlay(false));
 
-// 절전/백그라운드 복귀 시 가볍게 재확인
+// 절전/복귀시 가볍게 재확인
 document.addEventListener('visibilitychange', ()=>{
   if (document.visibilityState==='visible' && overlayOn){
     if (!ninja.contentWindow) ninja.src = ninjaUrl();
@@ -379,29 +383,26 @@ document.addEventListener('visibilitychange', ()=>{
 
 /* ===================== 웰컴 버튼: 시작 시퀀스 ===================== */
 welcomeBtn.addEventListener('click', async ()=>{
-  // HTTPS 권장 안내
   if(!window.isSecureContext){
     overlayContent.innerHTML = '<div style="background:#000;padding:10px;display:inline-block">보안 연결(HTTPS)에서 가장 안정적으로 동작합니다.</div>';
-    // 계속 진행은 허용 (로컬 테스트용)
   }
   try{
-    // 센서 권한(먼저 트리거)
+    // 센서 → 오디오 → 마이크 → 카메라 순서
     sensorPerm().catch(()=>{});
-    // 오디오/마이크 초기화
     initAudio();
     if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
     await startMic().catch(()=>{});
     initOrientationListener();
     controlLoop();
-    // 카메라 시작
+
     await startCamera();
     fit(); ensureLoop();
 
-    // 오버레이 닫기 + IN 자동 실행(원하면 OUT 상태로 시작하려면 주석)
     overlayContent.classList.add('hidden');
     setTimeout(()=>{ overlayPanel.style.display='none'; }, 450);
-    setOverlay(true);
 
+    // 시작 시 IN 상태로
+    setOverlay(true);
   }catch(e){
     overlayContent.innerHTML = '<div style="background:#000;padding:10px;display:inline-block">권한이 거부되었거나 장치 접근 중 오류가 발생했습니다. 설정에서 카메라/마이크를 허용해 주세요.</div>';
   }
