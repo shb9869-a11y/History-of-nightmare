@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>Audience Overlay — VDO.Ninja Preload</title>
+<title>Audience Overlay — Sticky ON/OFF + Reconnect</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
@@ -34,7 +34,7 @@
 
   .controls{
     position:fixed;right:calc(var(--frame) + var(--ui-gap));bottom:calc(var(--frame) + var(--ui-gap));
-    z-index:100;display:flex;gap:6px;align-items:center
+    z-index:100;display:flex;gap:6px;align-items:center;flex-wrap:wrap
   }
   .readout{min-width:48px;text-align:center;opacity:.9;font-family:"Courier New",monospace;font-size:var(--fs-small)}
 
@@ -45,6 +45,12 @@
   #overlayContent{line-height:1.7;font-size:var(--fs-body);text-align:center;transition:opacity .45s ease}
   .hidden{opacity:0}
   .tip{opacity:.7;font-size:var(--fs-small);margin-top:8px}
+
+  .status{
+    position:fixed;left:var(--frame);bottom:calc(var(--frame) + var(--ui-gap));
+    z-index:120;font-family:"Courier New",monospace;font-size:var(--fs-small);
+    color:#aaa;background:#000;padding:.35em .6em;border:1px dashed #333;border-radius:6px
+  }
   @media (orientation:landscape){ :root{ --frame: 32px; } }
 </style>
 </head>
@@ -52,7 +58,7 @@
   <!-- 관객 카메라를 그릴 캔버스 -->
   <canvas id="view"></canvas>
 
-  <!-- VDO.Ninja 영상 겹치기(합성 아님) — 프리로드 대상 -->
+  <!-- VDO.Ninja 영상 겹치기(합성 아님) -->
   <iframe id="ninjaOverlay"
           allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
           referrerpolicy="no-referrer"
@@ -62,10 +68,13 @@
 
   <div class="controls">
     <button class="uiBtn small" id="toggleOverlay">Overlay OFF</button>
+    <button class="uiBtn small" id="reconnect">Reconnect</button>
     <button class="uiBtn small" id="zoomOut">–</button>
     <div class="readout"><span id="zoomVal">1.0×</span></div>
     <button class="uiBtn small" id="zoomIn">+</button>
   </div>
+
+  <div class="status" id="status">idle</div>
 
   <div id="overlay">
     <div id="overlayContent">
@@ -91,9 +100,13 @@
   const btnZoomIn = document.getElementById('zoomIn');
   const btnZoomOut = document.getElementById('zoomOut');
   const btnToggleOverlay = document.getElementById('toggleOverlay');
+  const btnReconnect = document.getElementById('reconnect');
   const welcomeBtn = document.getElementById('welcomeBtn');
   const overlayPanel = document.getElementById('overlay');
   const overlayContent = document.getElementById('overlayContent');
+  const statusEl = document.getElementById('status');
+
+  function setStatus(s){ statusEl.textContent = s; }
 
   /* ===== 카메라 ===== */
   const cam = document.createElement('video');
@@ -140,30 +153,72 @@
     }
   }
 
-  /* ===== 오버레이(겹치기) — 프리로드 방식 ===== */
+  /* ===== 오버레이(겹치기) — 연결 유지형 ON/OFF ===== */
   let overlayOn = false;
+  let lastSrcAt = 0;
+
+  function refreshNinja(force=false){
+    const age = Date.now() - lastSrcAt;
+    if (force || !ninja.src || ninja.src === 'about:blank' || age > 120000){ // 2분 지난 세션은 새로고침
+      setStatus('connecting...');
+      ninja.src = ninjaUrl();
+      lastSrcAt = Date.now();
+      // 첫 페이드인 시점 보장(프레임 로드 이벤트 기준)
+      ninja.onload = () => setStatus('connected');
+      // 10초 내 연결 못하면 한 번 더 시도
+      setTimeout(() => {
+        if (Date.now() - lastSrcAt >= 9000 && overlayOn) {
+          setStatus('reconnect...');
+          ninja.src = ninjaUrl();
+          lastSrcAt = Date.now();
+        }
+      }, 9000);
+    }
+  }
 
   // 페이지 로드시 백그라운드로 미리 붙여둔다(연결 준비)
   (function preloadOverlay(){
-    ninja.src = ninjaUrl();
-    ninja.style.opacity = '0';      // 숨겨진 상태
+    refreshNinja(true);
+    ninja.style.opacity = '0';      // 숨긴 상태
     ninja.style.pointerEvents = 'none';
   })();
 
   function setOverlay(on){
     overlayOn = on;
     if (on){
-      // 혹시 백그라운드 연결이 끊겼다면 재연결
-      if (!ninja.contentWindow) ninja.src = ninjaUrl();
+      refreshNinja(false);          // 필요 시만 새로 붙임
       ninja.style.opacity = '1';
+      setStatus('visible');
     } else {
+      // 연결은 유지(끊지 않음). 다시 켤 땐 즉시 표시됨.
       ninja.style.opacity = '0';
-      // 성능 위해 비표시 상태 유지 시 src 비우기(연결 해제)
-      setTimeout(()=>{ if(!overlayOn) ninja.src = 'about:blank'; }, 600);
+      setStatus('hidden (connected)');
     }
     btnToggleOverlay.textContent = overlayOn ? 'Overlay ON' : 'Overlay OFF';
   }
+
   btnToggleOverlay.addEventListener('click', () => setOverlay(!overlayOn));
+
+  // 수동 강제 재연결 버튼
+  btnReconnect.addEventListener('click', () => {
+    setStatus('force reconnect...');
+    refreshNinja(true);
+    if (overlayOn) ninja.style.opacity = '1';
+  });
+
+  // 화면이 다시 보일 때 살아있으면 가볍게 갱신(모바일 절전/백그라운드 복귀 대응)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && overlayOn){
+      refreshNinja(false);
+    }
+  });
+
+  // 주기적 가벼운 갱신(켜져 있고 페이지 보이는 동안 60초마다)
+  setInterval(() => {
+    if (overlayOn && document.visibilityState === 'visible'){
+      refreshNinja(false);
+    }
+  }, 60000);
 
   /* ===== 시작 버튼 ===== */
   welcomeBtn.addEventListener('click', async () => {
@@ -171,7 +226,7 @@
     try {
       await startCamera();
       setTimeout(() => { overlayPanel.style.display = 'none'; }, 450);
-      setOverlay(true); // 시작 시 바로 표시 (프리로드 덕분에 체감 0초)
+      setOverlay(true); // 시작 시 바로 표시 (프리로드 + 연결유지)
       drawLoop();
     } catch(e){
       overlayContent.classList.remove('hidden');
