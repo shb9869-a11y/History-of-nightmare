@@ -3,239 +3,177 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>Audience Overlay — Sticky ON/OFF + Reconnect</title>
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Audience Overlay — Dual Preload Ninja</title>
 <style>
-  :root{
-    --frame: 40px; --ui-gap: 8px;
-    --fs-body: clamp(12px, 2.0vmin, 15px);
-    --fs-strong: clamp(14px, 2.6vmin, 18px);
-    --fs-small: clamp(11px, 1.7vmin, 13px);
-  }
-  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:"Courier New",monospace}
   #view{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-  .frameBox{position:fixed;left:var(--frame);top:var(--frame);right:var(--frame);bottom:var(--frame);
-    border:1px solid #000;pointer-events:none;z-index:50}
-
-  /* VDO.Ninja 오버레이(겹치기) */
-  #ninjaOverlay{
-    position:fixed; inset:0; width:100%; height:100%;
-    border:0; z-index:10;
-    opacity:0; transition:opacity .45s ease;
-    pointer-events:none; /* UI 통과 */
-  }
-
-  .uiBtn{
-    background:#000;color:#fff;border:1px solid #333;font-size:var(--fs-strong);
-    padding:.6em 1.1em;font-family:"Courier New",monospace;white-space:nowrap;cursor:pointer;user-select:none
-  }
-  .uiBtn.small{font-size:var(--fs-small);padding:.45em .7em}
-
-  .controls{
-    position:fixed;right:calc(var(--frame) + var(--ui-gap));bottom:calc(var(--frame) + var(--ui-gap));
-    z-index:100;display:flex;gap:6px;align-items:center;flex-wrap:wrap
-  }
-  .readout{min-width:48px;text-align:center;opacity:.9;font-family:"Courier New",monospace;font-size:var(--fs-small)}
-
-  #overlay{
-    position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
-    padding:20px;font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.6)
-  }
-  #overlayContent{line-height:1.7;font-size:var(--fs-body);text-align:center;transition:opacity .45s ease}
-  .hidden{opacity:0}
-  .tip{opacity:.7;font-size:var(--fs-small);margin-top:8px}
-
-  .status{
-    position:fixed;left:var(--frame);bottom:calc(var(--frame) + var(--ui-gap));
-    z-index:120;font-family:"Courier New",monospace;font-size:var(--fs-small);
-    color:#aaa;background:#000;padding:.35em .6em;border:1px dashed #333;border-radius:6px
-  }
-  @media (orientation:landscape){ :root{ --frame: 32px; } }
+  .ninja{position:fixed;inset:0;width:100%;height:100%;border:0;pointer-events:none;opacity:0;transition:opacity .35s ease}
+  .ninja.show{opacity:1}
+  .controls{position:fixed;right:16px;bottom:16px;z-index:100;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .uiBtn{background:#000;color:#fff;border:1px solid #333;padding:.5em .9em;cursor:pointer}
+  .readout{color:#aaa;background:#000;border:1px dashed #333;padding:.3em .6em}
+  .status{position:fixed;left:16px;bottom:16px;z-index:100;color:#aaa;background:#000;border:1px dashed #333;padding:.3em .6em}
 </style>
 </head>
 <body>
-  <!-- 관객 카메라를 그릴 캔버스 -->
+  <!-- 관객 카메라 캔버스(배경) -->
   <canvas id="view"></canvas>
 
-  <!-- VDO.Ninja 영상 겹치기(합성 아님) -->
-  <iframe id="ninjaOverlay"
-          allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
-          referrerpolicy="no-referrer"
-          src="about:blank"></iframe>
-
-  <div class="frameBox" aria-hidden="true"></div>
+  <!-- 이중 프리로드: 활성 A / 대기 B -->
+  <iframe id="ninjaA" class="ninja" allow="autoplay; fullscreen; camera; microphone" referrerpolicy="no-referrer"></iframe>
+  <iframe id="ninjaB" class="ninja" allow="autoplay; fullscreen; camera; microphone" referrerpolicy="no-referrer"></iframe>
 
   <div class="controls">
-    <button class="uiBtn small" id="toggleOverlay">Overlay OFF</button>
-    <button class="uiBtn small" id="reconnect">Reconnect</button>
-    <button class="uiBtn small" id="zoomOut">–</button>
-    <div class="readout"><span id="zoomVal">1.0×</span></div>
-    <button class="uiBtn small" id="zoomIn">+</button>
+    <button class="uiBtn" id="toggleOverlay">Overlay OFF</button>
+    <button class="uiBtn" id="reconnect">Force Reconnect</button>
+    <span class="readout" id="readout">idle</span>
   </div>
-
-  <div class="status" id="status">idle</div>
-
-  <div id="overlay">
-    <div id="overlayContent">
-      <button id="welcomeBtn" class="uiBtn">Welcome to History of Nightmare</button>
-      <div class="tip">버튼을 누르면 카메라 권한을 요청합니다. iPhone은 <b>HTTPS</b> 환경 권장.</div>
-    </div>
-  </div>
+  <div class="status" id="status">standby</div>
 
 <script>
-(() => {
-  /* ===== 설정 ===== */
-  // 네가 쓰는 룸 아이디로 통일 (지금은 'YOURROOMID')
-  const ROOM_ID = "YOURROOMID";
-  // iOS 호환을 위해 codec=vp8, 단독/클린 재생 + 캐시우회(ts) 적용
-  const base = `https://vdo.ninja/?view=${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo`;
-  const ninjaUrl = () => `${base}&ts=${Date.now()}`;
+(()=>{
+// ===== 설정 =====
+const ROOM_ID = "YOURROOMID"; // ← 여기만 네 룸 아이디로
+const base = `https://vdo.ninja/?view=${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo`;
+const freshUrl = () => `${base}&ts=${Date.now()}`; // 캐시/세션 우회
 
-  /* ===== 요소 ===== */
-  const view = document.getElementById('view');
-  const vctx = view.getContext('2d', { alpha:false });
-  const ninja = document.getElementById('ninjaOverlay');
-  const zoomVal = document.getElementById('zoomVal');
-  const btnZoomIn = document.getElementById('zoomIn');
-  const btnZoomOut = document.getElementById('zoomOut');
-  const btnToggleOverlay = document.getElementById('toggleOverlay');
-  const btnReconnect = document.getElementById('reconnect');
-  const welcomeBtn = document.getElementById('welcomeBtn');
-  const overlayPanel = document.getElementById('overlay');
-  const overlayContent = document.getElementById('overlayContent');
-  const statusEl = document.getElementById('status');
+// ===== 요소 =====
+const view = document.getElementById('view');
+const vctx = view.getContext('2d', {alpha:false});
+const ninjaA = document.getElementById('ninjaA');
+const ninjaB = document.getElementById('ninjaB');
+const btnToggle = document.getElementById('toggleOverlay');
+const btnReconnect = document.getElementById('reconnect');
+const readout = document.getElementById('readout');
+const statusEl = document.getElementById('status');
 
-  function setStatus(s){ statusEl.textContent = s; }
+// ===== 배경 카메라 =====
+const cam = document.createElement('video');
+cam.autoplay = true; cam.muted = true; cam.playsInline = true;
 
-  /* ===== 카메라 ===== */
-  const cam = document.createElement('video');
-  cam.autoplay = true; cam.muted = true; cam.playsInline = true;
+function fit(){
+  const dpr = devicePixelRatio || 1;
+  view.width = innerWidth*dpr; view.height = innerHeight*dpr;
+  vctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize', fit);
 
-  let ZOOM = 1.0, ZOOM_MIN = 0.5, ZOOM_MAX = 3.0, ZOOM_STEP = 0.1;
-  const clamp = (v,min,max) => Math.max(min, Math.min(max, v));
-  function updateZoom(){ zoomVal.textContent = ZOOM.toFixed(1) + '×'; }
-  btnZoomIn.addEventListener('click', () => { ZOOM = clamp(ZOOM + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoom(); });
-  btnZoomOut.addEventListener('click', () => { ZOOM = clamp(ZOOM - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX); updateZoom(); });
-  updateZoom();
+async function startCamera(){
+  const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
+  cam.srcObject = s; await cam.play().catch(()=>{});
+}
 
-  function fit(){
-    const dpr = window.devicePixelRatio || 1;
-    view.width = innerWidth * dpr;
-    view.height = innerHeight * dpr;
-    vctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  addEventListener('resize', fit);
-
-  async function startCamera(){
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }, audio: false
-    });
-    cam.srcObject = stream;
-    await cam.play().catch(()=>{});
-  }
-
-  function drawLoop(){
-    requestAnimationFrame(drawLoop);
-    fit();
-    const W = view.width / (window.devicePixelRatio||1);
-    const H = view.height / (window.devicePixelRatio||1);
-
-    vctx.clearRect(0,0,W,H);
-    if (cam.readyState >= 2) {
-      const vw = cam.videoWidth, vh = cam.videoHeight;
-      if (vw && vh){
-        const scale = Math.max(W/vw, H/vh) * ZOOM;
-        const dw = vw*scale, dh = vh*scale;
-        const dx = (W - dw)/2, dy = (H - dh)/2;
-        vctx.drawImage(cam, dx, dy, dw, dh);
-      }
-    }
-  }
-
-  /* ===== 오버레이(겹치기) — 연결 유지형 ON/OFF ===== */
-  let overlayOn = false;
-  let lastSrcAt = 0;
-
-  function refreshNinja(force=false){
-    const age = Date.now() - lastSrcAt;
-    if (force || !ninja.src || ninja.src === 'about:blank' || age > 120000){ // 2분 지난 세션은 새로고침
-      setStatus('connecting...');
-      ninja.src = ninjaUrl();
-      lastSrcAt = Date.now();
-      // 첫 페이드인 시점 보장(프레임 로드 이벤트 기준)
-      ninja.onload = () => setStatus('connected');
-      // 10초 내 연결 못하면 한 번 더 시도
-      setTimeout(() => {
-        if (Date.now() - lastSrcAt >= 9000 && overlayOn) {
-          setStatus('reconnect...');
-          ninja.src = ninjaUrl();
-          lastSrcAt = Date.now();
-        }
-      }, 9000);
-    }
-  }
-
-  // 페이지 로드시 백그라운드로 미리 붙여둔다(연결 준비)
-  (function preloadOverlay(){
-    refreshNinja(true);
-    ninja.style.opacity = '0';      // 숨긴 상태
-    ninja.style.pointerEvents = 'none';
-  })();
-
-  function setOverlay(on){
-    overlayOn = on;
-    if (on){
-      refreshNinja(false);          // 필요 시만 새로 붙임
-      ninja.style.opacity = '1';
-      setStatus('visible');
-    } else {
-      // 연결은 유지(끊지 않음). 다시 켤 땐 즉시 표시됨.
-      ninja.style.opacity = '0';
-      setStatus('hidden (connected)');
-    }
-    btnToggleOverlay.textContent = overlayOn ? 'Overlay ON' : 'Overlay OFF';
-  }
-
-  btnToggleOverlay.addEventListener('click', () => setOverlay(!overlayOn));
-
-  // 수동 강제 재연결 버튼
-  btnReconnect.addEventListener('click', () => {
-    setStatus('force reconnect...');
-    refreshNinja(true);
-    if (overlayOn) ninja.style.opacity = '1';
-  });
-
-  // 화면이 다시 보일 때 살아있으면 가볍게 갱신(모바일 절전/백그라운드 복귀 대응)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && overlayOn){
-      refreshNinja(false);
-    }
-  });
-
-  // 주기적 가벼운 갱신(켜져 있고 페이지 보이는 동안 60초마다)
-  setInterval(() => {
-    if (overlayOn && document.visibilityState === 'visible'){
-      refreshNinja(false);
-    }
-  }, 60000);
-
-  /* ===== 시작 버튼 ===== */
-  welcomeBtn.addEventListener('click', async () => {
-    overlayContent.classList.add('hidden');
-    try {
-      await startCamera();
-      setTimeout(() => { overlayPanel.style.display = 'none'; }, 450);
-      setOverlay(true); // 시작 시 바로 표시 (프리로드 + 연결유지)
-      drawLoop();
-    } catch(e){
-      overlayContent.classList.remove('hidden');
-      overlayContent.innerHTML = '<div style="background:#000;padding:8px 10px;display:inline-block">카메라 권한이 필요합니다. 브라우저 설정에서 허용해 주세요.</div>';
-    }
-  });
-
-  // 초기 사이즈 맞춤
+function drawLoop(){
+  requestAnimationFrame(drawLoop);
   fit();
+  const W = view.width/(devicePixelRatio||1), H = view.height/(devicePixelRatio||1);
+  vctx.clearRect(0,0,W,H);
+  if (cam.readyState>=2){
+    const vw=cam.videoWidth, vh=cam.videoHeight;
+    if(vw&&vh){
+      const sc=Math.max(W/vw,H/vh);
+      const dw=vw*sc, dh=vh*sc, dx=(W-dw)/2, dy=(H-dh)/2;
+      vctx.drawImage(cam,dx,dy,dw,dh);
+    }
+  }
+}
+
+// ===== 이중 프리로드 로직 =====
+let active = 'A';           // 현재 보여주는 쪽
+let overlayOn = false;      // 표시 상태
+let aLoadedAt = 0, bLoadedAt = 0;
+
+function setStatus(s){ statusEl.textContent = s; }
+
+function loadInto(iframe, markLoaded){
+  readout.textContent = 'connecting…';
+  iframe.src = freshUrl();
+  iframe.onload = () => {
+    markLoaded(Date.now());
+    readout.textContent = 'connected';
+  };
+}
+
+// 처음 로드: A는 활성용, B는 대기용
+function initialPreload(){
+  loadInto(ninjaA, t=>aLoadedAt=t);
+  // 2초 후 B도 미리 붙임(서버 부담 완화)
+  setTimeout(()=> loadInto(ninjaB, t=>bLoadedAt=t), 2000);
+}
+initialPreload();
+
+function show(iframe){ iframe.classList.add('show'); }
+function hide(iframe){ iframe.classList.remove('show'); }
+
+// 활성 표시/숨김
+function setOverlay(on){
+  overlayOn = on;
+  btnToggle.textContent = overlayOn ? 'Overlay ON' : 'Overlay OFF';
+  if (overlayOn){
+    if (active==='A'){ show(ninjaA); hide(ninjaB); setStatus('visible: A'); }
+    else             { show(ninjaB); hide(ninjaA); setStatus('visible: B'); }
+  } else {
+    hide(ninjaA); hide(ninjaB);
+    setStatus('hidden (connected)');
+  }
+}
+
+// 활성 끊김 감지 → 즉시 스왑 + 백그라운드 재프리로드
+function failover(){
+  if (active==='A'){
+    active='B'; show(ninjaB); hide(ninjaA); setStatus('failover → B');
+    // A를 다시 프리로드
+    setTimeout(()=>loadInto(ninjaA, t=>aLoadedAt=t), 500);
+  }else{
+    active='A'; show(ninjaA); hide(ninjaB); setStatus('failover → A');
+    setTimeout(()=>loadInto(ninjaB, t=>bLoadedAt=t), 500);
+  }
+}
+
+// 1) 사용자가 강제 재연결 누르면: 현재 보이는 쪽은 유지, 반대편을 갱신
+btnReconnect.addEventListener('click', ()=>{
+  readout.textContent='force reconnect…';
+  if (active==='A') loadInto(ninjaB, t=>bLoadedAt=t);
+  else              loadInto(ninjaA, t=>aLoadedAt=t);
+  // 3초 후 예비가 붙었을 것으로 가정하고 스왑
+  setTimeout(()=>{ if(overlayOn) failover(); }, 3000);
+});
+
+// 2) 표시 중인 쪽이 ‘오래됨’(2분↑) 감지 → 먼저 예비 갱신하고 스왑
+setInterval(()=>{
+  if (!overlayOn) return;
+  const now = Date.now();
+  const age = (active==='A') ? (now - aLoadedAt) : (now - bLoadedAt);
+  if (age > 120000){ // 2분 지난 세션은 새로고침
+    readout.textContent='refreshing…';
+    if (active==='A') loadInto(ninjaB, t=>bLoadedAt=t);
+    else              loadInto(ninjaA, t=>aLoadedAt=t);
+    setTimeout(()=>{ if(overlayOn) failover(); }, 2000);
+  }
+}, 15000);
+
+// 3) 페이지가 다시 보일 때(모바일 절전 복귀 등) 예비 갱신
+document.addEventListener('visibilitychange', ()=>{
+  if (document.visibilityState==='visible' && overlayOn){
+    if (active==='A') loadInto(ninjaB, t=>bLoadedAt=t);
+    else              loadInto(ninjaA, t=>aLoadedAt=t);
+  }
+});
+
+// 토글 버튼
+btnToggle.addEventListener('click', ()=> setOverlay(!overlayOn));
+
+// ===== 시작: 카메라 허용 후 바로 ON =====
+(async ()=>{
+  try{
+     await startCamera();
+     drawLoop();
+     setOverlay(true);
+  }catch(e){
+     readout.textContent='camera perm needed';
+     alert('카메라 권한을 허용해 주세요.');
+  }
+})();
 })();
 </script>
 </body>
