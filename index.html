@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>Audience Overlay (single file)</title>
+<title>Audience Overlay — VDO.Ninja Preload</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
@@ -18,7 +18,7 @@
   .frameBox{position:fixed;left:var(--frame);top:var(--frame);right:var(--frame);bottom:var(--frame);
     border:1px solid #000;pointer-events:none;z-index:50}
 
-  /* VDO.Ninja 오버레이(겹치기 방식) */
+  /* VDO.Ninja 오버레이(겹치기) */
   #ninjaOverlay{
     position:fixed; inset:0; width:100%; height:100%;
     border:0; z-index:10;
@@ -52,8 +52,11 @@
   <!-- 관객 카메라를 그릴 캔버스 -->
   <canvas id="view"></canvas>
 
-  <!-- VDO.Ninja 영상 겹치기(합성 아님) -->
-  <iframe id="ninjaOverlay" allow="autoplay; camera; microphone; fullscreen" src="about:blank"></iframe>
+  <!-- VDO.Ninja 영상 겹치기(합성 아님) — 프리로드 대상 -->
+  <iframe id="ninjaOverlay"
+          allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
+          referrerpolicy="no-referrer"
+          src="about:blank"></iframe>
 
   <div class="frameBox" aria-hidden="true"></div>
 
@@ -67,18 +70,18 @@
   <div id="overlay">
     <div id="overlayContent">
       <button id="welcomeBtn" class="uiBtn">Welcome to History of Nightmare</button>
-      <div class="tip">버튼을 누르면 카메라 권한을 요청합니다.</div>
-      <div class="tip">iPhone은 <b>HTTPS</b> 환경(깃허브 페이지 등)에서 가장 안정적입니다.</div>
+      <div class="tip">버튼을 누르면 카메라 권한을 요청합니다. iPhone은 <b>HTTPS</b> 환경 권장.</div>
     </div>
   </div>
 
 <script>
 (() => {
   /* ===== 설정 ===== */
-  // ↓↓↓ 이 값만 네 룸 아이디로 변경 (예: DIALOGUE2025) ↓↓↓
-  const ROOM_ID = "ROOM_ID_HERE";
-  // Safari 문제 있으면 &codec=vp8 덧붙이기 가능
-  const NINJA_URL = `https://vdo.ninja/?view=${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio`;
+  // 네가 쓰는 룸 아이디로 통일 (지금은 'YOURROOMID')
+  const ROOM_ID = "YOURROOMID";
+  // iOS 호환을 위해 codec=vp8, 단독/클린 재생 + 캐시우회(ts) 적용
+  const base = `https://vdo.ninja/?view=${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo`;
+  const ninjaUrl = () => `${base}&ts=${Date.now()}`;
 
   /* ===== 요소 ===== */
   const view = document.getElementById('view');
@@ -112,7 +115,6 @@
   addEventListener('resize', fit);
 
   async function startCamera(){
-    // iOS는 https 권장(깃허브 페이지/클라우드페이지만 쓰면 깔끔)
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment' }, audio: false
     });
@@ -138,16 +140,26 @@
     }
   }
 
-  /* ===== 오버레이(겹치기) ===== */
+  /* ===== 오버레이(겹치기) — 프리로드 방식 ===== */
   let overlayOn = false;
+
+  // 페이지 로드시 백그라운드로 미리 붙여둔다(연결 준비)
+  (function preloadOverlay(){
+    ninja.src = ninjaUrl();
+    ninja.style.opacity = '0';      // 숨겨진 상태
+    ninja.style.pointerEvents = 'none';
+  })();
+
   function setOverlay(on){
     overlayOn = on;
     if (on){
-      if (!ninja.src || ninja.src === 'about:blank') { ninja.src = NINJA_URL; }
+      // 혹시 백그라운드 연결이 끊겼다면 재연결
+      if (!ninja.contentWindow) ninja.src = ninjaUrl();
       ninja.style.opacity = '1';
     } else {
       ninja.style.opacity = '0';
-      setTimeout(() => { if(!overlayOn) ninja.src = 'about:blank'; }, 500);
+      // 성능 위해 비표시 상태 유지 시 src 비우기(연결 해제)
+      setTimeout(()=>{ if(!overlayOn) ninja.src = 'about:blank'; }, 600);
     }
     btnToggleOverlay.textContent = overlayOn ? 'Overlay ON' : 'Overlay OFF';
   }
@@ -159,7 +171,7 @@
     try {
       await startCamera();
       setTimeout(() => { overlayPanel.style.display = 'none'; }, 450);
-      setOverlay(true); // 시작 시 바로 켜기
+      setOverlay(true); // 시작 시 바로 표시 (프리로드 덕분에 체감 0초)
       drawLoop();
     } catch(e){
       overlayContent.classList.remove('hidden');
