@@ -3,16 +3,21 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>History of Nightmare — PWA Fix + Proscenium</title>
+<title>History of Nightmare — PWA + Proscenium + Rezolume Only</title>
+
+<!-- iOS PWA -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="data:application/manifest+json,{&quot;name&quot;:&quot;History of Nightmare&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;start_url&quot;:&quot;.&quot;,&quot;icons&quot;:[]}">
+
 <style>
   :root{
-    /* 뷰포트 치수: 브라우저 UI/홈바 영향 안받는 sv* 사용 */
-    --vw: 100svw; --vh: 100svh;
+    /* svh/svw가 미지원인 환경 대비: JS로 innerWidth/Height를 변수에 넣어 갱신 */
+    --vw: 100svw;
+    --vh: 100svh;
 
     /* 프로시니엄(얇은 선) */
-    --gap: 32px;                /* 가장자리 여백 */
+    --gap: 32px;
     --line-color: rgba(255,255,255,.9);
     --line-w: 1px;
     --line-r: 2px;
@@ -21,15 +26,18 @@
     :root{ --gap: 24px; }
   }
 
-  html,body{margin:0;height:100%;background:#000;overflow:hidden;-webkit-touch-callout:none;-webkit-tap-highlight-color:rgba(0,0,0,0)}
+  html,body{
+    margin:0;height:100%;background:#000;overflow:hidden;
+    -webkit-touch-callout:none;-webkit-tap-highlight-color:rgba(0,0,0,0)
+  }
 
-  /* 카메라(흑백) 캔버스 */
+  /* 관객 카메라(흑백) */
   #view{
     position:fixed; left:0; top:0; width:var(--vw); height:var(--vh);
     display:block; z-index:0;
   }
 
-  /* 레졸룸 오버레이(투명 배경 + 화면 꽉 채움, 터치 통과) */
+  /* 레졸룸(VDO.Ninja) 오버레이 — 투명 배경, 화면 100%, 터치 통과 */
   #ninjaOverlay{
     position:fixed; left:0; top:0; width:var(--vw); height:var(--vh);
     border:0; z-index:10; pointer-events:none;
@@ -37,7 +45,7 @@
     background:transparent;
   }
 
-  /* 프로시니엄(얇은 테두리 선) — 안전영역 포함 */
+  /* 프로시니엄(얇은 테두리) — 안전영역 포함 */
   .proscenium{
     position:fixed;
     left:calc(var(--gap) + env(safe-area-inset-left));
@@ -47,10 +55,7 @@
     border:var(--line-w) solid var(--line-color);
     border-radius:var(--line-r);
     box-sizing:border-box;
-    z-index:90;
-    pointer-events:none;
-    /* 픽셀 스냅으로 흐릿함 방지 */
-    transform:translateZ(0);
+    z-index:90; pointer-events:none; transform:translateZ(0);
   }
 
   /* IN/OUT 버튼 */
@@ -69,11 +74,17 @@
   #overlay{
     position:fixed; left:0; top:0; width:var(--vw); height:var(--vh);
     z-index:200; display:flex; align-items:center; justify-content:center;
-    padding:20px; font-family:"Courier New",monospace; color:#fff; background:rgba(0,0,0,.7);
+    padding:20px; font-family:"Courier New",monospace; color:#fff; background:rgba(0,0,0,.7)
   }
   #overlayContent{line-height:1.7; text-align:center; transition:opacity .45s ease}
   .hidden{opacity:0}
-  .warn{opacity:.8; font-size:12px; margin-top:8px}
+
+  /* 진단 HUD (3탭 토글) */
+  #diag{
+    position:fixed;left:8px;bottom:8px;z-index:9999;
+    background:rgba(0,0,0,.7);color:#0f0;font:12px/1.4 monospace;
+    padding:8px;border:1px solid #0f0;border-radius:6px;display:none;white-space:pre
+  }
 </style>
 </head>
 <body>
@@ -101,15 +112,23 @@
   <div id="overlay">
     <div id="overlayContent">
       <button id="welcomeBtn" class="uiBtn">Welcome to History of Nightmare</button>
-      <div id="httpsWarn" class="warn" style="display:none">HTTPS가 아니면 일부 권한이 제한될 수 있어요.</div>
-      <div class="warn">버튼을 누르면 카메라/마이크/센서 권한을 요청합니다. iPhone은 <b>홈 화면 추가</b> 후에도 동작.</div>
+      <div id="httpsWarn" style="opacity:.8; font-size:12px; margin-top:8px; display:none">
+        HTTPS가 아니면 일부 권한이 제한될 수 있어요. (그래도 시도합니다)
+      </div>
+      <div style="opacity:.8; font-size:12px; margin-top:6px">
+        버튼을 누르면 카메라/마이크/센서 권한을 요청합니다. iPhone은 <b>홈 화면 추가</b> 후에도 동작.
+      </div>
     </div>
   </div>
+
+  <!-- 진단 HUD -->
+  <div id="diag"></div>
 
 <script>
 (()=> {
 /* ========== 설정 ========== */
 const ROOM_ID = "YOURROOMID"; // ← 네 룸 아이디로 변경
+
 /* VDO.Ninja 내부 배경/여백 제거 + 영상만 꽉 채우도록 CSS 주입 */
 const injectedCss = encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
@@ -120,6 +139,7 @@ const injectedCss = encodeURIComponent(`
     object-fit:fill!important; background:transparent!important;
   }
 `);
+/* transparent=1 로 배경 투명화, css= 로 내부 스타일 강제 */
 const base =
   \`https://vdo.ninja/?view=\${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo\` +
   \`&transparent=1&css=\${injectedCss}\`;
@@ -134,10 +154,11 @@ const btnOut = document.getElementById('btnOut');
 const overlayPanel = document.getElementById('overlay');
 const overlayContent = document.getElementById('overlayContent');
 const httpsWarn = document.getElementById('httpsWarn');
+const diag = document.getElementById('diag');
 
 /* ========== 뷰포트 보정 (A2HS) ========== */
 function setViewportVars(){
-  // 일부 기기에서 svw/svh 지원이 미흡할 경우 대비
+  // svh/svw 미지원 환경/버그 대비
   document.documentElement.style.setProperty('--vw', window.innerWidth + 'px');
   document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
 }
@@ -159,12 +180,12 @@ function fitCamera(){
 }
 
 async function startCamera(){
-  // HTTPS가 아니면 getUserMedia가 거절될 수 있음 → 실패해도 전체 흐름을 막지 않음
+  // HTTPS가 아니면 실패 가능 → 실패해도 앱 흐름은 계속
   try{
     const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
     cam.srcObject=s; await cam.play().catch(()=>{});
   }catch(e){
-    console.warn('Camera start failed (likely non-HTTPS):', e);
+    console.warn('Camera start failed (possibly non-HTTPS):', e);
   }
 }
 
@@ -231,7 +252,7 @@ async function startMic(){
     const bus=audioCtx.createGain(); dry.connect(bus); wet.connect(bus);
     bus.connect(mixBus);
   }catch(e){
-    console.warn('Mic start failed (likely non-HTTPS):', e);
+    console.warn('Mic start failed (possibly non-HTTPS):', e);
   }
 }
 function makeIR(sec=2.6,decay=2.4){
@@ -278,7 +299,7 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
   // HTTPS 아니어도 흐름을 막지 않음 (경고만 표시)
   httpsWarn.style.display = window.isSecureContext ? 'none' : 'block';
   try{
-    // iOS: 사용자 제스처 콜스택에서 모두 시작
+    // 사용자 제스처 콜스택 내에서 전부 시도 (iOS 제한 회피)
     initAudio(); if(audioCtx.state==='suspended'){ await audioCtx.resume().catch(()=>{}); }
     await sensorPerm().catch(()=>{});
     await startMic().catch(()=>{});
@@ -293,7 +314,31 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
   }
 });
 
-/* 오디오/센서 keep-alive (앱 재포커스 시) */
+/* ========== 진단 HUD (3탭 토글) ========== */
+(function(){
+  let show=false, taps=0, last=0;
+  addEventListener('touchend', ()=>{
+    const now=Date.now(); if(now-last<400) taps++; else taps=1; last=now;
+    if(taps>=3){ show=!show; diag.style.display=show?'block':'none'; if(show) probe(); }
+  });
+  async function probe(){
+    const secure = window.isSecureContext;
+    const a2hs = matchMedia('(display-mode: standalone)').matches;
+    let cam='unknown', mic='unknown';
+    try{ const ps=await navigator.permissions.query({name:'camera'}).catch(()=>null); cam=ps?ps.state:'n/a'; }catch{}
+    try{ const ps=await navigator.permissions.query({name:'microphone'}).catch(()=>null); mic=ps?ps.state:'n/a'; }catch{}
+    diag.textContent =
+`secureContext: ${secure}
+display-mode: ${a2hs?'standalone':'browser'}
+viewport: ${innerWidth}x${innerHeight}
+camera perm: ${cam}
+microphone perm: ${mic}
+time: ${new Date().toLocaleTimeString()}`;
+    if(diag.style.display==='block') setTimeout(probe, 800);
+  }
+})();
+
+/* 오디오/센서 keep-alive */
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'visible'){
     if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
