@@ -2,47 +2,64 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>History of Nightmare — Rezolume Only + Proscenium</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>History of Nightmare — PWA Fix + Proscenium</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
-  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  :root{
+    /* 뷰포트 치수: 브라우저 UI/홈바 영향 안받는 sv* 사용 */
+    --vw: 100svw; --vh: 100svh;
 
-  /* 카메라(흑백) */
-  #view{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+    /* 프로시니엄(얇은 선) */
+    --gap: 32px;                /* 가장자리 여백 */
+    --line-color: rgba(255,255,255,.9);
+    --line-w: 1px;
+    --line-r: 2px;
+  }
+  @media (orientation:landscape){
+    :root{ --gap: 24px; }
+  }
 
-  /* 레졸룸 오버레이: 배경 투명 + 화면 100% + 50% 블렌드 */
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;-webkit-touch-callout:none;-webkit-tap-highlight-color:rgba(0,0,0,0)}
+
+  /* 카메라(흑백) 캔버스 */
+  #view{
+    position:fixed; left:0; top:0; width:var(--vw); height:var(--vh);
+    display:block; z-index:0;
+  }
+
+  /* 레졸룸 오버레이(투명 배경 + 화면 꽉 채움, 터치 통과) */
   #ninjaOverlay{
-    position:fixed; inset:0; width:100vw; height:100vh;
+    position:fixed; left:0; top:0; width:var(--vw); height:var(--vh);
     border:0; z-index:10; pointer-events:none;
     opacity:0; transition:opacity .35s ease;
     background:transparent;
   }
 
-  /* 프로시니엄(얇은 테두리 선) */
-  :root{
-    --proscenium-gap: 32px;          /* 화면 가장자리에서 안쪽 여백 */
-    --proscenium-color: rgba(255,255,255,.9);
-    --proscenium-width: 1px;
-    --proscenium-radius: 2px;
-  }
-  @media (orientation:landscape){
-    :root{ --proscenium-gap: 24px; }
-  }
+  /* 프로시니엄(얇은 테두리 선) — 안전영역 포함 */
   .proscenium{
     position:fixed;
-    left:var(--proscenium-gap); right:var(--proscenium-gap);
-    top:var(--proscenium-gap); bottom:var(--proscenium-gap);
-    border:var(--proscenium-width) solid var(--proscenium-color);
-    border-radius:var(--proscenium-radius);
+    left:calc(var(--gap) + env(safe-area-inset-left));
+    right:calc(var(--gap) + env(safe-area-inset-right));
+    top:calc(var(--gap) + env(safe-area-inset-top));
+    bottom:calc(var(--gap) + env(safe-area-inset-bottom));
+    border:var(--line-w) solid var(--line-color);
+    border-radius:var(--line-r);
     box-sizing:border-box;
-    z-index:90;                 /* 레졸룸(10) 위, 컨트롤(100) 아래 */
+    z-index:90;
     pointer-events:none;
+    /* 픽셀 스냅으로 흐릿함 방지 */
+    transform:translateZ(0);
   }
 
-  /* IN/OUT */
-  .controls{position:fixed;right:20px;bottom:20px;z-index:100;display:flex;gap:8px}
+  /* IN/OUT 버튼 */
+  .controls{
+    position:fixed;
+    right:calc(16px + env(safe-area-inset-right));
+    bottom:calc(16px + env(safe-area-inset-bottom));
+    z-index:100; display:flex; gap:8px
+  }
   .uiBtn{
     background:#000;color:#fff;border:1px solid #333;
     font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none
@@ -50,11 +67,13 @@
 
   /* 웰컴 오버레이 */
   #overlay{
-    position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
-    padding:20px;font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.7)
+    position:fixed; left:0; top:0; width:var(--vw); height:var(--vh);
+    z-index:200; display:flex; align-items:center; justify-content:center;
+    padding:20px; font-family:"Courier New",monospace; color:#fff; background:rgba(0,0,0,.7);
   }
-  #overlayContent{line-height:1.7;text-align:center;transition:opacity .45s ease}
+  #overlayContent{line-height:1.7; text-align:center; transition:opacity .45s ease}
   .hidden{opacity:0}
+  .warn{opacity:.8; font-size:12px; margin-top:8px}
 </style>
 </head>
 <body>
@@ -82,7 +101,8 @@
   <div id="overlay">
     <div id="overlayContent">
       <button id="welcomeBtn" class="uiBtn">Welcome to History of Nightmare</button>
-      <div style="opacity:.75;margin-top:8px;font-size:12px">버튼을 누르면 카메라/마이크/센서 권한을 요청합니다. iPhone은 <b>HTTPS</b> 권장.</div>
+      <div id="httpsWarn" class="warn" style="display:none">HTTPS가 아니면 일부 권한이 제한될 수 있어요.</div>
+      <div class="warn">버튼을 누르면 카메라/마이크/센서 권한을 요청합니다. iPhone은 <b>홈 화면 추가</b> 후에도 동작.</div>
     </div>
   </div>
 
@@ -90,20 +110,16 @@
 (()=> {
 /* ========== 설정 ========== */
 const ROOM_ID = "YOURROOMID"; // ← 네 룸 아이디로 변경
-
 /* VDO.Ninja 내부 배경/여백 제거 + 영상만 꽉 채우도록 CSS 주입 */
 const injectedCss = encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
   #container,.container{background:transparent!important;}
-  /* video/canvas를 뷰포트에 정확히 맞춤 (비율 무시하고 꽉 채움) */
   video,canvas{
     position:fixed!important; inset:0!important;
     width:100vw!important; height:100vh!important;
     object-fit:fill!important; background:transparent!important;
   }
 `);
-
-/* transparent=1 로 배경 투명화, css= 로 내부 스타일 강제 */
 const base =
   \`https://vdo.ninja/?view=\${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo\` +
   \`&transparent=1&css=\${injectedCss}\`;
@@ -117,6 +133,16 @@ const btnIn = document.getElementById('btnIn');
 const btnOut = document.getElementById('btnOut');
 const overlayPanel = document.getElementById('overlay');
 const overlayContent = document.getElementById('overlayContent');
+const httpsWarn = document.getElementById('httpsWarn');
+
+/* ========== 뷰포트 보정 (A2HS) ========== */
+function setViewportVars(){
+  // 일부 기기에서 svw/svh 지원이 미흡할 경우 대비
+  document.documentElement.style.setProperty('--vw', window.innerWidth + 'px');
+  document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
+}
+addEventListener('resize', ()=>{ setViewportVars(); setTimeout(fitCamera,50); });
+setViewportVars();
 
 /* ========== 카메라(흑백) ========== */
 const cam = document.createElement('video'); cam.autoplay=true; cam.muted=true; cam.playsInline=true;
@@ -131,11 +157,15 @@ function fitCamera(){
   proc.width = Math.floor(innerWidth*scale);
   proc.height = Math.floor(innerHeight*scale);
 }
-addEventListener('resize', ()=> setTimeout(fitCamera, 50));
 
 async function startCamera(){
-  const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-  cam.srcObject=s; await cam.play().catch(()=>{});
+  // HTTPS가 아니면 getUserMedia가 거절될 수 있음 → 실패해도 전체 흐름을 막지 않음
+  try{
+    const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    cam.srcObject=s; await cam.play().catch(()=>{});
+  }catch(e){
+    console.warn('Camera start failed (likely non-HTTPS):', e);
+  }
 }
 
 let _loop=false;
@@ -186,19 +216,23 @@ function initAudio(){
 }
 
 async function startMic(){
-  if(micStream) return;
-  const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:true,autoGainControl:false},video:false});
-  micStream=s; const src=audioCtx.createMediaStreamSource(s);
-  const hpf=audioCtx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=220;
-  const notch=audioCtx.createBiquadFilter(); notch.type='notch'; notch.frequency.value=300; notch.Q.value=3.5;
-  const comp=audioCtx.createDynamicsCompressor(); comp.threshold.value=-20; comp.ratio.value=3.5; comp.attack.value=0.006; comp.release.value=0.12;
-  const wet=audioCtx.createGain(); wet.gain.value=0.55; const dry=audioCtx.createGain(); dry.gain.value=0.08;
-  const convolver=audioCtx.createConvolver(); convolver.buffer=makeIR(2.6,2.4);
-  src.connect(hpf).connect(notch).connect(comp);
-  const split=audioCtx.createGain(); comp.connect(split);
-  split.connect(dry); split.connect(convolver).connect(wet);
-  const bus=audioCtx.createGain(); dry.connect(bus); wet.connect(bus);
-  bus.connect(mixBus);
+  try{
+    if(micStream) return;
+    const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:true,autoGainControl:false},video:false});
+    micStream=s; const src=audioCtx.createMediaStreamSource(s);
+    const hpf=audioCtx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=220;
+    const notch=audioCtx.createBiquadFilter(); notch.type='notch'; notch.frequency.value=300; notch.Q.value=3.5;
+    const comp=audioCtx.createDynamicsCompressor(); comp.threshold.value=-20; comp.ratio.value=3.5; comp.attack.value=0.006; comp.release.value=0.12;
+    const wet=audioCtx.createGain(); wet.gain.value=0.55; const dry=audioCtx.createGain(); dry.gain.value=0.08;
+    const convolver=audioCtx.createConvolver(); convolver.buffer=makeIR(2.6,2.4);
+    src.connect(hpf).connect(notch).connect(comp);
+    const split=audioCtx.createGain(); comp.connect(split);
+    split.connect(dry); split.connect(convolver).connect(wet);
+    const bus=audioCtx.createGain(); dry.connect(bus); wet.connect(bus);
+    bus.connect(mixBus);
+  }catch(e){
+    console.warn('Mic start failed (likely non-HTTPS):', e);
+  }
 }
 function makeIR(sec=2.6,decay=2.4){
   const rate=audioCtx.sampleRate,len=Math.floor(rate*sec),ir=audioCtx.createBuffer(2,len,rate);
@@ -233,7 +267,7 @@ function ctlLoop(){
   ninja.src = ninjaUrl(); // 투명 배경/여백 제거된 페이지
 })();
 function setOverlay(on){
-  ninja.style.opacity = on ? '0.5' : '0';  // 50% 블렌딩
+  ninja.style.opacity = on ? '0.5' : '0';  // 50% 블렌드
   if (on && !ninja.contentWindow) ninja.src = ninjaUrl();
 }
 btnIn.addEventListener('click', ()=> setOverlay(true));
@@ -241,12 +275,12 @@ btnOut.addEventListener('click', ()=> setOverlay(false));
 
 /* ========== 웰컴 버튼(권한/초기화) ========== */
 document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
-  if(!window.isSecureContext){
-    overlayContent.innerHTML = '<div style="background:#000;padding:10px;display:inline-block">보안 연결(HTTPS)에서 가장 안정적으로 동작합니다.</div>';
-  }
+  // HTTPS 아니어도 흐름을 막지 않음 (경고만 표시)
+  httpsWarn.style.display = window.isSecureContext ? 'none' : 'block';
   try{
-    sensorPerm().catch(()=>{});
+    // iOS: 사용자 제스처 콜스택에서 모두 시작
     initAudio(); if(audioCtx.state==='suspended'){ await audioCtx.resume().catch(()=>{}); }
+    await sensorPerm().catch(()=>{});
     await startMic().catch(()=>{});
     initOrientation(); ctlLoop();
 
@@ -255,12 +289,16 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
     overlayContent.classList.add('hidden'); setTimeout(()=>{ overlayPanel.style.display='none'; }, 450);
     setOverlay(true);
   }catch(e){
-    overlayContent.innerHTML = '<div style="background:#000;padding:10px;display:inline-block">권한이 거부되었거나 장치 접근 중 오류가 발생했습니다. 설정에서 카메라/마이크를 허용해 주세요.</div>';
+    overlayContent.innerHTML = '<div style="background:#000;padding:10px;display:inline-block">권한 허용이 필요합니다. (설정 > Safari 권한 확인)</div>';
   }
 });
 
-/* 오디오 keep-alive */
-document.addEventListener('visibilitychange', ()=>{ if(audioCtx && audioCtx.state==='suspended') audioCtx.resume().catch(()=>{}); });
+/* 오디오/센서 keep-alive (앱 재포커스 시) */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible'){
+    if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
+  }
+});
 
 })();
 </script>
