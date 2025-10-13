@@ -3,36 +3,26 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>History of Nightmare — Rezolume Fullscreen Blend</title>
+<title>History of Nightmare — Rezolume Only (Transparent)</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
-  /* 카메라(흑백) 캔버스 */
+  /* 카메라(흑백) */
   #view{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-
-  /* 레졸룸 오버레이: iframe 자체를 화면에 100%로 늘림(왜곡 가능) */
+  /* 레졸룸 오버레이: 배경 투명 + 화면 100% + 50% 블렌드 */
   #ninjaOverlay{
-    position:fixed; inset:0;           /* 0,0~100% */
-    width:100vw; height:100vh;         /* 화면 꽉 채우기 */
-    border:0; z-index:10;
-    opacity:0;                         /* OUT 상태 */
-    transition:opacity .35s ease;
-    pointer-events:none;               /* 터치 통과 */
+    position:fixed; inset:0; width:100vw; height:100vh;
+    border:0; z-index:10; pointer-events:none;
+    opacity:0; transition:opacity .35s ease;
+    background:transparent;
   }
-
-  /* IN/OUT 두 버튼 */
+  /* IN/OUT */
   .controls{position:fixed;right:20px;bottom:20px;z-index:100;display:flex;gap:8px}
-  .uiBtn{
-    background:#000;color:#fff;border:1px solid #333;
-    font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none
-  }
-
+  .uiBtn{background:#000;color:#fff;border:1px solid #333;font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none}
   /* 웰컴 오버레이 */
-  #overlay{
-    position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
-    padding:20px;font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.7)
-  }
+  #overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
+           font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.7)}
   #overlayContent{line-height:1.7;text-align:center;transition:opacity .45s ease}
   .hidden{opacity:0}
 </style>
@@ -41,9 +31,11 @@
   <!-- 관객 카메라(흑백) -->
   <canvas id="view"></canvas>
 
-  <!-- 레졸룸(VDO.Ninja) 오버레이 (50% 블렌딩은 iframe 자체 opacity로 처리) -->
+  <!-- 레졸룸(VDO.Ninja) 오버레이 (투명 배경) -->
   <iframe id="ninjaOverlay"
           allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
+          allowtransparency="true"
+          style="background:transparent"
           referrerpolicy="no-referrer"
           src="about:blank"></iframe>
 
@@ -64,9 +56,25 @@
 <script>
 (()=> {
 /* ========== 설정 ========== */
-const ROOM_ID = "YOURROOMID"; // ← 여기만 네 룸 아이디로
-const base = `https://vdo.ninja/?view=${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo`;
-const ninjaUrl = () => `${base}&ts=${Date.now()}`;
+const ROOM_ID = "YOURROOMID"; // ← 네 룸 아이디로 변경
+
+/* VDO.Ninja 내부 배경/여백 제거 + 영상만 꽉 채우도록 CSS 주입 */
+const injectedCss = encodeURIComponent(`
+  html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
+  #container,.container{background:transparent!important;}
+  /* video/canvas를 뷰포트에 정확히 맞춤 (비율 무시하고 꽉 채움; 원하면 object-fit:contain/cover로 변경 가능) */
+  video,canvas{
+    position:fixed!important; inset:0!important;
+    width:100vw!important; height:100vh!important;
+    object-fit:fill!important; background:transparent!important;
+  }
+`);
+
+/* transparent=1 로 배경 투명화, css= 로 내부 스타일 강제 */
+const base =
+  `https://vdo.ninja/?view=${encodeURIComponent(ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo` +
+  `&transparent=1&css=${injectedCss}`;
+const ninjaUrl = () => `${base}&ts=${Date.now()}`; // 캐시 우회
 
 /* ========== 요소 ========== */
 const view = document.getElementById('view');
@@ -187,12 +195,12 @@ function ctlLoop(){
   if(motionGain){ const now=audioCtx.currentTime; try{ motionGain.gain.setTargetAtTime(smVol,now,SMOOTH_TC);}catch{ motionGain.gain.value=smVol; } }
 }
 
-/* ========== 레졸룸 오버레이 (IN/OUT + 프리로드) ========== */
+/* ========== 레졸룸 오버레이: 프리로드 + IN/OUT ==========
+   투명 배경 페이지를 로드하고, IN에서 0.5 블렌딩 */
 (function preloadOverlay(){
-  ninja.src = ninjaUrl();     // 연결 유지(숨김)
+  ninja.src = ninjaUrl(); // 투명 배경/여백 제거된 페이지
 })();
 function setOverlay(on){
-  // 50/50 블렌드는 iframe 자체에 적용 (라인/여백 최소화)
   ninja.style.opacity = on ? '0.5' : '0';
   if (on && !ninja.contentWindow) ninja.src = ninjaUrl();
 }
@@ -219,7 +227,7 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
   }
 });
 
-// 오디오 keep-alive
+/* 오디오 keep-alive */
 document.addEventListener('visibilitychange', ()=>{ if(audioCtx && audioCtx.state==='suspended') audioCtx.resume().catch(()=>{}); });
 
 })();
