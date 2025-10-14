@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>History of Nightmare — PWA + Rez 65% + Proscenium</title>
+<title>History of Nightmare — PWA + Rez 70% + Proscenium</title>
 
 <!-- iOS PWA -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,13 +11,14 @@
 
 <style>
   :root{
-    /* JS가 실제 화면 픽셀을 넣어줌 (iOS A2HS 100vh 버그 대응) */
-    --vwpx: 100vw;   /* fallback */
-    --vhpx: 100vh;   /* fallback */
+    --vwpx: 100vw;   /* JS가 실제 픽셀값 주입 (iOS A2HS 100vh 버그 대응) */
+    --vhpx: 100vh;
 
     --gap: 32px;
     --line-color: rgba(255,255,255,.9);
     --line-w: 1px; --line-r: 2px;
+
+    --cam-zoom: 1; /* 확대/축소 (1 = 기본) */
   }
   @media (orientation:landscape){ :root{ --gap: 24px; } }
 
@@ -32,10 +33,10 @@
     display:block;z-index:0
   }
 
-  /* 레졸룸(VDO.Ninja) — 해상도 65%로 줄이고 화면은 꽉 채움 */
+  /* 레졸룸(VDO.Ninja) — 해상도 70%로 줄이고 화면은 꽉 채움(시각적 크기는 동일) */
   #ninjaOverlay{
     position:fixed;left:50%;top:50%;
-    width:var(--vwpx);height:var(--vhpx); /* 초기값; JS에서 65%로 재설정 */
+    width:var(--vwpx);height:var(--vhpx); /* 초기값; JS에서 70%로 재설정 */
     transform:translate(-50%,-50%) scale(1);transform-origin:50% 50%;
     border:0;z-index:10;pointer-events:none;opacity:0;
     transition:opacity .35s ease;background:transparent;
@@ -54,27 +55,39 @@
     box-sizing:border-box;z-index:90;pointer-events:none;transform:translateZ(0)
   }
 
-  /* IN/OUT */
+  /* 컨트롤: IN/OUT + 확대/축소 (미니멀: 배경/테두리 제거) */
   .controls{
     position:fixed;right:calc(16px + env(safe-area-inset-right));
     bottom:calc(16px + env(safe-area-inset-bottom));
-    z-index:100;display:flex;gap:8px
+    z-index:100;display:flex;gap:10px;align-items:center
   }
-  .uiBtn{
-    background:#000;color:#fff;border:1px solid #333;
-    font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none
+  .ctrlBtn{
+    background:transparent;border:none;color:#fff;cursor:pointer;user-select:none;
+    font-family:"Courier New",monospace;font-size:14px;padding:4px 6px;
+    opacity:.9
   }
+  .ctrlBtn:active{opacity:1}
+  .ctrlGroup{display:flex;gap:8px;align-items:center}
 
-  /* 시작 오버레이 */
+  /* 시작 오버레이 (버튼/문구 시퀀스만) */
   #overlay{
     position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);
     z-index:200;display:flex;align-items:center;justify-content:center;
     padding:20px;font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.7)
   }
   #overlayContent{line-height:1.7;text-align:center;transition:opacity .45s ease}
-  .hidden{opacity:0}
+  .uiBtn{
+    background:#000;color:#fff;border:1px solid #333;
+    font-family:"Courier New",monospace;padding:.7em 1.4em;cursor:pointer;user-select:none
+  }
+  .bigMsg{
+    font-size:clamp(18px, 4.5vmin, 36px); letter-spacing:.02em;
+    background:rgba(0,0,0,.55); padding:.6em 1em; display:inline-block
+  }
+  .fadeOut{animation:fadeOut .8s ease forwards}
+  @keyframes fadeOut{ to{opacity:0; visibility:hidden} }
 
-  /* HTTPS 안내(보안 아님) */
+  /* HTTPS 안내(자동 리다이렉트 실패 시) */
   #httpsBlock{
     position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
     background:rgba(0,0,0,.88);color:#fff;font-family:"Courier New",monospace;padding:20px;text-align:center
@@ -103,26 +116,28 @@
   <!-- 프로시니엄 -->
   <div class="proscenium" aria-hidden="true"></div>
 
-  <!-- IN/OUT -->
+  <!-- 컨트롤: IN/OUT + 확대/축소 -->
   <div class="controls">
-    <button class="uiBtn" id="btnIn">IN</button>
-    <button class="uiBtn" id="btnOut">OUT</button>
-  </div>
-
-  <!-- 시작 오버레이 -->
-  <div id="overlay">
-    <div id="overlayContent">
-      <button id="welcomeBtn" class="uiBtn">Welcome to History of Nightmare</button>
-      <div id="httpsWarn" style="opacity:.8;font-size:12px;margin-top:8px;display:none">
-        HTTPS가 아니면 일부 권한이 제한될 수 있어요. (그래도 시도합니다)
-      </div>
-      <div style="opacity:.8;font-size:12px;margin-top:6px">
-        버튼을 누르면 카메라/마이크/센서 권한을 요청합니다. iPhone은 <b>홈 화면 추가</b>에서도 동작(HTTPS 필요).
-      </div>
+    <div class="ctrlGroup">
+      <button class="ctrlBtn" id="btnIn">IN</button>
+      <button class="ctrlBtn" id="btnOut">OUT</button>
+    </div>
+    <div class="ctrlGroup" aria-label="zoom">
+      <button class="ctrlBtn" id="btnZoomOut">−</button>
+      <span style="opacity:.8">Zoom</span>
+      <button class="ctrlBtn" id="btnZoomIn">＋</button>
     </div>
   </div>
 
-  <!-- HTTPS 안내(자동 리다이렉트 실패 시) -->
+  <!-- 시작 오버레이(문구 시퀀스) -->
+  <div id="overlay">
+    <div id="overlayContent">
+      <!-- 1단계: “PRESS HERE TO START” -->
+      <button id="welcomeBtn" class="uiBtn">PRESS HERE TO START</button>
+    </div>
+  </div>
+
+  <!-- HTTPS 안내(필요 시) -->
   <div id="httpsBlock">
     <div id="httpsInner">
       <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
@@ -151,7 +166,7 @@ const CONFIG = {
   ROOM_ID:      "YOURROOMID",         // ← VDO.Ninja 룸 아이디
   HTTPS_ORIGIN: "",                   // ← 예: "https://abc123.ngrok-free.app"
   BLEND:        0.5,                  // 레졸룸 오버레이 불투명도(0~1)
-  REZ_SCALE:    0.65                  // 🔥 레졸룸 실제 렌더 해상도 비율 (65%)
+  REZ_SCALE:    0.70                  // 🔥 레졸룸 실제 렌더 해상도 비율 (70% 유지)
 };
 
 /* =======================
@@ -217,9 +232,10 @@ const vctx = view.getContext('2d',{alpha:false});
 const ninja= document.getElementById('ninjaOverlay');
 const btnIn= document.getElementById('btnIn');
 const btnOut= document.getElementById('btnOut');
+const btnZoomIn = document.getElementById('btnZoomIn');
+const btnZoomOut= document.getElementById('btnZoomOut');
 const overlayPanel  = document.getElementById('overlay');
 const overlayContent= document.getElementById('overlayContent');
-const httpsWarn     = document.getElementById('httpsWarn');
 const diag          = document.getElementById('diag');
 
 /* =======================
@@ -241,11 +257,12 @@ if (window.visualViewport){
 }
 
 /* =======================
-   5) 카메라(흑백)
+   5) 카메라(흑백) + 확대/축소
    ======================= */
 const cam  = document.createElement('video'); cam.autoplay=true; cam.muted=true; cam.playsInline=true;
 const proc = document.createElement('canvas'); const pctx = proc.getContext('2d',{willReadFrequently:true});
 const PROC_SCALE=0.60;
+let CAM_ZOOM = 1.0; // JS 레벨 확대/축소 (전체 합성 중 카메라 레이어 대상으로)
 
 function fitCamera(){
   const dpr = devicePixelRatio||1;
@@ -276,8 +293,9 @@ function loop(){
   if (cam.readyState>=2){
     const vw=cam.videoWidth, vh=cam.videoHeight;
     if(vw&&vh){
-      const sc=Math.max(PW/vw, PH/vh);
-      const dw=vw*sc, dh=vh*sc, dx=(PW-dw)/2, dy=(PH-dh)/2;
+      // 카메라 레이어 확대/축소 적용 (중앙 크롭)
+      const baseSc=Math.max(PW/vw, PH/vh) * CAM_ZOOM;
+      const dw=vw*baseSc, dh=vh*baseSc, dx=(PW-dw)/2, dy=(PH-dh)/2;
       pctx.drawImage(cam,dx,dy,dw,dh);
       const img=pctx.getImageData(0,0,PW,PH), d=img.data;
       for(let i=0;i<d.length;i+=4){ const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0; d[i]=d[i+1]=d[i+2]=g; }
@@ -289,7 +307,7 @@ function loop(){
 }
 
 /* =======================
-   6) 오디오/센서
+   6) 오디오/센서 + 버튼 부저음 + 마이크 감도 ↑
    ======================= */
 let audioCtx=null, mixBus=null, motionGain=null, masterGain=null, panSetter=null, micStream=null;
 const VOL_BASE=0.20, VOL_MAX_ADD=0.55, SMOOTH_TC=0.08, CTRL_SMOOTH_ALPHA=0.12, DEADZONE_VOL_DEG=5, DEADZONE_PAN_DEG=3, VOL_TILT_LIMIT=60, PAN_LIMIT_DEG=45;
@@ -298,6 +316,7 @@ function initAudio(){
   if(audioCtx) return;
   audioCtx = new (window.AudioContext||window.webkitAudioContext)();
   mixBus = audioCtx.createGain();
+
   let panOut = null;
   if(audioCtx.createStereoPanner){
     const sp = audioCtx.createStereoPanner();
@@ -312,20 +331,47 @@ function initAudio(){
   masterGain = audioCtx.createGain(); masterGain.gain.value=1.0;
   panOut.connect(motionGain); motionGain.connect(masterGain); masterGain.connect(audioCtx.destination);
 }
+
+/* 버튼 부저음: 짧은 비프 */
+function beep(){
+  try{
+    if(!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g   = audioCtx.createGain();
+    osc.type='square'; osc.frequency.value=880; // 부저 느낌
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.25, now+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0008, now+0.09);
+    osc.connect(g).connect(masterGain || audioCtx.destination);
+    osc.start(now); osc.stop(now+0.1);
+  }catch{}
+}
+
 async function startMic(){
   try{
     if(micStream) return;
     const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:true,autoGainControl:false},video:false});
     micStream=s; const src=audioCtx.createMediaStreamSource(s);
-    const hpf=audioCtx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=220;
+
+    /* 마이크 감도 최대로: 프리게인 + 약한 HPF + 컴프 + 리버브 */
+    const preGain = audioCtx.createGain(); preGain.gain.value = 3.0;  // +9.5 dB 정도
+    const hpf=audioCtx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=120; // 저역 살짝만 컷
     const notch=audioCtx.createBiquadFilter(); notch.type='notch'; notch.frequency.value=300; notch.Q.value=3.5;
-    const comp=audioCtx.createDynamicsCompressor(); comp.threshold.value=-20; comp.ratio.value=3.5; comp.attack.value=0.006; comp.release.value=0.12;
-    const wet=audioCtx.createGain(); wet.gain.value=0.55; const dry=audioCtx.createGain(); dry.gain.value=0.08;
+    const comp=audioCtx.createDynamicsCompressor();
+    comp.threshold.value=-26; comp.knee.value=6; comp.ratio.value=3.0;
+    comp.attack.value=0.005; comp.release.value=0.12;
+
+    const wet=audioCtx.createGain(); wet.gain.value=0.90; // 리버브 더 크게
+    const dry=audioCtx.createGain(); dry.gain.value=0.20; // 드라이도 약간
     const convolver=audioCtx.createConvolver(); convolver.buffer=makeIR(2.6,2.4);
-    src.connect(hpf).connect(notch).connect(comp);
+
+    src.connect(preGain).connect(hpf).connect(notch).connect(comp);
     const split=audioCtx.createGain(); comp.connect(split);
     split.connect(dry); split.connect(convolver).connect(wet);
-    const bus=audioCtx.createGain(); dry.connect(bus); wet.connect(bus);
+
+    const bus=audioCtx.createGain();
+    dry.connect(bus); wet.connect(bus);
     bus.connect(mixBus);
   }catch(e){ console.warn('Mic start failed (possibly non-HTTPS):', e); }
 }
@@ -358,7 +404,7 @@ function ctlLoop(){
 }
 
 /* =======================
-   7) Rezolume 해상도 스케일 적용
+   7) Rezolume 해상도 스케일 적용 (70% 고정)
    ======================= */
 function applyRezScale(){
   const s = Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1));
@@ -377,15 +423,24 @@ function setOverlay(on){
   ninja.style.opacity = on ? String(CONFIG.BLEND) : '0';
   if (on && !ninja.contentWindow) ninja.src = ninjaUrl();
 }
-btnIn.addEventListener('click', ()=> setOverlay(true));
-btnOut.addEventListener('click',()=> setOverlay(false));
+btnIn.addEventListener('click', ()=>{ beep(); setOverlay(true); });
+btnOut.addEventListener('click',()=>{ beep(); setOverlay(false); });
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src = ninjaUrl(); } }, 60000);
 
 /* =======================
-   9) 웰컴 버튼
+   9) 시작 시퀀스
+   -----------------------
+   1) PRESS HERE TO START (버튼)
+      -> (클릭) 초기화 + 'WELCOME TO HISTORY OF NIGHTMARE'(버튼) 표시
+   2) WELCOME TO HISTORY OF NIGHTMARE (버튼)
+      -> (클릭) 'SHOW WILL BIGIN SOON' → 3초 뒤
+               'PLEASE CAPTURING THE MOMENT' → 3초 뒤 페이드아웃
+               + Ninja 오버레이 ON
    ======================= */
-document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
-  httpsWarn.style.display = window.isSecureContext ? 'none' : 'block';
+const welcomeBtn = document.getElementById('welcomeBtn');
+
+welcomeBtn.addEventListener('click', async ()=>{
+  beep();
   try{
     initAudio(); if(audioCtx.state==='suspended'){ await audioCtx.resume().catch(()=>{}); }
     await sensorPerm().catch(()=>{});
@@ -393,17 +448,40 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
     initOrientation(); ctlLoop();
 
     await startCamera(); fitCamera(); ensureLoop();
-    applyRezScale(); // 🔥 해상도 스케일 적용
+    applyRezScale();
 
-    overlayContent.classList.add('hidden'); setTimeout(()=>{ overlayPanel.style.display='none'; }, 450);
-    setOverlay(true);
+    // 단계2 화면 구성: 'WELCOME TO HISTORY OF NIGHTMARE' (버튼)
+    overlayContent.innerHTML =
+      `<button id="btnWelcomeTitle" class="uiBtn">WELCOME TO HISTORY OF NIGHTMARE</button>`;
+    document.getElementById('btnWelcomeTitle').addEventListener('click', ()=>{
+      beep();
+      // 'SHOW WILL BIGIN SOON'
+      overlayContent.innerHTML = `<div class="bigMsg">SHOW WILL BIGIN SOON</div>`;
+      // 3초 후 'PLEASE CAPTURING THE MOMENT'
+      setTimeout(()=>{
+        overlayContent.innerHTML = `<div class="bigMsg">PLEASE CAPTURING THE MOMENT</div>`;
+        // 3초 후 페이드아웃 + 오버레이 제거 + 레졸룸 ON
+        setTimeout(()=>{
+          overlayContent.classList.add('fadeOut');
+          setTimeout(()=>{ overlayPanel.style.display='none'; }, 820);
+          setOverlay(true);
+        }, 3000);
+      }, 3000);
+    });
   }catch(e){
-    overlayContent.innerHTML = '<div style="background:#000;padding:10px;display:inline-block">권한 허용이 필요합니다. (설정 > Safari 권한 확인)</div>';
+    overlayContent.innerHTML = '<div class="bigMsg">권한 허용이 필요합니다</div>';
   }
 });
 
 /* =======================
-   10) 진단 HUD (3탭)
+   10) 확대/축소 버튼
+   ======================= */
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+btnZoomIn.addEventListener('click', ()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM+0.1, 0.8, 2.0); });
+btnZoomOut.addEventListener('click',()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM-0.1, 0.8, 2.0); });
+
+/* =======================
+   11) 진단 HUD (3탭)
    ======================= */
 (function(){
   let show=false,taps=0,last=0;
@@ -430,7 +508,7 @@ time: ${new Date().toLocaleTimeString()}`;
 })();
 
 /* =======================
-   11) keep-alive & 초기 스케일/핏
+   12) keep-alive & 초기 스케일/핏
    ======================= */
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState==='visible'){
