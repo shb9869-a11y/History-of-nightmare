@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>History of Nightmare — 50/50 Cam + Rez (Cover + Proscenium)</title>
+<title>History of Nightmare — Digital UI (50/50 Cam+Rez)</title>
+
+<!-- Digital font -->
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,26 +17,26 @@
   html,body{
     margin:0;height:100%;background:#000;overflow:hidden;
     -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
-    font-family:"Courier New",monospace; /* ✅ 폰트 통일 */
+    font-family:'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
   }
 
-  /* 관객 카메라 캔버스 */
+  /* 카메라 캔버스 */
   #view{
     position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);
     display:block;z-index:0;
   }
 
-  /* 레졸룸(VDO.Ninja) — 풀화면, 커버, 투명 배경 */
+  /* 레졸룸(VDO.Ninja) — 풀화면 커버 + 클릭 무시 */
   #ninjaOverlay{
     position:fixed;left:50%;top:50%;
     width:var(--vwpx);height:var(--vhpx);
     transform:translate(-50%,-50%);
-    border:0;z-index:10;pointer-events:none;opacity:0;
-    transition:opacity .35s ease;background:transparent;
+    border:0;z-index:10;pointer-events:none; /* ✅ 클릭 막지 않음 */
+    opacity:0;transition:opacity .35s ease;background:transparent;
     image-rendering:auto;will-change:opacity;
   }
 
-  /* ✅ 프로시니엄: 흰색 얇은 사각형 테두리 (safe-area 반영) */
+  /* 프로시니엄(흰 얇은 사각형, safe-area 반영) */
   .proscenium{
     position:fixed;
     left:calc(16px + env(safe-area-inset-left));
@@ -41,45 +44,47 @@
     top:calc(16px + env(safe-area-inset-top));
     bottom:calc(16px + env(safe-area-inset-bottom));
     border:1px solid rgba(255,255,255,0.9);
-    border-radius:2px;
-    box-sizing:border-box;z-index:90;pointer-events:none;
+    border-radius:2px;box-sizing:border-box;z-index:90;pointer-events:none;
   }
 
-  /* 확대/축소 컨트롤 — 폰트/스타일 통일 */
+  /* 확대/축소 컨트롤 (디지털 폰트 통일) */
   .zoomDock{
     position:fixed;right:calc(14px + env(safe-area-inset-right));
     bottom:calc(14px + env(safe-area-inset-bottom));
     z-index:120;display:flex;gap:10px;align-items:center;
     background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.2);
     border-radius:9999px;padding:4px 8px;backdrop-filter:blur(5px);
+    pointer-events:auto;
   }
   .zoomBtn{
-    background:transparent;border:1px solid rgba(255,255,255,.25);
-    color:#fff;cursor:pointer;user-select:none;
+    background:transparent;border:1px solid rgba(255,255,255,.28);
+    color:#fff;cursor:pointer;user-select:none;touch-action:manipulation;
     font-size:clamp(14px,2.4vmin,18px);letter-spacing:.03em;
     padding:.4em .8em;line-height:1;border-radius:8px;
   }
-  .zoomLabel{color:#fff;opacity:.8;font-size:clamp(14px,2.2vmin,16px);letter-spacing:.03em}
+  .zoomLabel{color:#fff;opacity:.85;font-size:clamp(14px,2.2vmin,16px);letter-spacing:.03em}
 
-  /* 중앙 오버레이 — 폰트/형식 완전 통일 */
+  /* 중앙 오버레이 (버튼 클릭 이슈 해결: z-index↑, pointer-events:auto) */
   #overlay{
-    position:fixed;inset:0;z-index:200;
+    position:fixed;inset:0;z-index:10000; /* ✅ 최상단 */
     display:flex;align-items:center;justify-content:center;
-    background:rgba(0,0,0,.65);
-    color:#fff;text-align:center;
+    background:rgba(0,0,0,.65);color:#fff;text-align:center;
+    pointer-events:auto;
   }
   #overlayContent{
-    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    position:absolute;left:50%;top:50%;
+    transform:translate(-50%,-50%);
+    pointer-events:auto;
   }
   .msgBtn, .msg{
-    font-size:clamp(14px,2.5vmin,20px);
-    letter-spacing:.03em;
-    padding:.6em 1.1em;
+    font-size:clamp(13px, 2.2vmin, 18px);
+    letter-spacing:.04em;
+    padding:.55em 1.05em;
     background:rgba(0,0,0,.55);
-    border:1px solid rgba(255,255,255,.25);
+    border:1px solid rgba(255,255,255,.28);
     color:#fff;display:inline-block;
   }
-  .msgBtn{cursor:pointer;}
+  .msgBtn{cursor:pointer;touch-action:manipulation;}
   .fadeOut{animation:fadeOut .8s ease forwards;}
   @keyframes fadeOut{to{opacity:0;visibility:hidden}}
 </style>
@@ -93,7 +98,7 @@
           allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
           referrerpolicy="no-referrer"></iframe>
 
-  <!-- 프로시니엄(얇은 흰 테두리) -->
+  <!-- 프로시니엄 -->
   <div class="proscenium" aria-hidden="true"></div>
 
   <!-- 확대/축소 -->
@@ -118,8 +123,8 @@
    ======================= */
 const CONFIG={
   ROOM_ID:"YOURROOMID",  // ← VDO.Ninja 룸 ID
-  BLEND:0.5,             // 레졸룸 오버레이 불투명도 (50%)
-  PROC_SCALE:0.5         // 🔥 카메라 처리 해상도(50%)
+  BLEND:0.5,             // 레졸룸 불투명도 50%
+  PROC_SCALE:0.5         // 카메라 처리 해상도 50%
 };
 
 /* =======================
@@ -137,7 +142,8 @@ const injectedCss = encodeURIComponent(`
 const ninja = document.getElementById("ninjaOverlay");
 const ninjaBase =
   \`https://vdo.ninja/?view=\${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo&transparent=1&css=\${injectedCss}\`;
-ninja.src = \`\${ninjaBase}&ts=\${Date.now()}\`;
+const ninjaUrl = () => \`\${ninjaBase}&ts=\${Date.now()}\`;
+ninja.src = ninjaUrl();
 
 function setOverlay(on){ ninja.style.opacity = on ? CONFIG.BLEND : 0; }
 
@@ -165,11 +171,11 @@ function fitAll(){
   proc.width=Math.max(2, Math.floor(w*CONFIG.PROC_SCALE));
   proc.height=Math.max(2, Math.floor(h*CONFIG.PROC_SCALE));
 }
-window.addEventListener("resize", fitAll);
+window.addEventListener("resize", fitAll, {passive:true});
 window.addEventListener("orientationchange", ()=>setTimeout(fitAll, 60));
 if (window.visualViewport){
-  visualViewport.addEventListener("resize", fitAll);
-  visualViewport.addEventListener("scroll", fitAll);
+  visualViewport.addEventListener("resize", fitAll, {passive:true});
+  visualViewport.addEventListener("scroll", fitAll, {passive:true});
 }
 fitAll();
 
@@ -227,7 +233,7 @@ document.getElementById("btnZoomIn").addEventListener("click", ()=>{ beep(); CAM
 document.getElementById("btnZoomOut").addEventListener("click",()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM-0.1, 0.8, 2.0); });
 
 /* =======================
-   시작 오버레이 시퀀스 (폰트/형식 동일)
+   시작 오버레이 시퀀스 (디지털 폰트 통일)
    ======================= */
 const overlay = document.getElementById("overlay");
 const overlayContent = document.getElementById("overlayContent");
