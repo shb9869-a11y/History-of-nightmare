@@ -20,20 +20,21 @@
     font-family:'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
   }
 
-  /* 카메라 캔버스 */
+  /* 카메라 캔버스 (어떤 경우에도 클릭 방해하지 않도록) */
   #view{
     position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);
-    display:block;z-index:0;
+    display:block;z-index:0; pointer-events:none;
   }
 
-  /* 레졸룸(VDO.Ninja) — 풀화면 커버 + 클릭 무시(강제) */
+  /* 레졸룸(VDO.Ninja) — 풀화면 커버, 초기 완전 숨김 */
   #ninjaOverlay{
     position:fixed;left:50%;top:50%;
     width:var(--vwpx);height:var(--vhpx);
     transform:translate(-50%,-50%);
-    border:0;z-index:10;pointer-events:none !important; /* ✅ 어떤 경우에도 버튼 가로막지 않음 */
+    border:0;z-index:10;pointer-events:none;  /* 안전망 */
     opacity:0;transition:opacity .35s ease;background:transparent;
     image-rendering:auto;will-change:opacity;
+    display:none; /* ✅ 시작 전에는 완전히 숨김 */
   }
 
   /* 프로시니엄(흰 얇은 사각형, safe-area 반영) */
@@ -47,7 +48,7 @@
     border-radius:2px;box-sizing:border-box;z-index:90;pointer-events:none;
   }
 
-  /* 확대/축소 컨트롤 (디지털 폰트 통일) */
+  /* 확대/축소 컨트롤 */
   .zoomDock{
     position:fixed;right:calc(14px + env(safe-area-inset-right));
     bottom:calc(14px + env(safe-area-inset-bottom));
@@ -65,9 +66,9 @@
   }
   .zoomLabel{color:#fff;opacity:.85;font-size:clamp(14px,2.2vmin,16px);letter-spacing:.03em}
 
-  /* 중앙 오버레이 (버튼 클릭 이슈 해결: z-index↑, pointer-events:auto) */
+  /* 중앙 오버레이 (최상단 + 클릭 가능) */
   #overlay{
-    position:fixed;inset:0;z-index:10000; /* ✅ 최상단 고정 */
+    position:fixed;inset:0;z-index:10000;
     display:flex;align-items:center;justify-content:center;
     background:rgba(0,0,0,.65);color:#fff;text-align:center;
     pointer-events:auto;
@@ -132,16 +133,6 @@ const CONFIG={
 };
 
 /* =======================
-   유틸: 안전한 탭(클릭/터치/포인터) 바인딩
-   ======================= */
-function onTap(el, handler){
-  if(!el) return;
-  el.addEventListener('click', handler);
-  el.addEventListener('pointerup', (e)=>{ handler(e); });
-  el.addEventListener('touchend', (e)=>{ e.preventDefault(); handler(e); }, {passive:false});
-}
-
-/* =======================
    VDO.Ninja (세로/가로 모두 커버)
    ======================= */
 const injectedCss = encodeURIComponent(`
@@ -159,7 +150,16 @@ const ninjaBase =
 const ninjaUrl = () => \`\${ninjaBase}&ts=\${Date.now()}\`;
 ninja.src = ninjaUrl();
 
-function setOverlay(on){ ninja.style.opacity = on ? CONFIG.BLEND : 0; }
+/* 오버레이 표시/숨김 (표시 시에만 display:block) */
+function setOverlay(on){
+  if(on){
+    ninja.style.display = 'block';
+    requestAnimationFrame(()=>{ ninja.style.opacity = String(CONFIG.BLEND); });
+  }else{
+    ninja.style.opacity = '0';
+    setTimeout(()=>{ ninja.style.display = 'none'; }, 400);
+  }
+}
 
 /* =======================
    카메라 파이프라인 (흑백 + COVER)
@@ -243,36 +243,53 @@ function beep(){
   }catch{}
 }
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
-onTap(document.getElementById("btnZoomIn"),  ()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM+0.1, 0.8, 2.0); });
-onTap(document.getElementById("btnZoomOut"), ()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM-0.1, 0.8, 2.0); });
+document.getElementById("btnZoomIn").addEventListener("click", ()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM+0.1, 0.8, 2.0); });
+document.getElementById("btnZoomOut").addEventListener("click",()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM-0.1, 0.8, 2.0); });
 
 /* =======================
-   시작 오버레이 시퀀스 (안전 탭 바인딩)
+   시작 오버레이 — 이벤트 위임으로 확실한 탭 처리
    ======================= */
 const overlay = document.getElementById("overlay");
 const overlayContent = document.getElementById("overlayContent");
 
-function startSequence(){
-  beep();
-  startCamera().then(()=>{ fitAll(); ensureLoop(); setOverlay(true); });
-
-  // 2단계: 타이틀
-  overlayContent.innerHTML = '<button id="btnWelcome" class="msgBtn">WELCOME TO HISTORY OF NIGHTMARE</button>';
-  const btnWelcome = document.getElementById("btnWelcome");
-  onTap(btnWelcome, ()=>{
-    beep();
-    overlayContent.innerHTML = '<div class="msg">SHOW WILL BEGIN SOON</div>';
-    setTimeout(()=>{
-      overlayContent.innerHTML = '<div class="msg">PLEASE CAPTURING THE MOMENT</div>';
-      setTimeout(()=>{
-        overlayContent.classList.add("fadeOut");
-        setTimeout(()=>{ overlay.style.display="none"; }, 820);
-      }, 3000);
-    }, 3000);
-  });
+/* click/pointerup/touchend 모두 처리 (이벤트 위임) */
+function handleTap(targetId, cb){
+  const handler = (e)=>{
+    const t = e.target;
+    if(t && t.id === targetId){
+      e.preventDefault?.();
+      cb();
+    }
+  };
+  overlayContent.addEventListener('click', handler);
+  overlayContent.addEventListener('pointerup', handler);
+  overlayContent.addEventListener('touchend', handler, {passive:false});
+  return handler;
 }
 
-onTap(document.getElementById("btnStart"), startSequence);
+/* 1단계: START */
+handleTap('btnStart', async ()=>{
+  beep();
+  await startCamera(); fitAll(); ensureLoop();
+
+  /* 레졸룸 표시: display:block 후 불투명도 적용 */
+  setOverlay(true);
+
+  overlayContent.innerHTML = '<button id="btnWelcome" class="msgBtn">WELCOME TO HISTORY OF NIGHTMARE</button>';
+});
+
+/* 2단계: WELCOME → 메시지 시퀀스 */
+handleTap('btnWelcome', ()=>{
+  beep();
+  overlayContent.innerHTML = '<div class="msg">SHOW WILL BEGIN SOON</div>';
+  setTimeout(()=>{
+    overlayContent.innerHTML = '<div class="msg">PLEASE CAPTURING THE MOMENT</div>';
+    setTimeout(()=>{
+      overlayContent.classList.add("fadeOut");
+      setTimeout(()=>{ overlay.style.display="none"; }, 820);
+    }, 3000);
+  }, 3000);
+});
 
 })();
 </script>
