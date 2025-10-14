@@ -198,15 +198,14 @@ btnOpen?.addEventListener('click', ()=>{
 if (!tryHttpsRedirect() && shouldForceHttps()){ httpsBlock.style.display = 'flex'; }
 
 /* =======================
-   2) VDO.Ninja URL (투명/여백 제거 + 영상만 꽉 차게)
-   ======================= */
+   2) VDO.Ninja URL (투명/여백 제거 + 영상만 꽉 차게) — COVER */
 const injectedCss = encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
   #container,.container{background:transparent!important;}
   video,canvas{
     position:fixed!important; inset:0!important;
     width:100vw!important; height:100vh!important;
-    object-fit:fill!important; background:transparent!important;
+    object-fit:cover!important; background:transparent!important;
   }
 `);
 const ninjaBase =
@@ -228,7 +227,7 @@ const btnStart      = document.getElementById('btnStart');
 const diag          = document.getElementById('diag');
 
 /* =======================
-   4) 뷰포트 보정 (iOS A2HS 100vh 버그 완전 해결)
+   4) 뷰포트 보정 + 회전/리사이즈 즉시 재계산
    ======================= */
 function setViewportVars(){
   const vv = window.visualViewport;
@@ -237,16 +236,20 @@ function setViewportVars(){
   document.documentElement.style.setProperty('--vwpx', w + 'px');
   document.documentElement.style.setProperty('--vhpx', h + 'px');
 }
-setViewportVars();
-window.addEventListener('resize', setViewportVars);
-window.addEventListener('orientationchange', ()=>setTimeout(setViewportVars, 50));
+function refitAll(){
+  setViewportVars();
+  fitCamera();
+}
+refitAll();
+window.addEventListener('resize', refitAll);
+window.addEventListener('orientationchange', ()=>setTimeout(refitAll, 50));
 if (window.visualViewport){
-  visualViewport.addEventListener('resize', setViewportVars);
-  visualViewport.addEventListener('scroll', setViewportVars);
+  visualViewport.addEventListener('resize', refitAll);
+  visualViewport.addEventListener('scroll',  refitAll);
 }
 
 /* =======================
-   5) 카메라(흑백) + 줌
+   5) 카메라(흑백) + 줌 (COVER 렌더)
    ======================= */
 const cam  = document.createElement('video'); cam.autoplay=true; cam.muted=true; cam.playsInline=true;
 const proc = document.createElement('canvas'); const pctx = proc.getContext('2d',{willReadFrequently:true});
@@ -255,50 +258,63 @@ let CAM_ZOOM = 1.0;
 
 function fitCamera(){
   const dpr = devicePixelRatio||1;
-  view.width = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'))*dpr;
-  view.height= parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'))*dpr;
-  vctx.setTransform(dpr,0,0,dpr,0,0);
   const cssW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
   const cssH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
+
+  // 화면 캔버스(dpr 반영)
+  view.width  = Math.max(1, Math.round(cssW * dpr));
+  view.height = Math.max(1, Math.round(cssH * dpr));
+  vctx.setTransform(dpr,0,0,dpr,0,0);
+
+  // 처리용 캔버스(기준 해상도)
   const scale = matchMedia('(orientation:landscape)').matches? PROC_SCALE*0.9 : PROC_SCALE;
-  proc.width  = Math.floor(cssW*scale);
-  proc.height = Math.floor(cssH*scale);
+  proc.width  = Math.max(2, Math.floor(cssW*scale));
+  proc.height = Math.max(2, Math.floor(cssH*scale));
 }
+
 async function startCamera(){
   try{
     const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
     cam.srcObject=s; await cam.play().catch(()=>{});
   }catch(e){ console.warn('Camera start failed (possibly non-HTTPS):', e); }
 }
+
 let _loop=false;
 function ensureLoop(){ if(_loop) return; _loop=true; loop(); }
+
 function loop(){
   requestAnimationFrame(loop);
-  const cssW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
-  const cssH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
-  const W=cssW, H=cssH;
+
+  // 1) 카메라 → proc (COVER + 줌 + 흑백)
   const PW=proc.width, PH=proc.height;
   pctx.clearRect(0,0,PW,PH);
   if (cam.readyState>=2){
     const vw=cam.videoWidth, vh=cam.videoHeight;
     if(vw&&vh){
-      const baseSc=Math.max(PW/vw, PH/vh) * CAM_ZOOM;
-      const dw=vw*baseSc, dh=vh*baseSc, dx=(PW-dw)/2, dy=(PH-dh)/2;
+      const coverScale = Math.max(PW/vw, PH/vh) * CAM_ZOOM;
+      const dw=vw*coverScale, dh=vh*coverScale, dx=(PW-dw)/2, dy=(PH-dh)/2;
       pctx.drawImage(cam,dx,dy,dw,dh);
       const img=pctx.getImageData(0,0,PW,PH), d=img.data;
       for(let i=0;i<d.length;i+=4){ const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0; d[i]=d[i+1]=d[i+2]=g; }
       pctx.putImageData(img,0,0);
     }
   }
+
+  // 2) proc → view (COVER로 최종 합성; 회전 시 비율 깨짐 방지)
+  const cssW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
+  const cssH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
+  const W=cssW, H=cssH;
   vctx.clearRect(0,0,W,H);
-  vctx.drawImage(proc,0,0,W,H);
+  const coverScale2 = Math.max(W/PW, H/PH);
+  const dw2=PW*coverScale2, dh2=PH*coverScale2, dx2=(W-dw2)/2, dy2=(H-dh2)/2;
+  vctx.drawImage(proc, dx2, dy2, dw2, dh2);
 }
 
 /* =======================
    6) 오디오/센서 + 버튼 부저음 + 마이크 감도 ↑
    ======================= */
 let audioCtx=null, mixBus=null, motionGain=null, masterGain=null, panSetter=null, micStream=null;
-const VOL_BASE=0.20, VOL_MAX_ADD=0.55, SMOOTH_TC=0.08, CTRL_SMOOTH_ALPHA=0.12, DEADZONE_VOL_DEG=5, DEADZONE_PAN_DEG=3, VOL_TILT_LIMIT=60, PAN_LIMIT_DEG=45;
+const VOL_BASE=0.20, VOL_MAX_ADD=0.55;
 
 function initAudio(){
   if(audioCtx) return;
@@ -368,6 +384,7 @@ function makeIR(sec=2.6,decay=2.4){
   for(let c=0;c<2;c++){ const v=ir.getChannelData(c); for(let i=0;i<len;i++){ const t=i/len, env=Math.pow(1-t,decay); v[i]=(Math.random()*2-1)*env*0.55; } }
   return ir;
 }
+
 let sensorsReady=false, latestOri={beta:0,gamma:0}, smVol=VOL_BASE, smPan=0;
 async function sensorPerm(){
   try{ if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){ const r=await DeviceOrientationEvent.requestPermission(); if(r==='granted') sensorsReady=true; } else sensorsReady=true; }catch{}
@@ -402,9 +419,7 @@ function setOverlay(on){
 
 /* =======================
    8) 시작 시퀀스
-   -----------------------
-   START → (즉시) 레졸룸 표시 + 'WELCOME...' 버튼
-   'WELCOME...' 클릭 → 'SHOW WILL BIGIN SOON' → 3초 → 'PLEASE CAPTURING THE MOMENT' → 3초 → 페이드아웃
+   START → (즉시) VDO 표시 + 'WELCOME...' → 'SHOW WILL BIGIN SOON' → 3초 → 'PLEASE CAPTURING THE MOMENT' → 3초 → 페이드아웃
    ======================= */
 btnStart.addEventListener('click', async ()=>{
   beep();
@@ -415,10 +430,8 @@ btnStart.addEventListener('click', async ()=>{
     initOrientation(); ctlLoop();
     await startCamera(); fitCamera(); ensureLoop();
 
-    /* 요청: START 누르자마자 레졸룸 바로 보이기 */
-    setOverlay(true);
+    setOverlay(true); // 누르자마자 레졸룸 표시
 
-    /* 동일 양식의 다음 단계 버튼 */
     overlayContent.innerHTML = `<button id="btnWelcome" class="msgBtn">WELCOME TO HISTORY OF NIGHTMARE</button>`;
     document.getElementById('btnWelcome').addEventListener('click', ()=>{
       beep();
@@ -455,9 +468,6 @@ document.getElementById('btnZoomOut').addEventListener('click',()=>{ beep(); CAM
   async function probe(){
     const secure = window.isSecureContext;
     const a2hs = matchMedia('(display-mode: standalone)').matches;
-    let cam='unknown', mic='unknown';
-    try{ const ps=await navigator.permissions.query({name:'camera'}).catch(()=>null); cam=ps?ps.state:'n/a'; }catch{}
-    try{ const ps=await navigator.permissions.query({name:'microphone'}).catch(()=>null); mic=ps?ps.state:'n/a'; }catch{}
     diag.textContent =
 `secureContext: ${secure}
 display-mode: ${a2hs?'standalone':'browser'}
