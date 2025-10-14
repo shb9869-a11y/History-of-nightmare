@@ -26,12 +26,12 @@
     display:block;z-index:0;
   }
 
-  /* 레졸룸(VDO.Ninja) — 풀화면 커버 + 클릭 무시 */
+  /* 레졸룸(VDO.Ninja) — 풀화면 커버 + 클릭 무시(강제) */
   #ninjaOverlay{
     position:fixed;left:50%;top:50%;
     width:var(--vwpx);height:var(--vhpx);
     transform:translate(-50%,-50%);
-    border:0;z-index:10;pointer-events:none; /* ✅ 클릭 막지 않음 */
+    border:0;z-index:10;pointer-events:none !important; /* ✅ 어떤 경우에도 버튼 가로막지 않음 */
     opacity:0;transition:opacity .35s ease;background:transparent;
     image-rendering:auto;will-change:opacity;
   }
@@ -59,14 +59,15 @@
   .zoomBtn{
     background:transparent;border:1px solid rgba(255,255,255,.28);
     color:#fff;cursor:pointer;user-select:none;touch-action:manipulation;
-    font-size:clamp(14px,2.4vmin,18px);letter-spacing:.03em;
-    padding:.4em .8em;line-height:1;border-radius:8px;
+    -webkit-appearance:none;appearance:none;
+    font-size:clamp(14px,2.4vmin,18px);letter-spacing:.04em;
+    padding:.45em .85em;line-height:1;border-radius:8px;
   }
   .zoomLabel{color:#fff;opacity:.85;font-size:clamp(14px,2.2vmin,16px);letter-spacing:.03em}
 
   /* 중앙 오버레이 (버튼 클릭 이슈 해결: z-index↑, pointer-events:auto) */
   #overlay{
-    position:fixed;inset:0;z-index:10000; /* ✅ 최상단 */
+    position:fixed;inset:0;z-index:10000; /* ✅ 최상단 고정 */
     display:flex;align-items:center;justify-content:center;
     background:rgba(0,0,0,.65);color:#fff;text-align:center;
     pointer-events:auto;
@@ -78,13 +79,16 @@
   }
   .msgBtn, .msg{
     font-size:clamp(13px, 2.2vmin, 18px);
-    letter-spacing:.04em;
-    padding:.55em 1.05em;
+    letter-spacing:.05em;
+    padding:.6em 1.1em;
     background:rgba(0,0,0,.55);
     border:1px solid rgba(255,255,255,.28);
     color:#fff;display:inline-block;
   }
-  .msgBtn{cursor:pointer;touch-action:manipulation;}
+  .msgBtn{
+    cursor:pointer;touch-action:manipulation;
+    -webkit-appearance:none;appearance:none;
+  }
   .fadeOut{animation:fadeOut .8s ease forwards;}
   @keyframes fadeOut{to{opacity:0;visibility:hidden}}
 </style>
@@ -126,6 +130,16 @@ const CONFIG={
   BLEND:0.5,             // 레졸룸 불투명도 50%
   PROC_SCALE:0.5         // 카메라 처리 해상도 50%
 };
+
+/* =======================
+   유틸: 안전한 탭(클릭/터치/포인터) 바인딩
+   ======================= */
+function onTap(el, handler){
+  if(!el) return;
+  el.addEventListener('click', handler);
+  el.addEventListener('pointerup', (e)=>{ handler(e); });
+  el.addEventListener('touchend', (e)=>{ e.preventDefault(); handler(e); }, {passive:false});
+}
 
 /* =======================
    VDO.Ninja (세로/가로 모두 커버)
@@ -229,22 +243,23 @@ function beep(){
   }catch{}
 }
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
-document.getElementById("btnZoomIn").addEventListener("click", ()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM+0.1, 0.8, 2.0); });
-document.getElementById("btnZoomOut").addEventListener("click",()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM-0.1, 0.8, 2.0); });
+onTap(document.getElementById("btnZoomIn"),  ()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM+0.1, 0.8, 2.0); });
+onTap(document.getElementById("btnZoomOut"), ()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM-0.1, 0.8, 2.0); });
 
 /* =======================
-   시작 오버레이 시퀀스 (디지털 폰트 통일)
+   시작 오버레이 시퀀스 (안전 탭 바인딩)
    ======================= */
 const overlay = document.getElementById("overlay");
 const overlayContent = document.getElementById("overlayContent");
-document.getElementById("btnStart").addEventListener("click", async ()=>{
+
+function startSequence(){
   beep();
-  await startCamera(); fitAll(); ensureLoop();
-  setOverlay(true); // 누르자마자 레졸룸 표시
+  startCamera().then(()=>{ fitAll(); ensureLoop(); setOverlay(true); });
 
   // 2단계: 타이틀
   overlayContent.innerHTML = '<button id="btnWelcome" class="msgBtn">WELCOME TO HISTORY OF NIGHTMARE</button>';
-  document.getElementById("btnWelcome").addEventListener("click", ()=>{
+  const btnWelcome = document.getElementById("btnWelcome");
+  onTap(btnWelcome, ()=>{
     beep();
     overlayContent.innerHTML = '<div class="msg">SHOW WILL BEGIN SOON</div>';
     setTimeout(()=>{
@@ -255,7 +270,9 @@ document.getElementById("btnStart").addEventListener("click", async ()=>{
       }, 3000);
     }, 3000);
   });
-});
+}
+
+onTap(document.getElementById("btnStart"), startSequence);
 
 })();
 </script>
