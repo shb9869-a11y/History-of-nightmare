@@ -11,8 +11,9 @@
 
 <style>
   :root{
-    --vwpx: 100vw;   /* JS가 실제 픽셀값 주입 (iOS A2HS 100vh 버그 대응) */
-    --vhpx: 100vh;
+    /* JS가 실제 화면 픽셀을 넣어줌 (iOS A2HS 100vh 버그 대응) */
+    --vwpx: 100vw;   /* fallback */
+    --vhpx: 100vh;   /* fallback */
 
     --gap: 32px;
     --line-color: rgba(255,255,255,.9);
@@ -64,7 +65,7 @@
     font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none
   }
 
-  /* 시작 오버레이 (버튼만 남김) */
+  /* 시작 오버레이 */
   #overlay{
     position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);
     z-index:200;display:flex;align-items:center;justify-content:center;
@@ -73,7 +74,7 @@
   #overlayContent{line-height:1.7;text-align:center;transition:opacity .45s ease}
   .hidden{opacity:0}
 
-  /* HTTPS 안내(자동 리다이렉트 실패 시) */
+  /* HTTPS 안내(보안 아님) */
   #httpsBlock{
     position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
     background:rgba(0,0,0,.88);color:#fff;font-family:"Courier New",monospace;padding:20px;text-align:center
@@ -108,14 +109,20 @@
     <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
-  <!-- 시작 오버레이(문구 제거, 버튼만) -->
+  <!-- 시작 오버레이 -->
   <div id="overlay">
     <div id="overlayContent">
       <button id="welcomeBtn" class="uiBtn">Welcome to History of Nightmare</button>
+      <div id="httpsWarn" style="opacity:.8;font-size:12px;margin-top:8px;display:none">
+        HTTPS가 아니면 일부 권한이 제한될 수 있어요. (그래도 시도합니다)
+      </div>
+      <div style="opacity:.8;font-size:12px;margin-top:6px">
+        버튼을 누르면 카메라/마이크/센서 권한을 요청합니다. iPhone은 <b>홈 화면 추가</b>에서도 동작(HTTPS 필요).
+      </div>
     </div>
   </div>
 
-  <!-- HTTPS 안내(자동 리다이렉트 실패 시 별도 팝업) -->
+  <!-- HTTPS 안내(자동 리다이렉트 실패 시) -->
   <div id="httpsBlock">
     <div id="httpsInner">
       <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
@@ -144,7 +151,7 @@ const CONFIG = {
   ROOM_ID:      "YOURROOMID",         // ← VDO.Ninja 룸 아이디
   HTTPS_ORIGIN: "",                   // ← 예: "https://abc123.ngrok-free.app"
   BLEND:        0.5,                  // 레졸룸 오버레이 불투명도(0~1)
-  REZ_SCALE:    0.65                  // 레졸룸 실제 렌더 해상도 비율 (65%)
+  REZ_SCALE:    0.65                  // 🔥 레졸룸 실제 렌더 해상도 비율 (65%)
 };
 
 /* =======================
@@ -212,6 +219,7 @@ const btnIn= document.getElementById('btnIn');
 const btnOut= document.getElementById('btnOut');
 const overlayPanel  = document.getElementById('overlay');
 const overlayContent= document.getElementById('overlayContent');
+const httpsWarn     = document.getElementById('httpsWarn');
 const diag          = document.getElementById('diag');
 
 /* =======================
@@ -374,9 +382,10 @@ btnOut.addEventListener('click',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src = ninjaUrl(); } }, 60000);
 
 /* =======================
-   9) 웰컴 버튼 (문구 제거 버전)
+   9) 웰컴 버튼
    ======================= */
 document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
+  httpsWarn.style.display = window.isSecureContext ? 'none' : 'block';
   try{
     initAudio(); if(audioCtx.state==='suspended'){ await audioCtx.resume().catch(()=>{}); }
     await sensorPerm().catch(()=>{});
@@ -384,7 +393,7 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
     initOrientation(); ctlLoop();
 
     await startCamera(); fitCamera(); ensureLoop();
-    applyRezScale();
+    applyRezScale(); // 🔥 해상도 스케일 적용
 
     overlayContent.classList.add('hidden'); setTimeout(()=>{ overlayPanel.style.display='none'; }, 450);
     setOverlay(true);
