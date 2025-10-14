@@ -201,7 +201,7 @@ const injectedCss = encodeURIComponent(`
   video,canvas{
     position:fixed!important; inset:0!important;
     width:100vw!important; height:100vh!important;
-    object-fit:fill!important; background:transparent!important;
+    object-fit:cover!important; background:transparent!important;
   }
 `);
 const ninjaBase =
@@ -223,7 +223,7 @@ const httpsWarn     = document.getElementById('httpsWarn');
 const diag          = document.getElementById('diag');
 
 /* =======================
-   4) 뷰포트 보정 (iOS A2HS 100vh 버그 완전 해결)
+   4) 뷰포트 보정 + 재레이아웃 디바운스
    ======================= */
 function setViewportVars(){
   const vv = window.visualViewport;
@@ -232,12 +232,27 @@ function setViewportVars(){
   document.documentElement.style.setProperty('--vwpx', w + 'px');
   document.documentElement.style.setProperty('--vhpx', h + 'px');
 }
+
+let relayoutTimer=null;
+function scheduleLayoutRefresh(delay=60){
+  clearTimeout(relayoutTimer);
+  relayoutTimer = setTimeout(()=>{ 
+    setViewportVars();
+    fitCamera();
+    applyRezScale();
+  }, delay);
+}
+
 setViewportVars();
-window.addEventListener('resize', setViewportVars);
-window.addEventListener('orientationchange', ()=>setTimeout(setViewportVars, 50));
+window.addEventListener('resize', ()=>scheduleLayoutRefresh(80));
+window.addEventListener('orientationchange', ()=>{
+  // iOS는 회전 직후 innerHeight가 잠깐 틀림 → 조금 더 기다렸다 2회 갱신
+  scheduleLayoutRefresh(120);
+  scheduleLayoutRefresh(300);
+});
 if (window.visualViewport){
-  visualViewport.addEventListener('resize', setViewportVars);
-  visualViewport.addEventListener('scroll', setViewportVars);
+  visualViewport.addEventListener('resize', ()=>scheduleLayoutRefresh(60));
+  visualViewport.addEventListener('scroll', ()=>scheduleLayoutRefresh(60));
 }
 
 /* =======================
@@ -249,43 +264,68 @@ const PROC_SCALE=0.60;
 
 function fitCamera(){
   const dpr = devicePixelRatio||1;
-  view.width = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'))*dpr;
-  view.height= parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'))*dpr;
-  vctx.setTransform(dpr,0,0,dpr,0,0);
   const cssW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
   const cssH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
+
+  // view 캔버스는 화면 픽셀과 일치
+  view.width = Math.max(1, Math.round(cssW * dpr));
+  view.height= Math.max(1, Math.round(cssH * dpr));
+  vctx.setTransform(dpr,0,0,dpr,0,0);
+
+  // 처리용 proc 캔버스(성능 위해 축소) — 항상 화면 비율을 따르도록 맞춤
   const scale = matchMedia('(orientation:landscape)').matches? PROC_SCALE*0.9 : PROC_SCALE;
-  proc.width  = Math.floor(cssW*scale);
-  proc.height = Math.floor(cssH*scale);
+  proc.width  = Math.max(1, Math.floor(cssW * scale));
+  proc.height = Math.max(1, Math.floor(cssH * scale));
 }
+
 async function startCamera(){
   try{
     const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-    cam.srcObject=s; await cam.play().catch(()=>{});
+    cam.srcObject=s;
+    // 메타데이터 로드 후 한 번 더 레이아웃 맞춤 (iOS 회전 직후 안전)
+    cam.addEventListener('loadedmetadata', ()=>scheduleLayoutRefresh(0), {once:true});
+    await cam.play().catch(()=>{});
   }catch(e){ console.warn('Camera start failed (possibly non-HTTPS):', e); }
 }
+
 let _loop=false;
 function ensureLoop(){ if(_loop) return; _loop=true; loop(); }
 function loop(){
   requestAnimationFrame(loop);
+
   const cssW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
   const cssH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
   const W=cssW, H=cssH;
+
   const PW=proc.width, PH=proc.height;
+
+  // 1) cam → proc (cover, 그레이스케일)
   pctx.clearRect(0,0,PW,PH);
   if (cam.readyState>=2){
     const vw=cam.videoWidth, vh=cam.videoHeight;
     if(vw&&vh){
+      // cover fit
       const sc=Math.max(PW/vw, PH/vh);
       const dw=vw*sc, dh=vh*sc, dx=(PW-dw)/2, dy=(PH-dh)/2;
       pctx.drawImage(cam,dx,dy,dw,dh);
+
+      // 흑백 변환
       const img=pctx.getImageData(0,0,PW,PH), d=img.data;
-      for(let i=0;i<d.length;i+=4){ const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0; d[i]=d[i+1]=d[i+2]=g; }
+      for(let i=0;i<d.length;i+=4){
+        const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0;
+        d[i]=d[i+1]=d[i+2]=g;
+      }
       pctx.putImageData(img,0,0);
     }
   }
+
+  // 2) proc → view (★ cover 방식으로 비율 고정: 가로/세로 전환 시 왜곡 방지)
   vctx.clearRect(0,0,W,H);
-  vctx.drawImage(proc,0,0,W,H);
+  if (PW>0 && PH>0){
+    const sc2 = Math.max(W/PW, H/PH);
+    const dw2 = PW*sc2, dh2 = PH*sc2, dx2=(W-dw2)/2, dy2=(H-dh2)/2;
+    vctx.drawImage(proc, dx2, dy2, dw2, dh2);
+  }
 }
 
 /* =======================
@@ -377,8 +417,8 @@ function setOverlay(on){
   ninja.style.opacity = on ? String(CONFIG.BLEND) : '0';
   if (on && !ninja.contentWindow) ninja.src = ninjaUrl();
 }
-btnIn.addEventListener('click', ()=> setOverlay(true));
-btnOut.addEventListener('click',()=> setOverlay(false));
+document.getElementById('btnIn').addEventListener('click', ()=> setOverlay(true));
+document.getElementById('btnOut').addEventListener('click',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src = ninjaUrl(); } }, 60000);
 
 /* =======================
@@ -435,6 +475,8 @@ time: ${new Date().toLocaleTimeString()}`;
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState==='visible'){
     if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
+    // 돌아오면 한 번 더 정렬
+    scheduleLayoutRefresh(0);
   }
 });
 applyRezScale();
