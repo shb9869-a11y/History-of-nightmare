@@ -3,137 +3,190 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>History of Nightmare — Digital UI (50/50 Cam+Rez)</title>
+<title>History of Nightmare — PWA + Rez 65% + Proscenium</title>
 
-<!-- Digital font -->
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
-
+<!-- iOS PWA -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 <style>
-  :root{ --vwpx: 100vw; --vhpx: 100vh; }
+  :root{
+    --vwpx: 100vw;   /* JS가 실제 픽셀값 주입 (iOS A2HS 100vh 버그 대응) */
+    --vhpx: 100vh;
+
+    --gap: 32px;
+    --line-color: rgba(255,255,255,.9);
+    --line-w: 1px; --line-r: 2px;
+  }
+  @media (orientation:landscape){ :root{ --gap: 24px; } }
 
   html,body{
     margin:0;height:100%;background:#000;overflow:hidden;
-    -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
-    font-family:'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
+    -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent
   }
 
-  /* 카메라 캔버스 (어떤 경우에도 클릭 방해하지 않도록) */
+  /* 관객 카메라(흑백) */
   #view{
     position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);
-    display:block;z-index:0; pointer-events:none;
+    display:block;z-index:0
   }
 
-  /* 레졸룸(VDO.Ninja) — 풀화면 커버, 초기 완전 숨김 */
+  /* 레졸룸(VDO.Ninja) — 해상도 65%로 줄이고 화면은 꽉 채움 */
   #ninjaOverlay{
     position:fixed;left:50%;top:50%;
-    width:var(--vwpx);height:var(--vhpx);
-    transform:translate(-50%,-50%);
-    border:0;z-index:10;pointer-events:none;  /* 안전망 */
-    opacity:0;transition:opacity .35s ease;background:transparent;
-    image-rendering:auto;will-change:opacity;
-    display:none; /* ✅ 시작 전에는 완전히 숨김 */
+    width:var(--vwpx);height:var(--vhpx); /* 초기값; JS에서 65%로 재설정 */
+    transform:translate(-50%,-50%) scale(1);transform-origin:50% 50%;
+    border:0;z-index:10;pointer-events:none;opacity:0;
+    transition:opacity .35s ease;background:transparent;
+    image-rendering:auto;will-change:transform
   }
 
-  /* 프로시니엄(흰 얇은 사각형, safe-area 반영) */
+  /* 프로시니엄(얇은 선) — safe-area 반영 */
   .proscenium{
     position:fixed;
-    left:calc(16px + env(safe-area-inset-left));
-    right:calc(16px + env(safe-area-inset-right));
-    top:calc(16px + env(safe-area-inset-top));
+    left:calc(var(--gap) + env(safe-area-inset-left));
+    right:calc(var(--gap) + env(safe-area-inset-right));
+    top:calc(var(--gap) + env(safe-area-inset-top));
+    bottom:calc(var(--gap) + env(safe-area-inset-bottom));
+    border:var(--line-w) solid var(--line-color);
+    border-radius:var(--line-r);
+    box-sizing:border-box;z-index:90;pointer-events:none;transform:translateZ(0)
+  }
+
+  /* IN/OUT */
+  .controls{
+    position:fixed;right:calc(16px + env(safe-area-inset-right));
     bottom:calc(16px + env(safe-area-inset-bottom));
-    border:1px solid rgba(255,255,255,0.9);
-    border-radius:2px;box-sizing:border-box;z-index:90;pointer-events:none;
+    z-index:100;display:flex;gap:8px
+  }
+  .uiBtn{
+    background:#000;color:#fff;border:1px solid #333;
+    font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none
   }
 
-  /* 확대/축소 컨트롤 */
-  .zoomDock{
-    position:fixed;right:calc(14px + env(safe-area-inset-right));
-    bottom:calc(14px + env(safe-area-inset-bottom));
-    z-index:120;display:flex;gap:10px;align-items:center;
-    background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.2);
-    border-radius:9999px;padding:4px 8px;backdrop-filter:blur(5px);
-    pointer-events:auto;
-  }
-  .zoomBtn{
-    background:transparent;border:1px solid rgba(255,255,255,.28);
-    color:#fff;cursor:pointer;user-select:none;touch-action:manipulation;
-    -webkit-appearance:none;appearance:none;
-    font-size:clamp(14px,2.4vmin,18px);letter-spacing:.04em;
-    padding:.45em .85em;line-height:1;border-radius:8px;
-  }
-  .zoomLabel{color:#fff;opacity:.85;font-size:clamp(14px,2.2vmin,16px);letter-spacing:.03em}
-
-  /* 중앙 오버레이 (최상단 + 클릭 가능) */
+  /* 시작 오버레이 (버튼만 남김) */
   #overlay{
-    position:fixed;inset:0;z-index:10000;
-    display:flex;align-items:center;justify-content:center;
-    background:rgba(0,0,0,.65);color:#fff;text-align:center;
-    pointer-events:auto;
+    position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);
+    z-index:200;display:flex;align-items:center;justify-content:center;
+    padding:20px;font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.7)
   }
-  #overlayContent{
-    position:absolute;left:50%;top:50%;
-    transform:translate(-50%,-50%);
-    pointer-events:auto;
+  #overlayContent{line-height:1.7;text-align:center;transition:opacity .45s ease}
+  .hidden{opacity:0}
+
+  /* HTTPS 안내(자동 리다이렉트 실패 시) */
+  #httpsBlock{
+    position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);color:#fff;font-family:"Courier New",monospace;padding:20px;text-align:center
   }
-  .msgBtn, .msg{
-    font-size:clamp(13px, 2.2vmin, 18px);
-    letter-spacing:.05em;
-    padding:.6em 1.1em;
-    background:rgba(0,0,0,.55);
-    border:1px solid rgba(255,255,255,.28);
-    color:#fff;display:inline-block;
+  #httpsInner{max-width:560px}
+  .kbd{display:inline-block;border:1px solid #888;padding:2px 6px;border-radius:4px;background:#111}
+
+  /* 진단 HUD (3탭 토글) */
+  #diag{
+    position:fixed;left:8px;bottom:8px;z-index:9999;
+    background:rgba(0,0,0,.7);color:#0f0;font:12px/1.4 monospace;
+    padding:8px;border:1px solid #0f0;border-radius:6px;display:none;white-space:pre
   }
-  .msgBtn{
-    cursor:pointer;touch-action:manipulation;
-    -webkit-appearance:none;appearance:none;
-  }
-  .fadeOut{animation:fadeOut .8s ease forwards;}
-  @keyframes fadeOut{to{opacity:0;visibility:hidden}}
 </style>
 </head>
 <body>
-  <!-- 카메라 -->
+  <!-- 관객 카메라(흑백) -->
   <canvas id="view"></canvas>
 
-  <!-- 레졸룸 -->
+  <!-- 레졸룸(VDO.Ninja) -->
   <iframe id="ninjaOverlay"
           allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
-          referrerpolicy="no-referrer"></iframe>
+          allowtransparency="true" style="background:transparent" referrerpolicy="no-referrer"
+          src="about:blank"></iframe>
 
   <!-- 프로시니엄 -->
   <div class="proscenium" aria-hidden="true"></div>
 
-  <!-- 확대/축소 -->
-  <div class="zoomDock" aria-label="zoom controls">
-    <button class="zoomBtn" id="btnZoomOut" aria-label="zoom out">−</button>
-    <span class="zoomLabel">Zoom</span>
-    <button class="zoomBtn" id="btnZoomIn" aria-label="zoom in">＋</button>
+  <!-- IN/OUT -->
+  <div class="controls">
+    <button class="uiBtn" id="btnIn">IN</button>
+    <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
-  <!-- 시작 오버레이 -->
+  <!-- 시작 오버레이(문구 제거, 버튼만) -->
   <div id="overlay">
     <div id="overlayContent">
-      <button id="btnStart" class="msgBtn">PRESS HERE TO START</button>
+      <button id="welcomeBtn" class="uiBtn">Welcome to History of Nightmare</button>
     </div>
   </div>
 
-<script>
-(()=>{
+  <!-- HTTPS 안내(자동 리다이렉트 실패 시 별도 팝업) -->
+  <div id="httpsBlock">
+    <div id="httpsInner">
+      <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
+      <div style="opacity:.9">홈 화면 앱에선 HTTP에서 카메라/마이크가 차단돼요.</div>
+      <div style="margin:12px 0 8px">아래 주소로 자동 이동하도록 설정하세요:</div>
+      <div id="httpsUrlBox" class="kbd" style="user-select:all;display:inline-block;"></div>
+      <div style="margin-top:12px">
+        <button id="copyHttps" class="uiBtn">주소 복사</button>
+        <button id="openHttps" class="uiBtn">열기</button>
+      </div>
+      <div style="opacity:.7;margin-top:10px;font-size:12px">
+        (예: <span class="kbd">cloudflared tunnel --url http://localhost:8001</span> 또는 <span class="kbd">ngrok http 8001</span> 로 받은 주소)
+      </div>
+    </div>
+  </div>
 
+  <!-- 진단 HUD -->
+  <div id="diag"></div>
+
+<script>
+(()=> {
 /* =======================
-   구성
+   0) 구성 (수정 포인트)
    ======================= */
-const CONFIG={
-  ROOM_ID:"YOURROOMID",  // ← VDO.Ninja 룸 ID
-  BLEND:0.5,             // 레졸룸 불투명도 50%
-  PROC_SCALE:0.5         // 카메라 처리 해상도 50%
+const CONFIG = {
+  ROOM_ID:      "YOURROOMID",         // ← VDO.Ninja 룸 아이디
+  HTTPS_ORIGIN: "",                   // ← 예: "https://abc123.ngrok-free.app"
+  BLEND:        0.5,                  // 레졸룸 오버레이 불투명도(0~1)
+  REZ_SCALE:    0.65                  // 레졸룸 실제 렌더 해상도 비율 (65%)
 };
 
 /* =======================
-   VDO.Ninja (세로/가로 모두 커버)
+   1) HTTPS 강제/안내
+   ======================= */
+const httpsBlock = document.getElementById('httpsBlock');
+const httpsBox   = document.getElementById('httpsUrlBox');
+const btnCopy    = document.getElementById('copyHttps');
+const btnOpen    = document.getElementById('openHttps');
+
+function shouldForceHttps(){
+  const local = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
+  return !window.isSecureContext && !local;
+}
+function tryHttpsRedirect(){
+  if (shouldForceHttps()) {
+    if (CONFIG.HTTPS_ORIGIN){
+      const target = new URL(location.href);
+      const origin = CONFIG.HTTPS_ORIGIN.replace(/\/+$/,'');
+      const redirectUrl = origin + target.pathname + target.search + target.hash;
+      location.replace(redirectUrl);
+      return true;
+    } else {
+      httpsBox.textContent = "(HTTPS 주소를 설정하세요: CONFIG.HTTPS_ORIGIN)";
+      httpsBlock.style.display = 'flex';
+      return false;
+    }
+  }
+  return false;
+}
+btnCopy?.addEventListener('click', async ()=>{
+  if (!CONFIG.HTTPS_ORIGIN){ alert('CONFIG.HTTPS_ORIGIN이 비어있어요.'); return; }
+  try{ await navigator.clipboard.writeText(CONFIG.HTTPS_ORIGIN); alert('복사됨'); }catch{ alert(CONFIG.HTTPS_ORIGIN); }
+});
+btnOpen?.addEventListener('click', ()=>{
+  if (!CONFIG.HTTPS_ORIGIN){ alert('CONFIG.HTTPS_ORIGIN이 비어있어요.'); return; }
+  location.href = CONFIG.HTTPS_ORIGIN;
+});
+if (!tryHttpsRedirect() && shouldForceHttps()){ httpsBlock.style.display = 'flex'; }
+
+/* =======================
+   2) VDO.Ninja URL (투명/여백 제거 + 영상만 꽉 차게)
    ======================= */
 const injectedCss = encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
@@ -141,155 +194,242 @@ const injectedCss = encodeURIComponent(`
   video,canvas{
     position:fixed!important; inset:0!important;
     width:100vw!important; height:100vh!important;
-    object-fit:cover!important; background:transparent!important;
+    object-fit:fill!important; background:transparent!important;
   }
 `);
-const ninja = document.getElementById("ninjaOverlay");
 const ninjaBase =
-  \`https://vdo.ninja/?view=\${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo&transparent=1&css=\${injectedCss}\`;
-const ninjaUrl = () => \`\${ninjaBase}&ts=\${Date.now()}\`;
-ninja.src = ninjaUrl();
+  `https://vdo.ninja/?view=${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo` +
+  `&transparent=1&css=${injectedCss}`;
+const ninjaUrl = ()=> `${ninjaBase}&ts=${Date.now()}`;
 
-/* 오버레이 표시/숨김 (표시 시에만 display:block) */
-function setOverlay(on){
-  if(on){
-    ninja.style.display = 'block';
-    requestAnimationFrame(()=>{ ninja.style.opacity = String(CONFIG.BLEND); });
-  }else{
-    ninja.style.opacity = '0';
-    setTimeout(()=>{ ninja.style.display = 'none'; }, 400);
-  }
+/* =======================
+   3) 요소 참조
+   ======================= */
+const view = document.getElementById('view');
+const vctx = view.getContext('2d',{alpha:false});
+const ninja= document.getElementById('ninjaOverlay');
+const btnIn= document.getElementById('btnIn');
+const btnOut= document.getElementById('btnOut');
+const overlayPanel  = document.getElementById('overlay');
+const overlayContent= document.getElementById('overlayContent');
+const diag          = document.getElementById('diag');
+
+/* =======================
+   4) 뷰포트 보정 (iOS A2HS 100vh 버그 완전 해결)
+   ======================= */
+function setViewportVars(){
+  const vv = window.visualViewport;
+  const w  = Math.round((vv?.width  || window.innerWidth));
+  const h  = Math.round((vv?.height || window.innerHeight));
+  document.documentElement.style.setProperty('--vwpx', w + 'px');
+  document.documentElement.style.setProperty('--vhpx', h + 'px');
+}
+setViewportVars();
+window.addEventListener('resize', setViewportVars);
+window.addEventListener('orientationchange', ()=>setTimeout(setViewportVars, 50));
+if (window.visualViewport){
+  visualViewport.addEventListener('resize', setViewportVars);
+  visualViewport.addEventListener('scroll', setViewportVars);
 }
 
 /* =======================
-   카메라 파이프라인 (흑백 + COVER)
+   5) 카메라(흑백)
    ======================= */
-const view = document.getElementById("view");
-const vctx = view.getContext("2d",{alpha:false});
-const cam  = document.createElement("video"); cam.autoplay=true; cam.muted=true; cam.playsInline=true;
-const proc = document.createElement("canvas"); const pctx = proc.getContext("2d",{willReadFrequently:true});
-let CAM_ZOOM=1.0;
+const cam  = document.createElement('video'); cam.autoplay=true; cam.muted=true; cam.playsInline=true;
+const proc = document.createElement('canvas'); const pctx = proc.getContext('2d',{willReadFrequently:true});
+const PROC_SCALE=0.60;
 
-function setViewportVars(){
-  const vv=window.visualViewport;
-  const w=Math.round(vv?.width||window.innerWidth);
-  const h=Math.round(vv?.height||window.innerHeight);
-  document.documentElement.style.setProperty("--vwpx", w+"px");
-  document.documentElement.style.setProperty("--vhpx", h+"px");
+function fitCamera(){
+  const dpr = devicePixelRatio||1;
+  view.width = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'))*dpr;
+  view.height= parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'))*dpr;
+  vctx.setTransform(dpr,0,0,dpr,0,0);
+  const cssW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
+  const cssH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
+  const scale = matchMedia('(orientation:landscape)').matches? PROC_SCALE*0.9 : PROC_SCALE;
+  proc.width  = Math.floor(cssW*scale);
+  proc.height = Math.floor(cssH*scale);
 }
-function fitAll(){
-  setViewportVars();
-  const w=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--vwpx"));
-  const h=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--vhpx"));
-  view.width=w; view.height=h;
-  proc.width=Math.max(2, Math.floor(w*CONFIG.PROC_SCALE));
-  proc.height=Math.max(2, Math.floor(h*CONFIG.PROC_SCALE));
-}
-window.addEventListener("resize", fitAll, {passive:true});
-window.addEventListener("orientationchange", ()=>setTimeout(fitAll, 60));
-if (window.visualViewport){
-  visualViewport.addEventListener("resize", fitAll, {passive:true});
-  visualViewport.addEventListener("scroll", fitAll, {passive:true});
-}
-fitAll();
-
 async function startCamera(){
-  const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-  cam.srcObject=s; await cam.play().catch(()=>{});
+  try{
+    const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    cam.srcObject=s; await cam.play().catch(()=>{});
+  }catch(e){ console.warn('Camera start failed (possibly non-HTTPS):', e); }
 }
-
-let anim=false;
-function ensureLoop(){ if(anim) return; anim=true; loop(); }
+let _loop=false;
+function ensureLoop(){ if(_loop) return; _loop=true; loop(); }
 function loop(){
   requestAnimationFrame(loop);
-
-  // 1) cam -> proc (cover + zoom + b/w)
+  const cssW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
+  const cssH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
+  const W=cssW, H=cssH;
   const PW=proc.width, PH=proc.height;
   pctx.clearRect(0,0,PW,PH);
   if (cam.readyState>=2){
-    const vw=cam.videoWidth||0, vh=cam.videoHeight||0;
+    const vw=cam.videoWidth, vh=cam.videoHeight;
     if(vw&&vh){
-      const sc=Math.max(PW/vw, PH/vh)*CAM_ZOOM;
+      const sc=Math.max(PW/vw, PH/vh);
       const dw=vw*sc, dh=vh*sc, dx=(PW-dw)/2, dy=(PH-dh)/2;
       pctx.drawImage(cam,dx,dy,dw,dh);
       const img=pctx.getImageData(0,0,PW,PH), d=img.data;
-      for(let i=0;i<d.length;i+=4){
-        const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0; d[i]=d[i+1]=d[i+2]=g;
-      }
+      for(let i=0;i<d.length;i+=4){ const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0; d[i]=d[i+1]=d[i+2]=g; }
       pctx.putImageData(img,0,0);
     }
   }
-
-  // 2) proc -> view (cover)
-  const W=view.width, H=view.height;
   vctx.clearRect(0,0,W,H);
-  const cover=Math.max(W/PW, H/PH);
-  const dw2=PW*cover, dh2=PH*cover, dx2=(W-dw2)/2, dy2=(H-dh2)/2;
-  vctx.drawImage(proc,dx2,dy2,dw2,dh2);
+  vctx.drawImage(proc,0,0,W,H);
 }
 
 /* =======================
-   부저음 & 줌 버튼
+   6) 오디오/센서
    ======================= */
-function beep(){
+let audioCtx=null, mixBus=null, motionGain=null, masterGain=null, panSetter=null, micStream=null;
+const VOL_BASE=0.20, VOL_MAX_ADD=0.55, SMOOTH_TC=0.08, CTRL_SMOOTH_ALPHA=0.12, DEADZONE_VOL_DEG=5, DEADZONE_PAN_DEG=3, VOL_TILT_LIMIT=60, PAN_LIMIT_DEG=45;
+
+function initAudio(){
+  if(audioCtx) return;
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  mixBus = audioCtx.createGain();
+  let panOut = null;
+  if(audioCtx.createStereoPanner){
+    const sp = audioCtx.createStereoPanner();
+    panSetter = v=>{ try{ sp.pan.setTargetAtTime(v,audioCtx.currentTime,0.08);}catch{ sp.pan.value=v; } };
+    mixBus.connect(sp); panOut = sp;
+  }else{
+    const l=audioCtx.createGain(), r=audioCtx.createGain(), m=audioCtx.createChannelMerger(2);
+    mixBus.connect(l); mixBus.connect(r); l.connect(m,0,0); r.connect(m,0,1); panOut=m;
+    panSetter = p=>{ const x=Math.max(-1,Math.min(1,p||0)), th=(x+1)*0.25*Math.PI; l.gain.value=Math.cos(th); r.gain.value=Math.sin(th); };
+  }
+  motionGain = audioCtx.createGain(); motionGain.gain.value=VOL_BASE;
+  masterGain = audioCtx.createGain(); masterGain.gain.value=1.0;
+  panOut.connect(motionGain); motionGain.connect(masterGain); masterGain.connect(audioCtx.destination);
+}
+async function startMic(){
   try{
-    const ctx=new (window.AudioContext||window.webkitAudioContext)();
-    const o=ctx.createOscillator(), g=ctx.createGain();
-    o.type='square'; o.frequency.value=880;
-    o.connect(g).connect(ctx.destination);
-    g.gain.setValueAtTime(0.22, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.1);
-    o.start(); o.stop(ctx.currentTime+0.1);
-  }catch{}
+    if(micStream) return;
+    const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:true,autoGainControl:false},video:false});
+    micStream=s; const src=audioCtx.createMediaStreamSource(s);
+    const hpf=audioCtx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=220;
+    const notch=audioCtx.createBiquadFilter(); notch.type='notch'; notch.frequency.value=300; notch.Q.value=3.5;
+    const comp=audioCtx.createDynamicsCompressor(); comp.threshold.value=-20; comp.ratio.value=3.5; comp.attack.value=0.006; comp.release.value=0.12;
+    const wet=audioCtx.createGain(); wet.gain.value=0.55; const dry=audioCtx.createGain(); dry.gain.value=0.08;
+    const convolver=audioCtx.createConvolver(); convolver.buffer=makeIR(2.6,2.4);
+    src.connect(hpf).connect(notch).connect(comp);
+    const split=audioCtx.createGain(); comp.connect(split);
+    split.connect(dry); split.connect(convolver).connect(wet);
+    const bus=audioCtx.createGain(); dry.connect(bus); wet.connect(bus);
+    bus.connect(mixBus);
+  }catch(e){ console.warn('Mic start failed (possibly non-HTTPS):', e); }
 }
-function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
-document.getElementById("btnZoomIn").addEventListener("click", ()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM+0.1, 0.8, 2.0); });
-document.getElementById("btnZoomOut").addEventListener("click",()=>{ beep(); CAM_ZOOM = clamp(CAM_ZOOM-0.1, 0.8, 2.0); });
+function makeIR(sec=2.6,decay=2.4){
+  const rate=audioCtx.sampleRate,len=Math.floor(rate*sec),ir=audioCtx.createBuffer(2,len,rate);
+  for(let c=0;c<2;c++){ const v=ir.getChannelData(c); for(let i=0;i<len;i++){ const t=i/len, env=Math.pow(1-t,decay); v[i]=(Math.random()*2-1)*env*0.55; } }
+  return ir;
+}
+let sensorsReady=false, latestOri={beta:0,gamma:0}, smVol=VOL_BASE, smPan=0;
+async function sensorPerm(){
+  try{ if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){ const r=await DeviceOrientationEvent.requestPermission(); if(r==='granted') sensorsReady=true; } else sensorsReady=true; }catch{}
+  try{ if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){ const r=await DeviceMotionEvent.requestPermission(); if(r==='granted') sensorsReady=true; } }catch{}
+}
+function initOrientation(){ addEventListener('deviceorientation',e=>{ latestOri.beta=e.beta??0; latestOri.gamma=e.gamma??0; },{passive:true}); }
+function smooth(t,c,a=CTRL_SMOOTH_ALPHA){ return c+(t-c)*a; }
+function ctlLoop(){
+  requestAnimationFrame(ctlLoop);
+  let pan=0, vol=VOL_BASE;
+  if(sensorsReady){
+    const ang=(screen.orientation?.angle)||0, beta=latestOri.beta||0, gamma=latestOri.gamma||0;
+    const panTilt=(ang%180===0)? gamma : beta;
+    const volTilt=(ang%180===0)? beta  : -gamma;
+    pan = Math.max(-1,Math.min(1,(Math.abs(panTilt)<DEADZONE_PAN_DEG?0:panTilt/PAN_LIMIT_DEG)));
+    const a = Math.max(0,(Math.abs(volTilt)-DEADZONE_VOL_DEG)/(VOL_TILT_LIMIT-DEADZONE_VOL_DEG));
+    vol = VOL_BASE + VOL_MAX_ADD*a;
+  }
+  smPan=smooth(pan,smPan); smVol=smooth(vol,smVol);
+  if(panSetter) panSetter(smPan);
+  if(motionGain){ const now=audioCtx.currentTime; try{ motionGain.gain.setTargetAtTime(smVol,now,SMOOTH_TC);}catch{ motionGain.gain.value=smVol; } }
+}
 
 /* =======================
-   시작 오버레이 — 이벤트 위임으로 확실한 탭 처리
+   7) Rezolume 해상도 스케일 적용
    ======================= */
-const overlay = document.getElementById("overlay");
-const overlayContent = document.getElementById("overlayContent");
-
-/* click/pointerup/touchend 모두 처리 (이벤트 위임) */
-function handleTap(targetId, cb){
-  const handler = (e)=>{
-    const t = e.target;
-    if(t && t.id === targetId){
-      e.preventDefault?.();
-      cb();
-    }
-  };
-  overlayContent.addEventListener('click', handler);
-  overlayContent.addEventListener('pointerup', handler);
-  overlayContent.addEventListener('touchend', handler, {passive:false});
-  return handler;
+function applyRezScale(){
+  const s = Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1));
+  ninja.style.width  = `calc(var(--vwpx) * ${s})`;
+  ninja.style.height = `calc(var(--vhpx) * ${s})`;
+  ninja.style.left   = '50%';
+  ninja.style.top    = '50%';
+  ninja.style.transform = `translate(-50%,-50%) scale(${1/s})`;
 }
 
-/* 1단계: START */
-handleTap('btnStart', async ()=>{
-  beep();
-  await startCamera(); fitAll(); ensureLoop();
+/* =======================
+   8) Ninja 오버레이 (프리로드 + IN/OUT + 끊김 복구)
+   ======================= */
+(function preloadOverlay(){ ninja.src = ninjaUrl(); })();
+function setOverlay(on){
+  ninja.style.opacity = on ? String(CONFIG.BLEND) : '0';
+  if (on && !ninja.contentWindow) ninja.src = ninjaUrl();
+}
+btnIn.addEventListener('click', ()=> setOverlay(true));
+btnOut.addEventListener('click',()=> setOverlay(false));
+setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src = ninjaUrl(); } }, 60000);
 
-  /* 레졸룸 표시: display:block 후 불투명도 적용 */
-  setOverlay(true);
+/* =======================
+   9) 웰컴 버튼 (문구 제거 버전)
+   ======================= */
+document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
+  try{
+    initAudio(); if(audioCtx.state==='suspended'){ await audioCtx.resume().catch(()=>{}); }
+    await sensorPerm().catch(()=>{});
+    await startMic().catch(()=>{});
+    initOrientation(); ctlLoop();
 
-  overlayContent.innerHTML = '<button id="btnWelcome" class="msgBtn">WELCOME TO HISTORY OF NIGHTMARE</button>';
+    await startCamera(); fitCamera(); ensureLoop();
+    applyRezScale();
+
+    overlayContent.classList.add('hidden'); setTimeout(()=>{ overlayPanel.style.display='none'; }, 450);
+    setOverlay(true);
+  }catch(e){
+    overlayContent.innerHTML = '<div style="background:#000;padding:10px;display:inline-block">권한 허용이 필요합니다. (설정 > Safari 권한 확인)</div>';
+  }
 });
 
-/* 2단계: WELCOME → 메시지 시퀀스 */
-handleTap('btnWelcome', ()=>{
-  beep();
-  overlayContent.innerHTML = '<div class="msg">SHOW WILL BEGIN SOON</div>';
-  setTimeout(()=>{
-    overlayContent.innerHTML = '<div class="msg">PLEASE CAPTURING THE MOMENT</div>';
-    setTimeout(()=>{
-      overlayContent.classList.add("fadeOut");
-      setTimeout(()=>{ overlay.style.display="none"; }, 820);
-    }, 3000);
-  }, 3000);
+/* =======================
+   10) 진단 HUD (3탭)
+   ======================= */
+(function(){
+  let show=false,taps=0,last=0;
+  addEventListener('touchend', ()=>{
+    const now=Date.now(); if(now-last<400) taps++; else taps=1; last=now;
+    if(taps>=3){ show=!show; diag.style.display=show?'block':'none'; if(show) probe(); }
+  });
+  async function probe(){
+    const secure = window.isSecureContext;
+    const a2hs = matchMedia('(display-mode: standalone)').matches;
+    let cam='unknown', mic='unknown';
+    try{ const ps=await navigator.permissions.query({name:'camera'}).catch(()=>null); cam=ps?ps.state:'n/a'; }catch{}
+    try{ const ps=await navigator.permissions.query({name:'microphone'}).catch(()=>null); mic=ps?ps.state:'n/a'; }catch{}
+    diag.textContent =
+`secureContext: ${secure}
+display-mode: ${a2hs?'standalone':'browser'}
+viewport: ${innerWidth}x${innerHeight}
+rez-scale: ${CONFIG.REZ_SCALE}
+camera perm: ${cam}
+microphone perm: ${mic}
+time: ${new Date().toLocaleTimeString()}`;
+    if(diag.style.display==='block') setTimeout(probe, 800);
+  }
+})();
+
+/* =======================
+   11) keep-alive & 초기 스케일/핏
+   ======================= */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible'){
+    if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
+  }
 });
+applyRezScale();
+fitCamera();
 
 })();
 </script>
