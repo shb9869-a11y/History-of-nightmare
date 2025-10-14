@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>History of Nightmare — PWA Safe + Ninja Overlay + Proscenium</title>
+<title>History of Nightmare — Rezolume 65% Scale</title>
 
 <!-- iOS PWA -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,15 +17,22 @@
     --line-w: 1px; --line-r: 2px;
   }
   @media (orientation:landscape){ :root{ --gap: 24px; } }
+
   html,body{margin:0;height:100%;background:#000;overflow:hidden;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 
-  /* 카메라(흑백) */
+  /* 관객 카메라(흑백) */
   #view{position:fixed;left:0;top:0;width:var(--vw);height:var(--vh);display:block;z-index:0}
 
-  /* 레졸룸(VDO.Ninja) — 투명 배경, 화면 꽉 채움, 터치 통과 */
+  /* === 레졸룸 오버레이(해상도 스케일 적용) ===
+     - 실제 렌더 크기를 낮추기 위해 iframe 자체를 줄이고
+       중앙 배치 후 scale로 화면을 꽉 채움  */
   #ninjaOverlay{
-    position:fixed;left:0;top:0;width:var(--vw);height:var(--vh);
+    position:fixed;left:50%;top:50%; /* 중앙 기준 배치 */
+    width:var(--vw); height:var(--vh); /* 초기 값 (JS에서 65%로 재설정) */
+    transform:translate(-50%,-50%) scale(1); transform-origin:50% 50%;
     border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .35s ease;background:transparent;
+    image-rendering:auto;              /* 업스케일 시 부드럽게 */
+    will-change:transform;             /* 성능 힌트 */
   }
 
   /* 프로시니엄(얇은 테두리) — safe area 반영 */
@@ -56,7 +63,7 @@
   #overlayContent{line-height:1.7;text-align:center;transition:opacity .45s ease}
   .hidden{opacity:0}
 
-  /* HTTPS 경고 패널 (보안 아님) */
+  /* HTTPS 안내(보안 아님) */
   #httpsBlock{
     position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
     background:rgba(0,0,0,.88);color:#fff;font-family:"Courier New",monospace;padding:20px;text-align:center
@@ -128,8 +135,9 @@
    ======================= */
 const CONFIG = {
   ROOM_ID:      "YOURROOMID",         // ← VDO.Ninja 룸 아이디
-  HTTPS_ORIGIN: "",                   // ← 예: "https://abc123.ngrok-free.app" (없으면 빈 문자열)
-  BLEND:        0.5                   // 레졸룸 오버레이 불투명도(0~1)
+  HTTPS_ORIGIN: "",                   // ← 예: "https://abc123.ngrok-free.app"
+  BLEND:        0.5,                  // 오버레이 투명도(0~1)
+  REZ_SCALE:    0.65                  // 🔥 레졸룸 실제 렌더 해상도 비율 (65%)
 };
 
 /* =======================
@@ -141,22 +149,18 @@ const btnCopy    = document.getElementById('copyHttps');
 const btnOpen    = document.getElementById('openHttps');
 
 function shouldForceHttps(){
-  // localhost/127.0.0.1 은 예외 (개발)
   const local = /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
   return !window.isSecureContext && !local;
 }
-
 function tryHttpsRedirect(){
   if (shouldForceHttps()) {
     if (CONFIG.HTTPS_ORIGIN){
       const target = new URL(location.href);
       const origin = CONFIG.HTTPS_ORIGIN.replace(/\/+$/,'');
       const redirectUrl = origin + target.pathname + target.search + target.hash;
-      // PWA에서도 새 창 말고 직접 이동
       location.replace(redirectUrl);
-      return true; // 이동 시도
+      return true;
     } else {
-      // 주소 미설정: 안내 패널 표출
       httpsBox.textContent = "(HTTPS 주소를 설정하세요: CONFIG.HTTPS_ORIGIN)";
       httpsBlock.style.display = 'flex';
       return false;
@@ -164,8 +168,6 @@ function tryHttpsRedirect(){
   }
   return false;
 }
-
-// 안내 버튼
 btnCopy?.addEventListener('click', async ()=>{
   if (!CONFIG.HTTPS_ORIGIN){ alert('CONFIG.HTTPS_ORIGIN이 비어있어요.'); return; }
   try{ await navigator.clipboard.writeText(CONFIG.HTTPS_ORIGIN); alert('복사됨'); }catch{ alert(CONFIG.HTTPS_ORIGIN); }
@@ -174,12 +176,7 @@ btnOpen?.addEventListener('click', ()=>{
   if (!CONFIG.HTTPS_ORIGIN){ alert('CONFIG.HTTPS_ORIGIN이 비어있어요.'); return; }
   location.href = CONFIG.HTTPS_ORIGIN;
 });
-
-// 최초 실행에서 HTTPS 처리
-if (!tryHttpsRedirect() && shouldForceHttps()){
-  // 자동 리다이렉트 못했으면 경고만 띄우고, 아래 로직은 계속 진행(사파리 탭에서는 일부 동작할 수 있음)
-  httpsBlock.style.display = 'flex';
-}
+if (!tryHttpsRedirect() && shouldForceHttps()){ httpsBlock.style.display = 'flex'; }
 
 /* =======================
    2) VDO.Ninja URL (투명/여백 제거)
@@ -205,7 +202,7 @@ const view = document.getElementById('view');
 const vctx = view.getContext('2d',{alpha:false});
 const ninja= document.getElementById('ninjaOverlay');
 const btnIn= document.getElementById('btnIn');
-const btnOut=document.getElementById('btnOut');
+const btnOut= document.getElementById('btnOut');
 const overlayPanel  = document.getElementById('overlay');
 const overlayContent= document.getElementById('overlayContent');
 const httpsWarn     = document.getElementById('httpsWarn');
@@ -218,7 +215,7 @@ function setViewportVars(){
   document.documentElement.style.setProperty('--vw', window.innerWidth + 'px');
   document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
 }
-addEventListener('resize', ()=>{ setViewportVars(); setTimeout(fitCamera,50); });
+addEventListener('resize', ()=>{ setViewportVars(); setTimeout(fitCamera,50); applyRezScale(); });
 setViewportVars();
 
 /* =======================
@@ -334,24 +331,35 @@ function ctlLoop(){
 }
 
 /* =======================
-   7) Ninja 오버레이 (프리로드 + IN/OUT + 끊김 자동복구)
+   7) Rezolume 해상도 스케일 적용 함수
+   ======================= */
+function applyRezScale(){
+  const s = Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1)); // 안전 범위
+  // iframe 자체 크기를 s배로 줄이고, 중앙에서 1/s로 확대 → 화면 꽉 채우되 내부 렌더 픽셀은 s배
+  ninja.style.width  = `calc(var(--vw) * ${s})`;
+  ninja.style.height = `calc(var(--vh) * ${s})`;
+  ninja.style.left   = '50%';
+  ninja.style.top    = '50%';
+  ninja.style.transform = `translate(-50%,-50%) scale(${1/s})`;
+}
+
+/* =======================
+   8) Ninja 오버레이 (프리로드 + IN/OUT + 끊김 복구)
    ======================= */
 (function preloadOverlay(){ ninja.src = ninjaUrl(); })();
 function setOverlay(on){
   ninja.style.opacity = on ? String(CONFIG.BLEND) : '0';
   if (on && !ninja.contentWindow) ninja.src = ninjaUrl();
 }
-btnIn.addEventListener('click', ()=> setOverlay(true));
-btnOut.addEventListener('click',()=> setOverlay(false));
-
-// 간헐적 정지 복구(1분 간격 ping)
+document.getElementById('btnIn').addEventListener('click', ()=> setOverlay(true));
+document.getElementById('btnOut').addEventListener('click',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src = ninjaUrl(); } }, 60000);
 
 /* =======================
-   8) 웰컴 버튼
+   9) 웰컴 버튼
    ======================= */
 document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
-  httpsWarn.style.display = window.isSecureContext ? 'none' : 'block';
+  document.getElementById('httpsWarn').style.display = window.isSecureContext ? 'none' : 'block';
   try{
     initAudio(); if(audioCtx.state==='suspended'){ await audioCtx.resume().catch(()=>{}); }
     await sensorPerm().catch(()=>{});
@@ -359,6 +367,7 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
     initOrientation(); ctlLoop();
 
     await startCamera(); fitCamera(); ensureLoop();
+    applyRezScale(); // 🔥 해상도 스케일 적용
 
     overlayContent.classList.add('hidden'); setTimeout(()=>{ overlayPanel.style.display='none'; }, 450);
     setOverlay(true);
@@ -368,7 +377,7 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
 });
 
 /* =======================
-   9) 진단 HUD (3탭)
+   10) 진단 HUD (3탭)
    ======================= */
 (function(){
   let show=false,taps=0,last=0;
@@ -386,6 +395,7 @@ document.getElementById('welcomeBtn').addEventListener('click', async ()=>{
 `secureContext: ${secure}
 display-mode: ${a2hs?'standalone':'browser'}
 viewport: ${innerWidth}x${innerHeight}
+rez-scale: ${CONFIG.REZ_SCALE}
 camera perm: ${cam}
 microphone perm: ${mic}
 time: ${new Date().toLocaleTimeString()}`;
@@ -394,13 +404,14 @@ time: ${new Date().toLocaleTimeString()}`;
 })();
 
 /* =======================
-   10) keep-alive
+   11) keep-alive & 초기 스케일
    ======================= */
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState==='visible'){
     if(audioCtx && audioCtx.state==='suspended'){ audioCtx.resume().catch(()=>{}); }
   }
 });
+applyRezScale(); // 초기에도 적용
 
 })();
 </script>
