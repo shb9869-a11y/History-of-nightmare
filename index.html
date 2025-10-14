@@ -17,8 +17,21 @@
     --gap: 32px;
     --line-color: rgba(255,255,255,.9);
     --line-w: 1px; --line-r: 2px;
+
+    /* 텍스트 스케일(작게) */
+    --stage-fs: clamp(14px, 2.0vmax, 22px);
+    --btn-pad-y: .45em;   /* 작게 */
+    --btn-pad-x: 1.0em;   /* 작게 */
+    --btn-border: 1px;    /* 얇게 */
+    --letter-space: .03em;
+    --line-height: 1.4;
   }
-  @media (orientation:landscape){ :root{ --gap: 24px; } }
+  @media (orientation:landscape){
+    :root{
+      --gap: 24px;
+      --stage-fs: clamp(13px, 1.8vmax, 20px); /* 가로에선 더 작게 */
+    }
+  }
 
   html,body{
     margin:0;height:100%;background:#000;overflow:hidden;
@@ -61,7 +74,8 @@
   }
   .uiBtn{
     background:transparent;color:#fff;border:none; /* ← 검정 박스/하얀 선 제거 */
-    font-family:"Courier New",monospace;padding:.6em 1.2em;cursor:pointer;user-select:none
+    font-family:"Courier New",monospace;padding:.4em .8em;cursor:pointer;user-select:none;
+    font-size:12px; opacity:.9;
   }
 
   /* 시작/문구 오버레이 (센터 정렬 + 동일 폰트) */
@@ -70,16 +84,26 @@
     z-index:200;display:flex;align-items:center;justify-content:center;
     padding:20px;font-family:"Courier New",monospace;color:#fff;background:rgba(0,0,0,.7)
   }
-  #overlayContent{line-height:1.7;text-align:center;transition:opacity .45s ease}
-  .hidden{opacity:0}
-  .stageBtn{
-    display:inline-block;margin:10px auto;padding:.7em 1.4em;border:1px solid #fff;
-    background:transparent;color:#fff;cursor:pointer;user-select:none;
-    text-transform:uppercase;letter-spacing:.04em
+  #overlayContent{
+    line-height:var(--line-height);text-align:center;transition:opacity .45s ease;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
   }
+  .hidden{opacity:0}
+
+  /* 시작 버튼(작게) - Welcome과 동일 스타일 계열 */
+  .stageBtn{
+    display:inline-block;margin:8px auto;padding:var(--btn-pad-y) var(--btn-pad-x);
+    border:var(--btn-border) solid #fff;border-radius:0;
+    background:transparent;color:#fff;cursor:pointer;user-select:none;
+    text-transform:uppercase;letter-spacing:var(--letter-space);
+    font-size:var(--stage-fs); line-height:var(--line-height);
+  }
+
+  /* 단계 문구(작게) */
   .stageText{
-    font-size:clamp(16px, 2.4vmax, 32px);
-    text-transform:uppercase;letter-spacing:.04em
+    font-size:var(--stage-fs);
+    text-transform:uppercase;letter-spacing:var(--letter-space);
+    line-height:var(--line-height);
   }
 
   /* HTTPS 안내(보안 아님) */
@@ -117,7 +141,7 @@
     <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
-  <!-- 시작/문구 오버레이 (요구된 순서로 표시) -->
+  <!-- 시작/문구 오버레이 -->
   <div id="overlay">
     <div id="overlayContent">
       <!-- 1단계 -->
@@ -150,13 +174,13 @@
 <script>
 (()=> {
 /* =======================
-   0) 구성 (수정 포인트)
+   0) 구성
    ======================= */
 const CONFIG = {
-  ROOM_ID:      "YOURROOMID",         // ← VDO.Ninja 룸 아이디
-  HTTPS_ORIGIN: "",                   // ← 예: "https://abc123.ngrok-free.app"
-  BLEND:        0.5,                  // 레졸룸 오버레이 불투명도(0~1)
-  REZ_SCALE:    0.65                  // 🔥 레졸룸 실제 렌더 해상도 비율 (65%)
+  ROOM_ID:      "YOURROOMID",
+  HTTPS_ORIGIN: "",
+  BLEND:        0.5,
+  REZ_SCALE:    0.65
 };
 
 /* =======================
@@ -198,7 +222,7 @@ btnOpen?.addEventListener('click', ()=>{
 if (!tryHttpsRedirect() && shouldForceHttps()){ httpsBlock.style.display = 'flex'; }
 
 /* =======================
-   2) VDO.Ninja URL (투명/여백 제거 + 영상만 꽉 차게)
+   2) VDO.Ninja URL
    ======================= */
 const injectedCss = encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
@@ -238,7 +262,6 @@ function setViewportVars(){
   document.documentElement.style.setProperty('--vwpx', w + 'px');
   document.documentElement.style.setProperty('--vhpx', h + 'px');
 }
-
 let relayoutTimer=null;
 function scheduleLayoutRefresh(delay=60){
   clearTimeout(relayoutTimer);
@@ -248,14 +271,13 @@ function scheduleLayoutRefresh(delay=60){
     applyRezScale();
   }, delay);
 }
-
 setViewportVars();
-window.addEventListener('resize', ()=>scheduleLayoutRefresh(80));
-window.addEventListener('orientationchange', ()=>{
+addEventListener('resize', ()=>scheduleLayoutRefresh(80));
+addEventListener('orientationchange', ()=>{
   scheduleLayoutRefresh(120);
   scheduleLayoutRefresh(300);
 });
-if (window.visualViewport){
+if (visualViewport){
   visualViewport.addEventListener('resize', ()=>scheduleLayoutRefresh(60));
   visualViewport.addEventListener('scroll', ()=>scheduleLayoutRefresh(60));
 }
@@ -280,10 +302,7 @@ function fitCamera(){
 }
 async function startCamera(){
   try{
-    const s = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'environment'},
-      audio:false
-    });
+    const s = await navigator.mediaDevices.getUserMedia({ video:{facingMode:'environment'}, audio:false });
     cam.srcObject=s;
     cam.addEventListener('loadedmetadata', ()=>scheduleLayoutRefresh(0), {once:true});
     await cam.play().catch(()=>{});
@@ -345,35 +364,18 @@ async function startMic(){
   try{
     if(micStream) return;
     const s=await navigator.mediaDevices.getUserMedia({
-      audio:{
-        echoCancellation:false,
-        noiseSuppression:false,   // 감도 최대화 위해 OFF
-        autoGainControl:true      // 시스템 AGC ON
-      },
+      audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:true },
       video:false
     });
     micStream=s;
     const src=audioCtx.createMediaStreamSource(s);
-
-    // 필터/컴프 (감도 ↑)
-    const hpf=audioCtx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=120; // 저역은 약간만 컷
+    const hpf=audioCtx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=120;
     const comp=audioCtx.createDynamicsCompressor();
-    comp.threshold.value=-40;  // 더 민감
-    comp.knee.value=18;
-    comp.ratio.value=2.0;
-    comp.attack.value=0.003;
-    comp.release.value=0.12;
-
-    // 드라이/웻 게인 상향
+    comp.threshold.value=-40; comp.knee.value=18; comp.ratio.value=2.0; comp.attack.value=0.003; comp.release.value=0.12;
     const wet=audioCtx.createGain(); wet.gain.value=1.0;
     const dry=audioCtx.createGain(); dry.gain.value=0.30;
-
-    // 리버브(가벼운 IR)
     const convolver=audioCtx.createConvolver(); convolver.buffer=makeIR(2.4,2.2);
-
-    // 추가 마이크 부스트
     const micBoost = audioCtx.createGain(); micBoost.gain.value = 1.8;
-
     src.connect(hpf).connect(comp);
     const split=audioCtx.createGain(); comp.connect(split);
     split.connect(dry); split.connect(convolver).connect(wet);
@@ -415,15 +417,13 @@ function beep(duration=120, freq=880){
     if(!audioCtx) return;
     const osc = audioCtx.createOscillator();
     const g   = audioCtx.createGain();
-    osc.type = 'square';
-    osc.frequency.value = freq;
+    osc.type = 'square'; osc.frequency.value = freq;
     g.gain.value = 0.0001;
     osc.connect(g).connect(audioCtx.destination);
     const t = audioCtx.currentTime;
-    g.gain.exponentialRampToValueAtTime(0.3, t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.25, t+0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, t + duration/1000);
-    osc.start(t);
-    osc.stop(t + duration/1000 + 0.02);
+    osc.start(t); osc.stop(t + duration/1000 + 0.02);
   }catch{}
 }
 
@@ -452,7 +452,7 @@ btnOut.addEventListener('click',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src = ninjaUrl(); } }, 60000);
 
 /* =======================
-   9) 오버레이 단계 흐름 (요구된 문구 순서)
+   9) 오버레이 단계 흐름
    ======================= */
 function showMsg(text){
   startBtn.style.display='none';
@@ -466,7 +466,7 @@ function fadeOutOverlay(afterMs=0){
   }, afterMs);
 }
 
-/* 버튼 터치/클릭 둘 다 허용 (iOS에서 터치 지연 방지) */
+/* 터치/클릭 둘 다 허용 */
 function onPress(el, handler){
   el.addEventListener('touchend', (e)=>{ e.preventDefault(); handler(); }, {passive:false});
   el.addEventListener('click', handler);
@@ -475,23 +475,25 @@ function onPress(el, handler){
 /* 1단계: PRESS HERE TO START */
 onPress(startBtn, async ()=>{
   initAudio(); if(audioCtx.state==='suspended'){ await audioCtx.resume().catch(()=>{}); }
-  beep(); // 부저
+  beep();
   await sensorPerm().catch(()=>{});
   await startMic().catch(()=>{});
   initOrientation(); ctlLoop();
   await startCamera(); fitCamera(); ensureLoop();
   applyRezScale();
+
   // 다음 단계 문구
   showMsg('WELCOME TO HISTORY OF NIGHTMARE');
 
-  // 2단계 버튼(문구를 버튼으로 취급)
-  msgBox.classList.add('stageText'); // 폰트/정렬 동일
+  // 문구를 버튼처럼(작은 스타일)
+  msgBox.classList.add('stageText');
   msgBox.setAttribute('role','button');
-  msgBox.style.border='1px solid #fff';
+  msgBox.style.border='var(--btn-border) solid #fff';
   msgBox.style.display='inline-block';
-  msgBox.style.padding='.6em 1.2em';
-  msgBox.style.marginTop='12px';
+  msgBox.style.padding='var(--btn-pad-y) var(--btn-pad-x)';
+  msgBox.style.marginTop='6px';
   msgBox.style.cursor='pointer';
+  msgBox.style.userSelect='none';
 
   let secondStep=false;
   const handleSecond=()=>{
@@ -500,13 +502,13 @@ onPress(startBtn, async ()=>{
     beep();
     msgBox.style.border='none';
     msgBox.style.padding='0';
-    // SHOW WILL BIGIN SOON → 3초 뒤 PLEASE CAPTURING THE MOMENT → 3초 뒤 페이드아웃
+    // 시퀀스: SHOW WILL BIGIN SOON → 3초 후 PLEASE CAPTURING THE MOMENT → 3초 후 페이드아웃
     showMsg('SHOW WILL BIGIN SOON');
     setTimeout(()=>{
       showMsg('PLEASE CAPTURING THE MOMENT');
       setTimeout(()=>{
         fadeOutOverlay(0);
-        setOverlay(true); // IN 자동 켜려면 주석 해제 상태 유지
+        setOverlay(true);
       }, 3000);
     }, 3000);
   };
