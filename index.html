@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>History of Nightmare — PWA + Rez 65% + Proscenium</title>
 
+<!-- PWA / A2HS -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 <style>
@@ -64,7 +69,7 @@
   .hidden{ opacity:0 }
 
   .stageBtn{
-    display:none; /* 기본 숨김, 단계별로 켜짐 */
+    display:none; /* 단계별 노출 */
     padding:var(--btn-pad-y) var(--btn-pad-x);
     border:var(--btn-border) solid #fff; text-transform:uppercase;
     letter-spacing:var(--letter-space); font-size:var(--stage-fs);
@@ -83,6 +88,10 @@
     background:rgba(0,0,0,.7);color:#0f0;font:12px/1.4 var(--ff-ui);
     padding:8px;border:1px solid #0f0;border-radius:6px;white-space:pre;
   }
+
+  /* 앱 모드일 때 혹시 남는 상단 배너 대비용(테마가 있다면) */
+  .app-mode .any-top-banner,
+  .app-mode header.site-header { display:none !important; height:0 !important; }
 </style>
 </head>
 <body>
@@ -98,26 +107,27 @@
     <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
-  <!-- Overlay -->
+  <!-- Overlay (4단계: 탭 → 허용 → Start → Welcome) -->
   <div id="overlay">
     <div id="overlayContent">
-      <!-- STEP 1: 화면 탭 유도 -->
+      <!-- STEP 1 -->
       <div id="tapAnywhere" class="subText">화면을 가볍게 탭하여 <b>카메라 허용</b>을 진행해주세요</div>
 
-      <!-- STEP 2: 허용 버튼 (이걸 눌러야 권한창 뜸) -->
+      <!-- STEP 2 -->
       <button id="allowBtn" class="stageBtn" aria-label="Request camera permission">허용 버튼</button>
       <div id="allowSub" class="subText" style="display:none;">버튼을 눌러 브라우저의 카메라 권한 창을 띄우세요</div>
 
-      <!-- STEP 3: 시작 버튼 -->
+      <!-- STEP 3 -->
       <button id="startBtn" class="stageBtn" aria-label="Press to start">PRESS HERE TO START</button>
       <div id="startSub" class="subText" style="display:none;">시작하려면 여기를 누르세요</div>
 
-      <!-- STEP 4: 환영 문구 (잠깐 노출 후 페이드아웃) -->
+      <!-- STEP 4 -->
       <div id="msg" class="stageText" style="display:none;">WELCOME TO HISTORY OF NIGHTMARE</div>
       <div id="msgSub" class="subText" style="display:none;">악몽의 역사에 오신 것을 환영합니다</div>
     </div>
   </div>
 
+  <!-- HTTPS 안내 -->
   <div id="httpsBlock">
     <div id="httpsInner">
       <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
@@ -137,6 +147,37 @@
   <div id="diag"></div>
 
 <script>
+/* ===== PWA: Service Worker 등록 & 설치 배너 제어 ===== */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(console.warn);
+}
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e; // 필요시 커스텀 설치 버튼에서 사용
+});
+
+/* 앱 모드 감지 (배너 대비용) */
+function isAppMode() {
+  return window.matchMedia("(display-mode: standalone)").matches ||
+         window.navigator.standalone ||
+         /source=a2hs/.test(location.search);
+}
+document.documentElement.classList.toggle("app-mode", isAppMode());
+window.matchMedia("(display-mode: standalone)").addEventListener("change", (e)=>{
+  document.documentElement.classList.toggle("app-mode", e.matches);
+});
+
+/* ===== 전체화면 진입(사용자 제스처에서 호출) ===== */
+async function goFullscreen() {
+  const el = document.documentElement;
+  try {
+    if (el.requestFullscreen) await el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
+    else if (el.msRequestFullscreen) await el.msRequestFullscreen();
+  } catch (e) { /* ignore */ }
+}
+
 (()=> {
 /* ===== Config ===== */
 const CONFIG = { ROOM_ID:"YOURROOMID", HTTPS_ORIGIN:"", BLEND:0.5, REZ_SCALE:0.65 };
@@ -264,9 +305,9 @@ btnIn.addEventListener('click', ()=> setOverlay(true));
 btnOut.addEventListener('click',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src=ninjaUrl(); } }, 60000);
 
-/* ===== Flow states ===== */
+/* ===== Flow states (4 steps) ===== */
 function setStep(step){
-  // step: 1=tap→2=allow→3=start→4=welcome
+  // step: 1=tap → 2=allow → 3=start → 4=welcome
   tapAnywhere.style.display = (step===1)? 'block':'none';
   allowBtn.style.display     = (step===2)? 'inline-block':'none';
   allowSub.style.display     = (step===2)? 'block':'none';
@@ -275,45 +316,44 @@ function setStep(step){
   msg.style.display          = (step===4)? 'block':'none';
   msgSub.style.display       = (step===4)? 'block':'none';
 }
-
 function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
 }
-
-/* STEP 1: 화면 아무 곳이나 탭하면 → STEP 2로 전환(허용 버튼 보이기) */
 function onPress(el, handler){
   el.addEventListener('touchend', (e)=>{ e.preventDefault(); handler(); }, {passive:false});
   el.addEventListener('click', handler);
 }
+
+/* STEP 1: 화면 탭 → STEP 2 */
 onPress(overlay, ()=>{
-  if (tapAnywhere.style.display!=='none'){ setStep(2); }
+  if (getComputedStyle(tapAnywhere).display!=='none'){ setStep(2); }
 });
 
-/* STEP 2: 허용 버튼을 눌러야만 실제 권한창 띄움 */
+/* STEP 2: 허용 버튼 → 권한 요청 → STEP 3 */
 onPress(allowBtn, async ()=>{
   try{
     await startCamera();
     fitCamera(); ensureLoop();
-    setStep(3); // 권한 OK → Start 버튼
+    setStep(3);
   }catch(e){
     console.warn('Camera permission failed:', e);
     allowSub.innerHTML = '권한 요청이 거부되었습니다. <b>브라우저 설정에서 카메라를 허용</b>한 뒤 다시 시도하세요.';
   }
 });
 
-/* STEP 3: Start → STEP 4 환영 문구 → 페이드아웃 + 오버레이 ON */
-onPress(startBtn, ()=>{
+/* STEP 3: Start → 전체화면 + STEP 4 → 페이드아웃 + 오버레이 ON */
+onPress(startBtn, async ()=>{
+  await goFullscreen();        // A2HS에서도 남는 상단 상태바 제거 시도
   setStep(4);
   fadeOutOverlay(1200);
   setOverlay(true);
 });
 
-/* 권한이 이미 허용되어 있으면 STEP 2를 건너뛰고 바로 STEP 3로 */
+/* 권한 이미 허용 시: 카메라 즉시 준비 + STEP 3로 */
 (async function precheckPermission(){
   try{
     const ps=await navigator.permissions?.query({name:'camera'});
     if(ps && ps.state==='granted'){
-      // 카메라 바로 준비
       await startCamera();
       fitCamera(); ensureLoop();
       setStep(3);
@@ -323,7 +363,7 @@ onPress(startBtn, ()=>{
   }catch{ setStep(1); }
 })();
 
-/* ===== HUD ===== */
+/* ===== HUD (3연타) ===== */
 (function(){
   let show=false,taps=0,last=0;
   addEventListener('touchend', ()=>{
@@ -331,7 +371,7 @@ onPress(startBtn, ()=>{
     if(taps>=3){ show=!show; diag.style.display=show?'block':'none'; if(show) probe(); }
   });
   async function probe(){
-    const secure=window.isSecureContext, a2hs=matchMedia('(display-mode: standalone)').matches;
+    const secure=window.isSecureContext, a2hs=matchMedia("(display-mode: standalone)").matches;
     let camP='unknown'; try{ const ps=await navigator.permissions.query({name:'camera'}).catch(()=>null); camP=ps?ps.state:'n/a'; }catch{}
     diag.textContent =
 `secureContext: ${secure}
