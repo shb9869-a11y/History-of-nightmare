@@ -18,6 +18,7 @@
     --line-color:rgba(255,255,255,.9); --line-w:1px; --line-r:2px;
     --ff-ui:"Courier New", Courier, monospace;
 
+    /* 기본 타이포 (세로 기준) */
     --stage-fs:clamp(14px,2.2vmin,22px);
     --sub-fs:clamp(11px,1.6vmin,16px);
     --body-fs:clamp(12px,1.8vmin,18px);
@@ -28,6 +29,7 @@
   @media (orientation:landscape){
     :root{
       --gap:24px;
+      /* 가로에서 더 보수적으로 축소 */
       --stage-fs:clamp(12px,1.8vmin,18px);
       --sub-fs:clamp(10px,1.4vmin,15px);
       --body-fs:clamp(11px,1.5vmin,16px);
@@ -44,15 +46,17 @@
   *,*::before,*::after{ box-sizing:border-box; }
   button{ font:inherit;color:inherit;background:none;border:none;padding:0;margin:0;cursor:pointer; }
 
+  /* Camera canvas (B/W) */
   #view{ position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);display:block;z-index:0; }
 
-  /* VDO.Ninja overlay */
+  /* VDO.Ninja overlay (Resolume feed) */
   #ninjaOverlay{
     position:fixed;left:50%;top:50%;width:var(--vwpx);height:var(--vhpx);
     transform:translate(-50%,-50%) scale(1);transform-origin:50% 50%;
     border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .25s ease;background:transparent;
   }
 
+  /* Proscenium frame */
   .proscenium{
     position:fixed;
     left:calc(var(--gap) + env(safe-area-inset-left));
@@ -63,10 +67,11 @@
     z-index:90; pointer-events:none; transform:translateZ(0);
   }
 
+  /* IN/OUT controls */
   .controls{ position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:100;display:flex;gap:8px; }
   .uiBtn{ padding:.4em .8em; text-transform:uppercase; letter-spacing:var(--letter-space); }
 
-  /* Overlay: 스크롤 가능 */
+  /* Overlay container: 스크롤 가능 */
   #overlay{
     position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
     cursor:pointer; overflow:auto; -webkit-overflow-scrolling:touch;
@@ -87,7 +92,7 @@
   .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
   .subText{ font-size:var(--sub-fs); opacity:.95; }
 
-  /* INTRO: 본문 스크롤 박스 */
+  /* INTRO 본문: 스크롤 박스 */
   #introWrap{
     display:none; text-align:left; width:100%; max-width:min(72ch, 92vw); margin:0 auto;
     max-height:calc(var(--vhpx) - 3.2em - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
@@ -99,7 +104,7 @@
   #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); padding-left:1.1em; }
   #introWrap .tips li{ margin:.25em 0; line-height:1.5; word-break:keep-all; }
 
-  /* Sleep 버튼: sticky */
+  /* Sleep 버튼: 하단 sticky */
   #sleepBtn{
     display:block !important; margin:12px auto 0;
     font-size:clamp(12px,1.6vmin,18px); padding:.45em .95em;
@@ -108,10 +113,12 @@
     background:rgba(0,0,0,.55); backdrop-filter:blur(2px);
   }
 
+  /* HTTPS 안내 */
   #httpsBlock{ position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px;text-align:center; }
   #httpsInner{ max-width:560px }
   .kbd{ display:inline-block;border:1px solid #888;padding:2px 6px;border-radius:4px;background:#111 }
 
+  /* Debug HUD */
   #diag{
     position:fixed;left:8px;bottom:8px;z-index:9999;display:none;
     background:rgba(0,0,0,.7);color:#0f0;font:12px/1.4 var(--ff-ui);
@@ -125,7 +132,9 @@
 <body>
   <canvas id="view"></canvas>
 
-  <iframe id="ninjaOverlay" allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
+  <!-- iOS 대응: allow 권한을 강하게 지정 -->
+  <iframe id="ninjaOverlay"
+          allow="autoplay *; fullscreen *; camera *; microphone *; clipboard-read *; clipboard-write *"
           allowtransparency="true" referrerpolicy="no-referrer" src="about:blank"></iframe>
 
   <div class="proscenium" aria-hidden="true"></div>
@@ -135,16 +144,21 @@
     <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
+  <!-- Overlay (탭 → 권한(iOS 바로 / 안드 허용버튼) → Welcome → Intro+Sleep) -->
   <div id="overlay" aria-label="Tap anywhere to start">
     <div id="overlayContent">
+      <!-- STEP 1: 안내 -->
       <div id="tapAnywhere" class="subText">화면을 가볍게 탭하여 <b>카메라 허용</b>을 진행해주세요</div>
 
+      <!-- STEP 2: 안드로이드 전용 허용 버튼 -->
       <button id="allowBtn" class="stageBtn" aria-label="Request camera permission">허용 버튼</button>
       <div id="allowSub" class="subText" style="display:none;">버튼을 눌러 브라우저의 카메라 권한 창을 띄우세요</div>
 
+      <!-- STEP 3: Welcome -->
       <button id="welcomeBtn" class="stageBtn stageText" aria-label="Welcome">WELCOME TO HISTORY OF NIGHTMARE</button>
       <div id="welcomeSub" class="subText" style="display:none;">악몽의 역사에 오신 것을 환영합니다</div>
 
+      <!-- STEP 4: INTRO + SLEEP -->
       <div id="introWrap">
         <h2 class="stageText">INTRODUCTION</h2>
         <ol>
@@ -163,12 +177,14 @@
         <button id="sleepBtn" class="stageBtn" aria-label="Press to sleep">PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP</button>
       </div>
 
+      <!-- GOOD NIGHT 메시지 -->
       <div id="goodNight" class="stageText" style="display:none; margin-top:8px;">
         GOOD NIGHT. HAVE A NICE DREAM.
       </div>
     </div>
   </div>
 
+  <!-- (선택) HTTPS 안내 -->
   <div id="httpsBlock">
     <div id="httpsInner">
       <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
@@ -185,10 +201,12 @@
   <div id="diag"></div>
 
 <script>
+/* ===== PWA SW ===== */
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(console.warn);
 }
 
+/* 앱 모드 감지 (배너 제거 등) */
 function isAppMode() {
   return window.matchMedia("(display-mode: standalone)").matches ||
          window.navigator.standalone ||
@@ -209,13 +227,13 @@ async function goFullscreen(){
 }
 const isAndroid = /Android/i.test(navigator.userAgent);
 
-/* 안드 전용: 첫 제스처 때 바로 전체화면 + (가능하면) 가로 고정 */
+/* Android: 첫 제스처 즉시 전체화면 + 가로 고정(가능 시) */
 async function tryEnterFullscreenEarly(){
   if(!isAndroid) return;
   try{ await goFullscreen(); }catch(_){}
   try{
     if(screen.orientation && screen.orientation.lock){
-      await screen.orientation.lock('landscape');  // 일부 단말에서만 동작
+      await screen.orientation.lock('landscape');
     }
   }catch(_){}
 }
@@ -255,7 +273,7 @@ const btnCopy=document.getElementById('copyHttps');
 const btnOpen=document.getElementById('openHttps');
 const diag=document.getElementById('diag');
 
-/* ===== HTTPS ===== */
+/* ===== HTTPS (필요 시) ===== */
 function shouldForceHttps(){ const local=/^(localhost|127\.0\.0\.1)$/i.test(location.hostname); return !window.isSecureContext && !local; }
 function tryHttpsRedirect(){
   if(shouldForceHttps()){
@@ -344,18 +362,11 @@ const injectedCss=encodeURIComponent(`
 const ninjaBase=`https://vdo.ninja/?view=${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&autoplay=1&muted=1&playsinline=1&noaudio&codec=vp8&solo&transparent=1&css=${injectedCss}`;
 const ninjaUrl=()=>`${ninjaBase}&ts=${Date.now()}`;
 
-let overlayDesired=false;
-function showOverlayNow(){
-  overlayDesired=true;
-  if(ninja.src==='about:blank'){ ninja.src=ninjaUrl(); }
-  ninja.style.opacity = String(CONFIG.BLEND);
-}
-function hideOverlay(){ overlayDesired=false; ninja.style.opacity='0'; }
+/* iOS: 초기 프리로드 금지, Android 등만 프리로드 */
+const isiOSUA = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+if(!isiOSUA){ ninja.src = ninjaUrl(); }  // 안드 등에서만 초기 로드
 
-ninja.addEventListener('load', ()=>{
-  if(overlayDesired) ninja.style.opacity = String(CONFIG.BLEND);
-});
-(function preloadOverlay(){ ninja.src=ninjaUrl(); })();
+let overlayDesired=false;
 function applyRezScale(){
   const s=Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1));
   ninja.style.width=`calc(var(--vwpx) * ${s})`;
@@ -363,9 +374,18 @@ function applyRezScale(){
   ninja.style.left='50%'; ninja.style.top='50%';
   ninja.style.transform=`translate(-50%,-50%) scale(${1/s})`;
 }
-function setOverlay(on){ on?showOverlayNow():hideOverlay(); }
-btnIn.addEventListener('click', ()=> setOverlay(true));
-btnOut.addEventListener('click',()=> setOverlay(false));
+function showOverlayNow(){
+  overlayDesired=true;
+  /* iOS: 탭 제스처 안에서 최초 src 주입 */
+  if(ninja.src==='about:blank'){ ninja.src=ninjaUrl(); }
+  ninja.setAttribute('allow','autoplay *; fullscreen *; camera *; microphone *; clipboard-read *; clipboard-write *');
+  ninja.style.opacity = String(CONFIG.BLEND);
+}
+function hideOverlay(){ overlayDesired=false; ninja.style.opacity='0'; }
+
+ninja.addEventListener('load', ()=>{ if(overlayDesired) ninja.style.opacity=String(CONFIG.BLEND); });
+
+/* 워치독: 가시화 유지 & 필요 시 재주입 */
 setInterval(()=>{
   if(!overlayDesired) return;
   const want = String(CONFIG.BLEND);
@@ -375,6 +395,11 @@ setInterval(()=>{
     if(needsReload) ninja.src = ninjaUrl();
   }catch(_){}
 }, 1500);
+
+/* ===== IN/OUT 버튼 ===== */
+function setOverlay(on){ on?showOverlayNow():hideOverlay(); }
+btnIn.addEventListener('click', ()=> setOverlay(true));
+btnOut.addEventListener('click',()=> setOverlay(false));
 
 /* ===== 입력 유틸 ===== */
 let inputLock=false;
@@ -419,25 +444,26 @@ function setStep(step){
     overlay.scrollTop = 0; introWrap.scrollTop = 0;
   }
 
+  /* 웰컴/인트로 구간에서는 항상 레이어 유지 */
   if (step===3 || step===4) showOverlayNow();
 }
 function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
 }
 
-/* 초기 단계 */
+/* ===== 초기 단계 ===== */
 setStep(1);
 
-/* ▶ 첫 탭: 안드로이드 즉시 전체화면 + 레졸룸 표시 + (iOS는 권한 시도) */
+/* 첫 화면 아무 데나 탭 */
 addMultiTap(overlay, async (e)=>{
   if(stepState!==1) return;
   if(e.target.closest('#allowBtn,#welcomeBtn,#sleepBtn')) return;
   lockInput();
 
-  // ANDROID: 바로 전체화면 시도
+  /* Android: 즉시 전체화면 시도 */
   tryEnterFullscreenEarly();
 
-  // 레졸룸 오버레이 즉시 요청
+  /* iOS/Android 공통: 이 제스처 안에서 바로 Resolume 주입/표시 */
   showOverlayNow();
 
   if (isIOS){
@@ -448,15 +474,13 @@ addMultiTap(overlay, async (e)=>{
   }
 });
 
-/* Android 허용 버튼: 전체화면 재보장 + 오버레이 */
+/* Android 허용 버튼 (권한 창 띄우기 전/후 둘 다 가시화 보장) */
 addMultiTap(allowBtn, async (e)=>{
   e.stopPropagation();
   if (getComputedStyle(allowBtn).display==='none') return;
   lockInput();
-
-  tryEnterFullscreenEarly();  // 제스처 안에서 한 번 더
+  tryEnterFullscreenEarly();
   showOverlayNow();
-
   try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
   catch{ allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.'; }
 });
@@ -468,12 +492,11 @@ addMultiTap(welcomeBtn, (e)=>{
   lockInput(); setStep(4); showOverlayNow();
 });
 
-/* Sleep */
+/* Sleep: 전체화면 + 레이어 유지 */
 addMultiTap(sleepBtn, async (e)=>{
   e.stopPropagation(); lockInput();
   beep();
-  // 안드로이드는 이미 전체화면일 가능성 높지만 한 번 더 보장
-  tryEnterFullscreenEarly();
+  try{ await goFullscreen(); }catch(_){}
   showOverlayNow();
   introWrap.style.display='none';
   tapAnywhere.style.display='none';
@@ -487,7 +510,7 @@ addMultiTap(sleepBtn, async (e)=>{
   fadeOutOverlay(3000);
 });
 
-/* HUD (3연타) */
+/* ===== HUD (3연타) ===== */
 (function(){
   let show=false,taps=0,last=0;
   addEventListener('pointerup', ()=>{
@@ -509,7 +532,7 @@ time: ${new Date().toLocaleTimeString()}`;
   }
 })();
 
-/* 첫 배치 */
+/* ===== 첫 배치 ===== */
 applyRezScale(); fitCamera();
 
 })(); // IIFE
