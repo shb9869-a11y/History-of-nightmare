@@ -55,7 +55,7 @@
     border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .25s ease;background:transparent;
   }
 
-  /* Proscenium frame (라운드 유지 지시 없으므로 그대로) */
+  /* Proscenium frame (그대로 유지) */
   .proscenium{
     position:fixed;
     left:calc(var(--gap) + env(safe-area-inset-left));
@@ -66,17 +66,23 @@
     z-index:90; pointer-events:none; transform:translateZ(0);
   }
 
-  /* 우하단 컨트롤: Document만 (라운드 제거, 배경 제거) */
+  /* 우하단 컨트롤: 기본 버튼(사각 테두리) */
   .controls{
     position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));
-    z-index:120;display:flex;gap:8px;
+    z-index:120;display:flex;gap:8px;align-items:center;
   }
   .uiBtn{
     padding:.45em .9em;border:var(--btn-border) solid #fff;text-transform:uppercase;letter-spacing:var(--letter-space);
     background:transparent; border-radius:0;
   }
+  /* DOCUMENT 버튼만 사각형 느낌 제거 */
+  #btnDoc{
+    border:none !important; background:transparent !important; padding:0 !important;
+    text-transform:uppercase; letter-spacing:.06em;
+    text-decoration:underline; text-underline-offset:4px;
+  }
 
-  /* Overlay container: 스크롤 가능 (초기 권한/웰컴/인트로) */
+  /* Overlay container */
   #overlay{
     position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
     cursor:pointer; overflow:auto; -webkit-overflow-scrolling:touch;
@@ -89,7 +95,7 @@
   }
   .hidden{ opacity:0 }
 
-  /* 모든 텍스트 테두리: 직각, 내부 반투명 배경 제거 */
+  /* 모든 텍스트 테두리: 직각, 내부 배경 제거 */
   .stageBtn{
     display:none; padding:var(--btn-pad-y) var(--btn-pad-x);
     border:var(--btn-border) solid #fff; text-transform:uppercase;
@@ -99,7 +105,7 @@
   .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
   .subText{ font-size:var(--sub-fs); opacity:.95; }
 
-  /* INTRO 본문: 스크롤 박스 */
+  /* INTRO 본문 */
   #introWrap{
     display:none; text-align:left; width:100%; max-width:min(72ch, 92vw); margin:0 auto;
     max-height:calc(var(--vhpx) - 3.2em - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
@@ -149,23 +155,30 @@
     display:flex; align-items:center; justify-content:space-between; gap:8px;
   }
   #docTitle{ font-size:clamp(16px,2vmin,22px); letter-spacing:.06em; text-transform:uppercase; }
-  .docExit{ padding:.4em .9em; border:1px solid #fff; border-radius:0; background:transparent; text-transform:uppercase; letter-spacing:.03em;}
+  /* EXIT도 링크 느낌 */
+  .docExit{
+    padding:0; border:none; background:transparent; border-radius:0;
+    text-transform:uppercase; letter-spacing:.06em; text-decoration:underline; text-underline-offset:4px;
+  }
+  /* 박스/사각형 느낌 제거 */
   #docBody{
     flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch;
-    border:1px dashed rgba(255,255,255,.35); border-radius:0; padding:14px;
+    border:none; border-radius:0; padding:0;
     font-size:var(--body-fs); line-height:1.6;
     background:transparent;
   }
 
-  /* 기록 목록 그리드 (라운드 제거) */
+  /* 기록 목록: 텍스트 링크 스타일 */
   #docMenu{
     display:grid; gap:10px;
     grid-template-columns:repeat( auto-fit, minmax(120px, 1fr) );
   }
   .docBtn{
-    padding:.8em 1em; border:1px solid #fff; border-radius:0;
-    background:transparent; text-align:center; text-transform:uppercase; letter-spacing:.04em;
+    padding:0; border:none; border-radius:0; background:transparent;
+    text-align:left; text-transform:uppercase; letter-spacing:.04em;
+    text-decoration:underline; text-underline-offset:4px;
   }
+  #docContent{ padding-top:8px; }
   .docParagraph{ margin:.5em 0; word-break:keep-all; }
   .docPoem br{ content:""; }
 </style>
@@ -180,7 +193,7 @@
 
   <div class="proscenium" aria-hidden="true"></div>
 
-  <!-- 우하단: Document 버튼만 -->
+  <!-- 우하단: Document (링크 느낌) -->
   <div class="controls">
     <button class="uiBtn" id="btnDoc">Document</button>
   </div>
@@ -463,7 +476,7 @@ function addMultiTap(el, handler){
 }
 
 /* ===== 8-bit 비프 ===== */
-let audioCtx=null;
+let audioCtx=null, lastBeep=0;
 function beep(){
   try{
     if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
@@ -477,6 +490,15 @@ function beep(){
     o.start(now); o.stop(now + 0.09);
   }catch(e){}
 }
+function beepOnce(){ const now=Date.now(); if(now-lastBeep<120) return; lastBeep=now; beep(); }
+
+/* 모든 버튼에서 효과음 */
+['click','pointerup','touchend'].forEach(ev=>{
+  document.addEventListener(ev, (e)=>{
+    const btn = e.target.closest('button');
+    if(btn) beepOnce();
+  }, true);
+});
 
 /* ===== 단계 표시 ===== */
 let stepState=1;
@@ -541,7 +563,6 @@ addMultiTap(welcomeBtn, (e)=>{
 /* Sleep */
 addMultiTap(sleepBtn, async (e)=>{
   e.stopPropagation(); lockInput();
-  beep();
   try{ await goFullscreen(); }catch(_){}
   showOverlayNow();
   introWrap.style.display='none';
@@ -580,7 +601,6 @@ time: ${new Date().toLocaleTimeString()}`;
 
 /* ===== Document Panel 로직 ===== */
 
-/* 기록 콘텐츠 (맞춤법/띄어쓰기 정돈 반영) */
 const DOCS = {
   "기록 1": `
   <div class="docParagraph">이 모든 이야기는 내가 나를 매장하는 독특한 의식으로부터 비롯되었다.</div>
