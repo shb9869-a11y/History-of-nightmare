@@ -83,7 +83,15 @@
   #introWrap li{ margin:.3em 0; line-height:1.55; }
   #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); }
   #introWrap .tips li{ margin:.25em 0; }
-  #sleepBtn{ margin-top:14px; }
+
+  /* Sleep 버튼만 소형 + 중앙 정렬 */
+  #sleepBtn{
+    display:block;                 /* 블록으로 만들어 중앙 정렬 */
+    margin:16px auto 0;            /* 가운데 배치 */
+    font-size:clamp(12px,1.6vmax,18px); /* 기존 stage보다 작게 */
+    padding:.4em .9em;
+    letter-spacing:var(--letter-space);
+  }
 
   /* HTTPS help (생략 가능) */
   #httpsBlock{ position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px;text-align:center; }
