@@ -18,7 +18,6 @@
     --line-color:rgba(255,255,255,.9); --line-w:1px; --line-r:2px;
     --ff-ui:"Courier New", Courier, monospace;
 
-    /* vmin 기반 기본 타이포 */
     --stage-fs:clamp(14px,2.2vmin,22px);
     --sub-fs:clamp(11px,1.6vmin,16px);
     --body-fs:clamp(12px,1.8vmin,18px);
@@ -45,17 +44,15 @@
   *,*::before,*::after{ box-sizing:border-box; }
   button{ font:inherit;color:inherit;background:none;border:none;padding:0;margin:0;cursor:pointer; }
 
-  /* Camera canvas */
   #view{ position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);display:block;z-index:0; }
 
   /* VDO.Ninja overlay */
   #ninjaOverlay{
     position:fixed;left:50%;top:50%;width:var(--vwpx);height:var(--vhpx);
     transform:translate(-50%,-50%) scale(1);transform-origin:50% 50%;
-    border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .35s ease;background:transparent;
+    border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .25s ease;background:transparent;
   }
 
-  /* Proscenium */
   .proscenium{
     position:fixed;
     left:calc(var(--gap) + env(safe-area-inset-left));
@@ -66,7 +63,6 @@
     z-index:90; pointer-events:none; transform:translateZ(0);
   }
 
-  /* IN/OUT */
   .controls{ position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:100;display:flex;gap:8px; }
   .uiBtn{ padding:.4em .8em; text-transform:uppercase; letter-spacing:var(--letter-space); }
 
@@ -87,7 +83,6 @@
     display:none; padding:var(--btn-pad-y) var(--btn-pad-x);
     border:var(--btn-border) solid #fff; text-transform:uppercase;
     letter-spacing:var(--letter-space); font-size:var(--stage-fs);
-    cursor:pointer;
   }
   .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
   .subText{ font-size:var(--sub-fs); opacity:.95; }
@@ -113,12 +108,10 @@
     background:rgba(0,0,0,.55); backdrop-filter:blur(2px);
   }
 
-  /* HTTPS help */
   #httpsBlock{ position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px;text-align:center; }
   #httpsInner{ max-width:560px }
   .kbd{ display:inline-block;border:1px solid #888;padding:2px 6px;border-radius:4px;background:#111 }
 
-  /* Debug HUD */
   #diag{
     position:fixed;left:8px;bottom:8px;z-index:9999;display:none;
     background:rgba(0,0,0,.7);color:#0f0;font:12px/1.4 var(--ff-ui);
@@ -142,21 +135,16 @@
     <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
-  <!-- Overlay -->
   <div id="overlay" aria-label="Tap anywhere to start">
     <div id="overlayContent">
-      <!-- STEP 1: 안내 -->
       <div id="tapAnywhere" class="subText">화면을 가볍게 탭하여 <b>카메라 허용</b>을 진행해주세요</div>
 
-      <!-- STEP 2: 안드로이드 전용 허용 버튼 -->
       <button id="allowBtn" class="stageBtn" aria-label="Request camera permission">허용 버튼</button>
       <div id="allowSub" class="subText" style="display:none;">버튼을 눌러 브라우저의 카메라 권한 창을 띄우세요</div>
 
-      <!-- STEP 3: Welcome -->
       <button id="welcomeBtn" class="stageBtn stageText" aria-label="Welcome">WELCOME TO HISTORY OF NIGHTMARE</button>
       <div id="welcomeSub" class="subText" style="display:none;">악몽의 역사에 오신 것을 환영합니다</div>
 
-      <!-- STEP 4: INTRO + SLEEP -->
       <div id="introWrap">
         <h2 class="stageText">INTRODUCTION</h2>
         <ol>
@@ -175,14 +163,12 @@
         <button id="sleepBtn" class="stageBtn" aria-label="Press to sleep">PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP</button>
       </div>
 
-      <!-- GOOD NIGHT 메시지 -->
       <div id="goodNight" class="stageText" style="display:none; margin-top:8px;">
         GOOD NIGHT. HAVE A NICE DREAM.
       </div>
     </div>
   </div>
 
-  <!-- (선택) HTTPS 안내 -->
   <div id="httpsBlock">
     <div id="httpsInner">
       <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
@@ -199,12 +185,10 @@
   <div id="diag"></div>
 
 <script>
-/* ===== PWA SW ===== */
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(console.warn);
 }
 
-/* 앱 모드 감지 (배너 제거 등) */
 function isAppMode() {
   return window.matchMedia("(display-mode: standalone)").matches ||
          window.navigator.standalone ||
@@ -215,7 +199,6 @@ window.matchMedia("(display-mode: standalone)").addEventListener("change", (e)=>
   document.documentElement.classList.toggle("app-mode", e.matches);
 });
 
-/* ===== Fullscreen ===== */
 async function goFullscreen(){
   const el=document.documentElement;
   try{
@@ -259,7 +242,7 @@ const btnCopy=document.getElementById('copyHttps');
 const btnOpen=document.getElementById('openHttps');
 const diag=document.getElementById('diag');
 
-/* ===== HTTPS (필요 시) ===== */
+/* ===== HTTPS ===== */
 function shouldForceHttps(){ const local=/^(localhost|127\.0\.0\.1)$/i.test(location.hostname); return !window.isSecureContext && !local; }
 function tryHttpsRedirect(){
   if(shouldForceHttps()){
@@ -345,9 +328,28 @@ const injectedCss=encodeURIComponent(`
   #container,.container{background:transparent!important;}
   video,canvas{position:fixed!important; inset:0!important; width:100vw!important; height:100vh!important; object-fit:cover!important; background:transparent!important;}
 `);
-const ninjaBase=`https://vdo.ninja/?view=${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&noaudio&codec=vp8&solo&transparent=1&css=${injectedCss}`;
+const ninjaBase=`https://vdo.ninja/?view=${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&autoplay=1&muted=1&playsinline=1&noaudio&codec=vp8&solo&transparent=1&css=${injectedCss}`;
 const ninjaUrl=()=>`${ninjaBase}&ts=${Date.now()}`;
+
+/* ▶ 오버레이 가시화 플래그 & 함수 */
+let overlayDesired=false;
+function showOverlayNow(){
+  overlayDesired=true;
+  if(ninja.src==='about:blank'){ ninja.src=ninjaUrl(); }
+  // 이미 로드되어 있으면 즉시 표시
+  ninja.style.opacity = String(CONFIG.BLEND);
+}
+function hideOverlay(){ overlayDesired=false; ninja.style.opacity='0'; }
+
+/* 로드 완료 후에도 바로 표시 (초기 지연 대비) */
+ninja.addEventListener('load', ()=>{
+  if(overlayDesired) ninja.style.opacity = String(CONFIG.BLEND);
+});
+
+/* 초기 프리로드 */
 (function preloadOverlay(){ ninja.src=ninjaUrl(); })();
+
+/* 크기/스케일 적용 */
 function applyRezScale(){
   const s=Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1));
   ninja.style.width=`calc(var(--vwpx) * ${s})`;
@@ -355,10 +357,21 @@ function applyRezScale(){
   ninja.style.left='50%'; ninja.style.top='50%';
   ninja.style.transform=`translate(-50%,-50%) scale(${1/s})`;
 }
-function setOverlay(on){ ninja.style.opacity = on ? String(CONFIG.BLEND) : '0'; if (on && !ninja.contentWindow) ninja.src=ninjaUrl(); }
+function setOverlay(on){ on?showOverlayNow():hideOverlay(); }
 btnIn.addEventListener('click', ()=> setOverlay(true));
 btnOut.addEventListener('click',()=> setOverlay(false));
-setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src=ninjaUrl(); } }, 60000);
+
+/* 워치독: 표시 요청했는데 안 뜨면 재주입 */
+setInterval(()=>{
+  if(!overlayDesired) return;
+  const want = String(CONFIG.BLEND);
+  if(ninja.style.opacity!==want) ninja.style.opacity=want;
+  try{
+    // contentWindow가 없거나 강제로 about:blank로 바뀐 경우 대비
+    const needsReload = !ninja.contentWindow || (ninja.src && ninja.src.endsWith('about:blank'));
+    if(needsReload) ninja.src = ninjaUrl();
+  }catch(_){}
+}, 1500);
 
 /* ===== 입력 유틸 ===== */
 let inputLock=false;
@@ -403,58 +416,57 @@ function setStep(step){
     overlay.scrollTop = 0; introWrap.scrollTop = 0;
   }
 
-  /* ✅ 카메라 권한 이후(웰컴/인트로 단계)부터 레졸룸 오버레이 항상 ON */
-  if (step===3 || step===4) setOverlay(true); // ✅
+  // 웰컴/인트로 구간에서는 항상 오버레이 유지
+  if (step===3 || step===4) showOverlayNow();
 }
 function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
 }
 
-/* ===== 초기: 1단계 고정 ===== */
+/* 초기 단계 */
 setStep(1);
 
-/* 화면 어디든 탭 → 1단계에서만 카메라 권한 진입 */
+/* ▲ 첫 탭: 권한 시도 전에 바로 레졸룸 표시 요청 */
 addMultiTap(overlay, async (e)=>{
   if(stepState!==1) return;
   if(e.target.closest('#allowBtn,#welcomeBtn,#sleepBtn')) return;
   lockInput();
+
+  showOverlayNow(); // <<<<<<<<<<<< 핵심: 첫 탭 즉시 표시
+
   if (isIOS){
-    try{
-      await startCamera(); fitCamera(); ensureLoop(); setStep(3);
-      setOverlay(true); // ✅ iOS: 첫 탭으로 권한 얻는 즉시 레졸룸 표시
-    }catch{
-      tapAnywhere.innerHTML = '카메라 접근이 거부되었습니다. <b>설정 > 사파리 > 카메라</b>에서 허용 후 다시 시도하세요.';
-    }
+    try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
+    catch{ tapAnywhere.innerHTML = '카메라 접근이 거부되었습니다. <b>설정 > 사파리 > 카메라</b>에서 허용 후 다시 시도하세요.'; }
   }else{
     setStep(2);
   }
 });
 
-/* 버튼 전용 핸들러 */
+/* Android 허용 버튼 */
 addMultiTap(allowBtn, async (e)=>{
   e.stopPropagation();
   if (getComputedStyle(allowBtn).display==='none') return;
   lockInput();
-  try{
-    await startCamera(); fitCamera(); ensureLoop(); setStep(3);
-    setOverlay(true); // ✅ 안드로이드: 허용 성공 즉시 레졸룸 표시
-  }catch{
-    allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.';
-  }
+
+  showOverlayNow(); // 허용 직전에도 보장
+
+  try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
+  catch{ allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.'; }
 });
+
+/* Welcome → Intro */
 addMultiTap(welcomeBtn, (e)=>{
   e.stopPropagation();
   if (getComputedStyle(welcomeBtn).display==='none') return;
-  lockInput(); setStep(4); /* setStep이 알아서 setOverlay(true) 해줌 */ // ✅
+  lockInput(); setStep(4); showOverlayNow();
 });
 
-/* SLEEP: 전체화면 + 오버레이 + 비프 (이미 ON 상태 유지) */
+/* Sleep */
 addMultiTap(sleepBtn, async (e)=>{
   e.stopPropagation(); lockInput();
   beep();
   await goFullscreen();
-  setOverlay(true); // ✅ 안전하게 한 번 더 보장
-  // GOOD NIGHT 표시
+  showOverlayNow(); // 안전 확보
   introWrap.style.display='none';
   tapAnywhere.style.display='none';
   allowBtn.style.display='none';
@@ -467,7 +479,7 @@ addMultiTap(sleepBtn, async (e)=>{
   fadeOutOverlay(3000);
 });
 
-/* ===== HUD (3연타) ===== */
+/* HUD (3연타) */
 (function(){
   let show=false,taps=0,last=0;
   addEventListener('pointerup', ()=>{
@@ -482,13 +494,14 @@ addMultiTap(sleepBtn, async (e)=>{
 display-mode: ${a2hs?'standalone':'browser'}
 viewport: ${innerWidth}x${innerHeight}
 rez-scale: ${CONFIG.REZ_SCALE}
+overlayDesired: ${overlayDesired}
 camera perm: ${camP}
 time: ${new Date().toLocaleTimeString()}`;
     if(diag.style.display==='block') setTimeout(probe, 800);
   }
 })();
 
-/* ===== 첫 배치 ===== */
+/* 첫 배치 */
 applyRezScale(); fitCamera();
 
 })(); // IIFE
