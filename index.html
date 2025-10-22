@@ -10,136 +10,86 @@
 
 <style>
   :root{
-    --vwpx: 100vw;
-    --vhpx: 100vh;
-
+    --vwpx: 100vw; --vhpx: 100vh;
     --gap: 32px;
-    --line-color: rgba(255,255,255,.9);
-    --line-w: 1px; --line-r: 2px;
-
+    --line-color: rgba(255,255,255,.9); --line-w: 1px; --line-r: 2px;
     --ff-ui: "Courier New", Courier, monospace;
     --stage-fs: clamp(14px, 2.0vmax, 22px);
     --sub-fs: clamp(11px, 1.5vmax, 16px);
-    --btn-pad-y: .45em;
-    --btn-pad-x: 1.0em;
-    --btn-border: 1px;
-    --letter-space: .03em;
-    --line-height: 1.4;
+    --btn-pad-y: .45em; --btn-pad-x: 1.0em; --btn-border: 1px;
+    --letter-space: .03em; --line-height: 1.4;
   }
   @media (orientation:landscape){
-    :root{
-      --gap: 24px;
-      --stage-fs: clamp(13px, 1.8vmax, 20px);
-      --sub-fs: clamp(10px, 1.3vmax, 14px);
-    }
+    :root{ --gap:24px; --stage-fs:clamp(13px,1.8vmax,20px); --sub-fs:clamp(10px,1.3vmax,14px); }
   }
-
   html,body{
-    margin:0;height:100%;background:#000;overflow:hidden;color:#fff;
+    margin:0;height:100%;background:#000;color:#fff;overflow:hidden;
     -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
-    font-family: var(--ff-ui); font-size:16px; line-height:var(--line-height);
+    font-family:var(--ff-ui); line-height:var(--line-height);
     text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased;
   }
+  *,*::before,*::after{ box-sizing:border-box; }
+  button{ font:inherit;color:inherit;background:none;border:none;padding:0;margin:0;cursor:pointer; }
 
-  *, *::before, *::after{ box-sizing:border-box; }
-  button, input, select, textarea{ font: inherit; color: inherit; }
-  button{ -webkit-appearance:none; appearance:none; background:none; border:none; padding:0; margin:0; }
+  /* Camera canvas */
+  #view{ position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);display:block;z-index:0; }
 
-  /* 관객 카메라(흑백) */
-  #view{
-    position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);
-    display:block;z-index:0
-  }
-
-  /* VDO.Ninja 오버레이 */
+  /* VDO.Ninja overlay */
   #ninjaOverlay{
-    position:fixed;left:50%;top:50%;
-    width:var(--vwpx);height:var(--vhpx);
+    position:fixed;left:50%;top:50%;width:var(--vwpx);height:var(--vhpx);
     transform:translate(-50%,-50%) scale(1);transform-origin:50% 50%;
-    border:0;z-index:10;pointer-events:none;opacity:0;
-    transition:opacity .35s ease;background:transparent;
-    image-rendering:auto;will-change:transform
+    border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .35s ease;background:transparent;
   }
 
-  /* 프로시니엄 */
+  /* Proscenium */
   .proscenium{
     position:fixed;
     left:calc(var(--gap) + env(safe-area-inset-left));
     right:calc(var(--gap) + env(safe-area-inset-right));
     top:calc(var(--gap) + env(safe-area-inset-top));
     bottom:calc(var(--gap) + env(safe-area-inset-bottom));
-    border:var(--line-w) solid var(--line-color);
-    border-radius:var(--line-r);
-    box-sizing:border-box;z-index:90;pointer-events:none;transform:translateZ(0)
+    border:var(--line-w) solid var(--line-color); border-radius:var(--line-r);
+    z-index:90; pointer-events:none; transform:translateZ(0);
   }
 
   /* IN/OUT */
-  .controls{
-    position:fixed;right:calc(16px + env(safe-area-inset-right));
-    bottom:calc(16px + env(safe-area-inset-bottom));
-    z-index:100;display:flex;gap:8px
-  }
-  .uiBtn{
-    padding:.4em .8em; cursor:pointer; user-select:none;
-    color:#fff; opacity:.9; border:none; background:transparent;
-    text-transform:uppercase; letter-spacing:var(--letter-space);
-  }
+  .controls{ position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:100;display:flex;gap:8px; }
+  .uiBtn{ padding:.4em .8em; text-transform:uppercase; letter-spacing:var(--letter-space); }
 
-  /* 투명 오버레이 (검정 박스 없음) */
+  /* Transparent overlay (no black box) */
   #overlay{
-    position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);
-    z-index:200;display:flex;align-items:center;justify-content:center;
-    padding:20px;color:#fff;
+    position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
   }
-  #overlayContent{
-    text-align:center;transition:opacity .45s ease;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
-  }
-  .hidden{opacity:0}
+  #overlayContent{ text-align:center; transition:opacity .45s ease; display:flex;flex-direction:column;gap:10px;align-items:center; }
+  .hidden{ opacity:0 }
 
   .stageBtn{
-    display:none; /* 초기에는 숨김 (권한 후 노출) */
-    margin:8px auto;padding:var(--btn-pad-y) var(--btn-pad-x);
-    border:var(--btn-border) solid #fff;border-radius:0;
-    background:transparent;color:#fff;cursor:pointer;user-select:none;
-    text-transform:uppercase;font-size:var(--stage-fs);
-    letter-spacing:var(--letter-space);
+    display:none; /* 기본 숨김, 단계별로 켜짐 */
+    padding:var(--btn-pad-y) var(--btn-pad-x);
+    border:var(--btn-border) solid #fff; text-transform:uppercase;
+    letter-spacing:var(--letter-space); font-size:var(--stage-fs);
   }
-  .stageText{
-    font-size:var(--stage-fs);
-    text-transform:uppercase;
-    letter-spacing:var(--letter-space);
-  }
-  .subText{
-    font-size:var(--sub-fs);
-    opacity:.9;
-    letter-spacing:0;
-    text-transform:none;
-  }
+  .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
+  .subText{ font-size:var(--sub-fs); opacity:.95; }
 
-  /* HTTPS 안내 */
-  #httpsBlock{
-    position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
-    background:rgba(0,0,0,.88);color:#fff;padding:20px;text-align:center
-  }
-  #httpsInner{max-width:560px}
-  .kbd{display:inline-block;border:1px solid #888;padding:2px 6px;border-radius:4px;background:#111}
+  /* HTTPS help */
+  #httpsBlock{ position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px;text-align:center; }
+  #httpsInner{ max-width:560px }
+  .kbd{ display:inline-block;border:1px solid #888;padding:2px 6px;border-radius:4px;background:#111 }
 
-  /* 진단 HUD (3연타 토글) */
+  /* Debug HUD (triple tap) */
   #diag{
-    position:fixed;left:8px;bottom:8px;z-index:9999;
+    position:fixed;left:8px;bottom:8px;z-index:9999;display:none;
     background:rgba(0,0,0,.7);color:#0f0;font:12px/1.4 var(--ff-ui);
-    padding:8px;border:1px solid #0f0;border-radius:6px;display:none;white-space:pre
+    padding:8px;border:1px solid #0f0;border-radius:6px;white-space:pre;
   }
 </style>
 </head>
 <body>
   <canvas id="view"></canvas>
 
-  <iframe id="ninjaOverlay"
-          allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
-          allowtransparency="true" style="background:transparent" referrerpolicy="no-referrer"
-          src="about:blank"></iframe>
+  <iframe id="ninjaOverlay" allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write"
+          allowtransparency="true" referrerpolicy="no-referrer" src="about:blank"></iframe>
 
   <div class="proscenium" aria-hidden="true"></div>
 
@@ -148,22 +98,22 @@
     <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
-  <!-- 투명 오버레이 -->
+  <!-- Overlay -->
   <div id="overlay">
     <div id="overlayContent">
-      <!-- 초기엔 이 힌트만 보임 -->
-      <div id="tapHint" class="subText" style="margin-bottom:6px;">
-        화면을 가볍게 탭하여 <b>카메라 허용</b>을 진행해주세요
-      </div>
+      <!-- STEP 1: 화면 탭 유도 -->
+      <div id="tapAnywhere" class="subText">화면을 가볍게 탭하여 <b>카메라 허용</b>을 진행해주세요</div>
 
-      <!-- 권한 허용 후 나타날 버튼 + 자막 -->
-      <button id="startBtn" class="stageBtn" role="button" aria-label="Press to start">
-        PRESS HERE TO START
-      </button>
+      <!-- STEP 2: 허용 버튼 (이걸 눌러야 권한창 뜸) -->
+      <button id="allowBtn" class="stageBtn" aria-label="Request camera permission">허용 버튼</button>
+      <div id="allowSub" class="subText" style="display:none;">버튼을 눌러 브라우저의 카메라 권한 창을 띄우세요</div>
+
+      <!-- STEP 3: 시작 버튼 -->
+      <button id="startBtn" class="stageBtn" aria-label="Press to start">PRESS HERE TO START</button>
       <div id="startSub" class="subText" style="display:none;">시작하려면 여기를 누르세요</div>
 
-      <!-- Start 후 잠깐 보일 환영 문구 (그 외 텍스트는 제거) -->
-      <div id="msg" class="stageText" style="display:none; margin-top:10px;"></div>
+      <!-- STEP 4: 환영 문구 (잠깐 노출 후 페이드아웃) -->
+      <div id="msg" class="stageText" style="display:none;">WELCOME TO HISTORY OF NIGHTMARE</div>
       <div id="msgSub" class="subText" style="display:none;">악몽의 역사에 오신 것을 환영합니다</div>
     </div>
   </div>
@@ -171,7 +121,7 @@
   <div id="httpsBlock">
     <div id="httpsInner">
       <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
-      <div style="opacity:.9">홈 화면 앱에선 HTTP에서 카메라가 차단돼요.</div>
+      <div style="opacity:.9">홈 화면 앱에서는 HTTP에서 카메라가 차단됩니다.</div>
       <div style="margin:12px 0 8px">아래 주소로 자동 이동하도록 설정하세요:</div>
       <div id="httpsUrlBox" class="kbd" style="user-select:all;display:inline-block;"></div>
       <div style="margin-top:12px">
@@ -205,7 +155,8 @@ function tryHttpsRedirect(){
     }else{ httpsBox.textContent="(HTTPS 주소 설정: CONFIG.HTTPS_ORIGIN)"; httpsBlock.style.display='flex'; return false; }
   } return false;
 }
-btnCopy?.addEventListener('click', async ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음'); try{ await navigator.clipboard.writeText(CONFIG.HTTPS_ORIGIN); alert('복사됨'); }catch{ alert(CONFIG.HTTPS_ORIGIN); } });
+btnCopy?.addEventListener('click', async ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음');
+  try{ await navigator.clipboard.writeText(CONFIG.HTTPS_ORIGIN); alert('복사됨'); }catch{ alert(CONFIG.HTTPS_ORIGIN); } });
 btnOpen?.addEventListener('click', ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음'); location.href=CONFIG.HTTPS_ORIGIN; });
 if(!tryHttpsRedirect() && shouldForceHttps()) httpsBlock.style.display='flex';
 
@@ -224,12 +175,16 @@ const vctx=view.getContext('2d',{alpha:false});
 const ninja=document.getElementById('ninjaOverlay');
 const btnIn=document.getElementById('btnIn');
 const btnOut=document.getElementById('btnOut');
-const overlayPanel=document.getElementById('overlay');
+
+const overlay=document.getElementById('overlay');
 const overlayContent=document.getElementById('overlayContent');
-const tapHint=document.getElementById('tapHint');
+
+const tapAnywhere=document.getElementById('tapAnywhere');
+const allowBtn=document.getElementById('allowBtn');
+const allowSub=document.getElementById('allowSub');
 const startBtn=document.getElementById('startBtn');
 const startSub=document.getElementById('startSub');
-const msgBox=document.getElementById('msg');
+const msg=document.getElementById('msg');
 const msgSub=document.getElementById('msgSub');
 const diag=document.getElementById('diag');
 
@@ -309,69 +264,75 @@ btnIn.addEventListener('click', ()=> setOverlay(true));
 btnOut.addEventListener('click',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src=ninjaUrl(); } }, 60000);
 
-/* ===== Overlay flow ===== */
-function showWelcome(){
-  msgBox.style.display='block';
-  msgSub.style.display='block';
-  msgBox.textContent='WELCOME TO HISTORY OF NIGHTMARE';
+/* ===== Flow states ===== */
+function setStep(step){
+  // step: 1=tap→2=allow→3=start→4=welcome
+  tapAnywhere.style.display = (step===1)? 'block':'none';
+  allowBtn.style.display     = (step===2)? 'inline-block':'none';
+  allowSub.style.display     = (step===2)? 'block':'none';
+  startBtn.style.display     = (step===3)? 'inline-block':'none';
+  startSub.style.display     = (step===3)? 'block':'none';
+  msg.style.display          = (step===4)? 'block':'none';
+  msgSub.style.display       = (step===4)? 'block':'none';
 }
+
 function fadeOutOverlay(afterMs=0){
-  setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlayPanel.style.display='none'; }, 450); }, afterMs);
+  setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
 }
+
+/* STEP 1: 화면 아무 곳이나 탭하면 → STEP 2로 전환(허용 버튼 보이기) */
 function onPress(el, handler){
   el.addEventListener('touchend', (e)=>{ e.preventDefault(); handler(); }, {passive:false});
   el.addEventListener('click', handler);
 }
+onPress(overlay, ()=>{
+  if (tapAnywhere.style.display!=='none'){ setStep(2); }
+});
 
-/* 1) 초기: 탭 힌트만 → 탭 시 카메라 권한 요청 */
-let cameraReady=false;
-async function requestCameraFlow(){
-  if(cameraReady) return;
+/* STEP 2: 허용 버튼을 눌러야만 실제 권한창 띄움 */
+onPress(allowBtn, async ()=>{
   try{
     await startCamera();
     fitCamera(); ensureLoop();
-    cameraReady=true;
-
-    // 힌트 숨기고 Start 버튼 노출
-    tapHint.style.display='none';
-    startBtn.style.display='inline-block';
-    startSub.style.display='block';
+    setStep(3); // 권한 OK → Start 버튼
   }catch(e){
-    console.warn('Camera request failed:', e);
-    tapHint.innerHTML = '카메라 접근이 거부되었어요. <b>브라우저 설정에서 권한을 허용</b>한 뒤 다시 탭하세요.';
+    console.warn('Camera permission failed:', e);
+    allowSub.innerHTML = '권한 요청이 거부되었습니다. <b>브라우저 설정에서 카메라를 허용</b>한 뒤 다시 시도하세요.';
   }
-}
-onPress(overlayPanel, requestCameraFlow);
+});
 
-/* 2) Start 버튼 → Welcome만 보여주고 종료 */
+/* STEP 3: Start → STEP 4 환영 문구 → 페이드아웃 + 오버레이 ON */
 onPress(startBtn, ()=>{
-  showWelcome();
+  setStep(4);
   fadeOutOverlay(1200);
   setOverlay(true);
 });
 
-/* ===== 권한이 이미 허용된 경우 UX 개선 ===== */
+/* 권한이 이미 허용되어 있으면 STEP 2를 건너뛰고 바로 STEP 3로 */
 (async function precheckPermission(){
   try{
     const ps=await navigator.permissions?.query({name:'camera'});
     if(ps && ps.state==='granted'){
-      // 카메라 바로 준비시키고 곧바로 Start 버튼을 보여줌
-      await requestCameraFlow();
+      // 카메라 바로 준비
+      await startCamera();
+      fitCamera(); ensureLoop();
+      setStep(3);
+    }else{
+      setStep(1);
     }
-  }catch{}
+  }catch{ setStep(1); }
 })();
 
 /* ===== HUD ===== */
 (function(){
   let show=false,taps=0,last=0;
   addEventListener('touchend', ()=>{
-    const now=Date.now(); taps = (now-last<400)? (taps+1):1; last=now;
+    const now=Date.now(); taps=(now-last<400)?(taps+1):1; last=now;
     if(taps>=3){ show=!show; diag.style.display=show?'block':'none'; if(show) probe(); }
   });
   async function probe(){
     const secure=window.isSecureContext, a2hs=matchMedia('(display-mode: standalone)').matches;
-    let camP='unknown';
-    try{ const ps=await navigator.permissions.query({name:'camera'}).catch(()=>null); camP=ps?ps.state:'n/a'; }catch{}
+    let camP='unknown'; try{ const ps=await navigator.permissions.query({name:'camera'}).catch(()=>null); camP=ps?ps.state:'n/a'; }catch{}
     diag.textContent =
 `secureContext: ${secure}
 display-mode: ${a2hs?'standalone':'browser'}
@@ -384,13 +345,8 @@ time: ${new Date().toLocaleTimeString()}`;
 })();
 
 /* ===== Visibility ===== */
-document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState==='visible'){
-    scheduleLayoutRefresh(0);
-  }
-});
-applyRezScale();
-fitCamera();
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ scheduleLayoutRefresh(0); }});
+applyRezScale(); fitCamera();
 
 })();
 </script>
