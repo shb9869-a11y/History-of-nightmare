@@ -29,7 +29,6 @@
   @media (orientation:landscape){
     :root{
       --gap:24px;
-      /* 가로에서 더 보수적으로 축소 */
       --stage-fs:clamp(12px,1.8vmin,18px);
       --sub-fs:clamp(10px,1.4vmin,15px);
       --body-fs:clamp(11px,1.5vmin,16px);
@@ -49,7 +48,7 @@
   /* Camera canvas (B/W) */
   #view{ position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);display:block;z-index:0; }
 
-  /* VDO.Ninja overlay (Resolume feed) */
+  /* VDO.Ninja overlay (Resolume feed) — 항상 겹침 */
   #ninjaOverlay{
     position:fixed;left:50%;top:50%;width:var(--vwpx);height:var(--vhpx);
     transform:translate(-50%,-50%) scale(1);transform-origin:50% 50%;
@@ -67,11 +66,17 @@
     z-index:90; pointer-events:none; transform:translateZ(0);
   }
 
-  /* IN/OUT controls */
-  .controls{ position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:100;display:flex;gap:8px; }
-  .uiBtn{ padding:.4em .8em; text-transform:uppercase; letter-spacing:var(--letter-space); }
+  /* 우하단 컨트롤: Document만 */
+  .controls{
+    position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));
+    z-index:120;display:flex;gap:8px;
+  }
+  .uiBtn{
+    padding:.45em .9em;border:var(--btn-border) solid #fff;text-transform:uppercase;letter-spacing:var(--letter-space);
+    background:rgba(0,0,0,.45);backdrop-filter:blur(2px); border-radius:10px;
+  }
 
-  /* Overlay container: 스크롤 가능 */
+  /* Overlay container: 스크롤 가능 (초기 권한/웰컴/인트로) */
   #overlay{
     position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
     cursor:pointer; overflow:auto; -webkit-overflow-scrolling:touch;
@@ -88,6 +93,7 @@
     display:none; padding:var(--btn-pad-y) var(--btn-pad-x);
     border:var(--btn-border) solid #fff; text-transform:uppercase;
     letter-spacing:var(--letter-space); font-size:var(--stage-fs);
+    background:rgba(0,0,0,.45); backdrop-filter:blur(2px); border-radius:10px;
   }
   .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
   .subText{ font-size:var(--sub-fs); opacity:.95; }
@@ -110,7 +116,7 @@
     font-size:clamp(12px,1.6vmin,18px); padding:.45em .95em;
     letter-spacing:var(--letter-space);
     position:sticky; bottom:0;
-    background:rgba(0,0,0,.55); backdrop-filter:blur(2px);
+    background:rgba(0,0,0,.55); backdrop-filter:blur(2px); border:var(--btn-border) solid #fff; border-radius:10px;
   }
 
   /* HTTPS 안내 */
@@ -127,6 +133,39 @@
 
   .app-mode .any-top-banner,
   .app-mode header.site-header { display:none !important; height:0 !important; }
+
+  /* ===== Document 패널 ===== */
+  #docPanel{
+    position:fixed; inset:0; z-index:250; display:none;
+    background:rgba(0,0,0,.82);
+    padding:calc(14px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(22px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+  }
+  #docInner{
+    max-width:min(900px, 92vw); margin:0 auto; height:100%;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  #docHeader{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  #docTitle{ font-size:clamp(16px,2vmin,22px); letter-spacing:.06em; text-transform:uppercase; }
+  .docExit{ padding:.4em .9em; border:1px solid #fff; border-radius:10px; background:rgba(0,0,0,.45); text-transform:uppercase; letter-spacing:.03em;}
+  #docBody{
+    flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch;
+    border:1px dashed rgba(255,255,255,.35); border-radius:12px; padding:14px;
+    font-size:var(--body-fs); line-height:1.6;
+  }
+
+  /* 기록 목록 그리드 */
+  #docMenu{
+    display:grid; gap:10px;
+    grid-template-columns:repeat( auto-fit, minmax(120px, 1fr) );
+  }
+  .docBtn{
+    padding:.8em 1em; border:1px solid #fff; border-radius:12px;
+    background:rgba(0,0,0,.35); text-align:center; text-transform:uppercase; letter-spacing:.04em;
+  }
+  .docParagraph{ margin:.5em 0; word-break:keep-all; }
+  .docPoem br{ content:""; }
 </style>
 </head>
 <body>
@@ -139,9 +178,9 @@
 
   <div class="proscenium" aria-hidden="true"></div>
 
+  <!-- 우하단: Document 버튼만 -->
   <div class="controls">
-    <button class="uiBtn" id="btnIn">IN</button>
-    <button class="uiBtn" id="btnOut">OUT</button>
+    <button class="uiBtn" id="btnDoc">Document</button>
   </div>
 
   <!-- Overlay (탭 → 권한(iOS 바로 / 안드 허용버튼) → Welcome → Intro+Sleep) -->
@@ -200,6 +239,21 @@
 
   <div id="diag"></div>
 
+  <!-- ===== Document Panel ===== -->
+  <div id="docPanel" role="dialog" aria-modal="true" aria-labelledby="docTitle">
+    <div id="docInner">
+      <div id="docHeader">
+        <div id="docTitle">DOCUMENT</div>
+        <button class="docExit" id="docExit">EXIT</button>
+      </div>
+      <div id="docBody">
+        <!-- 메뉴가 기본 -->
+        <div id="docMenu"></div>
+        <div id="docContent" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
 <script>
 /* ===== PWA SW ===== */
 if ("serviceWorker" in navigator) {
@@ -253,8 +307,6 @@ const isIOS = (() => {
 const view=document.getElementById('view');
 const vctx=view.getContext('2d',{alpha:false});
 const ninja=document.getElementById('ninjaOverlay');
-const btnIn=document.getElementById('btnIn');
-const btnOut=document.getElementById('btnOut');
 
 const overlay=document.getElementById('overlay');
 const overlayContent=document.getElementById('overlayContent');
@@ -272,6 +324,13 @@ const httpsBox=document.getElementById('httpsUrlBox');
 const btnCopy=document.getElementById('copyHttps');
 const btnOpen=document.getElementById('openHttps');
 const diag=document.getElementById('diag');
+
+/* Document UI */
+const btnDoc=document.getElementById('btnDoc');
+const docPanel=document.getElementById('docPanel');
+const docExit=document.getElementById('docExit');
+const docMenu=document.getElementById('docMenu');
+const docContent=document.getElementById('docContent');
 
 /* ===== HTTPS (필요 시) ===== */
 function shouldForceHttps(){ const local=/^(localhost|127\.0\.0\.1)$/i.test(location.hostname); return !window.isSecureContext && !local; }
@@ -353,7 +412,7 @@ function loop(){
   }
 }
 
-/* ===== Ninja (Resolume feed) ===== */
+/* ===== Ninja (Resolume feed) — 항상 가시화 ===== */
 const injectedCss=encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
   #container,.container{background:transparent!important;}
@@ -362,11 +421,10 @@ const injectedCss=encodeURIComponent(`
 const ninjaBase=`https://vdo.ninja/?view=${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&autoplay=1&muted=1&playsinline=1&noaudio&codec=vp8&solo&transparent=1&css=${injectedCss}`;
 const ninjaUrl=()=>`${ninjaBase}&ts=${Date.now()}`;
 
-/* iOS: 초기 프리로드 금지, Android 등만 프리로드 */
 const isiOSUA = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
 if(!isiOSUA){ ninja.src = ninjaUrl(); }  // 안드 등에서만 초기 로드
 
-let overlayDesired=false;
+let overlayDesired=true; // 항상 겹침
 function applyRezScale(){
   const s=Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1));
   ninja.style.width=`calc(var(--vwpx) * ${s})`;
@@ -376,16 +434,11 @@ function applyRezScale(){
 }
 function showOverlayNow(){
   overlayDesired=true;
-  /* iOS: 탭 제스처 안에서 최초 src 주입 */
   if(ninja.src==='about:blank'){ ninja.src=ninjaUrl(); }
   ninja.setAttribute('allow','autoplay *; fullscreen *; camera *; microphone *; clipboard-read *; clipboard-write *');
   ninja.style.opacity = String(CONFIG.BLEND);
 }
-function hideOverlay(){ overlayDesired=false; ninja.style.opacity='0'; }
-
 ninja.addEventListener('load', ()=>{ if(overlayDesired) ninja.style.opacity=String(CONFIG.BLEND); });
-
-/* 워치독: 가시화 유지 & 필요 시 재주입 */
 setInterval(()=>{
   if(!overlayDesired) return;
   const want = String(CONFIG.BLEND);
@@ -395,11 +448,6 @@ setInterval(()=>{
     if(needsReload) ninja.src = ninjaUrl();
   }catch(_){}
 }, 1500);
-
-/* ===== IN/OUT 버튼 ===== */
-function setOverlay(on){ on?showOverlayNow():hideOverlay(); }
-btnIn.addEventListener('click', ()=> setOverlay(true));
-btnOut.addEventListener('click',()=> setOverlay(false));
 
 /* ===== 입력 유틸 ===== */
 let inputLock=false;
@@ -444,8 +492,8 @@ function setStep(step){
     overlay.scrollTop = 0; introWrap.scrollTop = 0;
   }
 
-  /* 웰컴/인트로 구간에서는 항상 레이어 유지 */
-  if (step===3 || step===4) showOverlayNow();
+  // 웰컴/인트로 구간에서도 항상 레이어 유지
+  showOverlayNow();
 }
 function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
@@ -460,10 +508,9 @@ addMultiTap(overlay, async (e)=>{
   if(e.target.closest('#allowBtn,#welcomeBtn,#sleepBtn')) return;
   lockInput();
 
-  /* Android: 즉시 전체화면 시도 */
   tryEnterFullscreenEarly();
 
-  /* iOS/Android 공통: 이 제스처 안에서 바로 Resolume 주입/표시 */
+  // 이 제스처 안에서 바로 Resolume 주입/표시 (iOS 포함)
   showOverlayNow();
 
   if (isIOS){
@@ -474,7 +521,7 @@ addMultiTap(overlay, async (e)=>{
   }
 });
 
-/* Android 허용 버튼 (권한 창 띄우기 전/후 둘 다 가시화 보장) */
+/* Android 허용 버튼 */
 addMultiTap(allowBtn, async (e)=>{
   e.stopPropagation();
   if (getComputedStyle(allowBtn).display==='none') return;
@@ -492,7 +539,7 @@ addMultiTap(welcomeBtn, (e)=>{
   lockInput(); setStep(4); showOverlayNow();
 });
 
-/* Sleep: 전체화면 + 레이어 유지 */
+/* Sleep */
 addMultiTap(sleepBtn, async (e)=>{
   e.stopPropagation(); lockInput();
   beep();
@@ -531,6 +578,165 @@ time: ${new Date().toLocaleTimeString()}`;
     if(diag.style.display==='block') setTimeout(probe, 800);
   }
 })();
+
+/* ===== Document Panel 로직 ===== */
+
+/* 기록 콘텐츠 (맞춤법/오타 보정 반영) */
+const DOCS = {
+  "기록 1": `
+  <div class="docParagraph">이 모든 이야기는 내가 나를 매장하는 독특한 의식으로부터 비롯되었다.</div>
+  <div class="docParagraph"><b>때는 2022년 11월 20일.</b> 우리는 모두 함께 우리 스스로를 매장하는 독특한 의식을 치렀다. 그 절차는 다음과 같다.</div>
+  <div class="docParagraph">우선 우리는 각각 두 장의 하얀 종이에 우리의 나쁜 생각과 좋은 생각을 적어 내려갔다. 집, 돈, 사랑, 꿈, 이름 따위의 것들 말이다.</div>
+  <div class="docParagraph">그 위로 여러 장의 종이를 덧대어 하나의 ‘뇌’를 만들었고, 그다음엔 더 많은 종이를 덧대어 하나의 머리를 만들었다. 또, 그다음엔 종이를 더욱 많이 덧대어 몸과 팔과 다리와 성기와 젖꼭지 등을 만들어 제법 사람의 형태를 띠도록 만들었다.</div>
+  <div class="docParagraph">이것이 완성되었을 때, 우리는 그것을 ‘또 다른 우리’라고 불렀다.</div>
+  <div class="docParagraph">다음 날, 우리는 각자 작은 나무를 한 그루씩 구해왔다. 그리고 ‘또 다른 우리’를 데리고 흔히 우리가 ‘뒷산’이라고 불렀던 공간을 향해 올라갔다. 적당한 위치에 도착한 우리는 삽을 이용해 구덩이를 팠다.</div>
+  <div class="docParagraph">‘또 다른 우리’가 들어갈 수 있을 정도의 구덩이가 파졌을 때, 우리는 그것을 구덩이에 넣고 불로 태워 재로 만들었다. 재가 되어 버린 ‘또 다른 우리’ 위로 흙을 덮었으며, 미리 구해 온 나무를 그 위에 심었다.</div>
+  <div class="docParagraph">우리는 나무를 둘러싸고 선 채로 손을 맞잡았다. 그때 누군가는 소원을 빌었고, 누군가는 노래를 불렀으며, 누군가는 춤을 추었고, 누군가는 눈물을 흘리기도 했다. 그것은 정확히 2022년 11월 20일의 기억이었다.</div>
+  <div class="docParagraph">내가 이 기억을 ‘악몽’이라고 부르게 된 계기는 이로부터 약 6개월이 흐른 시점부터 시작된다.</div>
+  <div class="docParagraph">꿈속의 나는 우리가 흔히 ‘뒷산’이라고 부르던 공간에서 깨어난다. 그곳에서 나는 생명의 존재를 느낄 수 없으며, 오히려 오롯이 나 혼자만이 존재하고 있다고 느낀다.</div>
+  <div class="docParagraph">그러던 순간 나는 마치 무엇인가 나에게 달려와 안길 것만 같은 느낌을 받는다. 그러나 나는 그것이 누구인지 알지 못한다.</div>
+  <div class="docParagraph">설렘과 초조함으로 시작되었던 이 반복되는 꿈. 그러나 이것이 아침이 되어 출근을 해야 하는 시점까지 반복되어야만 한다는 것을 깨달았을 때, 나는 이것을 <b>악몽</b>이라 부르기 시작했다. 왜냐하면, 나에겐 어딘가로 도망가거나, 숨거나, 거부할 도리가 존재하지 않았기 때문이다.</div>
+  `,
+  "기록 2": `
+  <div class="docParagraph">준비 중입니다.</div>
+  `,
+  "기록 3": `
+  <div class="docParagraph">비가 오는 <b>2022년 3월 24일 03시 24분</b>. 우리는 예정된 약속에 따라 집 앞 공원에 모여 간단히 몸을 풀고 난 후 분주히 행군길에 올랐다.</div>
+  <div class="docParagraph">그날 그곳엔 호우주의보가 발령되었었다. 우리는 우비와 장화를 챙겨 신은 채, 해를 보기 위해서 주광빛 신호등을 따라 어느 비닐하우스 공업 단지 사이를 걸었다. 어디선가 찬송가가 들려왔다. 그때 최소연은 말했다.</div>
+  <div class="docParagraph docPoem">
+    하늘이 보이는 곳으로 간다.<br/>
+    바람이 있는 곳으로 간다.<br/>
+    은은한 따스함을 느낄 수 있는 곳으로 가, 존재가 있는 곳으로 간다.<br/>
+    고양이. 꽃. 무당벌레. 비둘기. 사람.<br/>
+    사람이 없는 곳으로 가자.<br/>
+    공개되지 않는 공간으로 가 노래를 부르자.<br/>
+    춤을 추자.<br/>
+    잠깐 누워보며,<br/>
+    많이 걷기도,<br/>
+    느리게 걸어보기도 하는<br/>
+    취미를 가지자.<br/>
+    취미를 가지자.
+  </div>
+  `,
+  "기록 4": `
+  <div class="docParagraph"><b>가지 않은 길 — 로버트 프로스트</b></div>
+  <div class="docParagraph docPoem">
+    노란 숲 속에 길이 두 갈래<br/>
+    나는 두 길을 다 가지 못한 것이 유감이구나<br/>
+    오랫동안 서서<br/>
+    한 길이 굽어 꺾여 내려간 데까지<br/>
+    바라볼 수 있는데까지 멀리 바라만 보았네<br/><br/>
+    그리고<br/>
+    그 길엔 사람이 걸은 자취가 적어 나는 생각했던 게지요<br/>
+    그날 아침 그 길에는 사람이 걸은 자취 따위는 없었네<br/><br/>
+    아<br/>
+    나는 다른 한 길을 위하여 한 길을 남겨 놓았네<br/>
+    길은 길에 연하여 끝없으므로<br/>
+    내가 다시 돌아올 것을 의심하면서<br/><br/>
+    먼 훗날, 나는 그 길을 보며 이야기할 거야<br/>
+    숲 속엔 두 갈래 길이 있었다고<br/>
+    나는 사람이 적게 간 길을 택하였다고<br/>
+    그리고, 그것이 모든 차이를 만들었다고.
+  </div>
+  `,
+  "기록 5": `
+  <div class="docParagraph"><b>바냐 아저씨 — 안톤 체홉</b></div>
+  <div class="docParagraph docPoem">
+    살아야죠.<br/>
+    우리 살아가도록 해요.<br/>
+    길고 긴 낮과 긴긴 밤의 연속을 살아가는 거예요.<br/>
+    운명이 우리에게 가져다주는 시련을 참고 견디며,<br/>
+    마음의 평화가 없더라도, 지금 이 순간에도, 나이가 든 후에도,<br/>
+    다른 사람을 위해서 일하도록 해요.<br/><br/>
+    그러다가 우리의 시간이 오면 공손히 죽음을 받아들이고<br/>
+    내세에서 말하도록 해요.<br/>
+    우리가 얼마나 괴로웠고, 얼마나 울었는지,<br/>
+    그리고 얼마나 슬펐는지 말이에요.<br/><br/>
+    그러면 하나님이 우릴 가엾게 여기실 테고,<br/>
+    밝고 아름다우며 우아한 삶을 보고 우리는 쉬게 될 거예요.<br/>
+    지금 우리의 불행을 감동과 미소로 뒤돌아보면서 우리는 쉬게 될 거예요.<br/>
+    전 믿어요. 뜨겁고 열렬하게 믿고 있어요.<br/>
+    우린, 쉬게 될 거예요.
+  </div>
+  `,
+  "기록 6": `
+  <div class="docParagraph"><b>남신의주 유동 박시봉 방 — 백석</b></div>
+  <div class="docParagraph docPoem">
+    어느 사이에 나는 아내도 없고, 또,<br/>
+    아내와 같이 살던 집도 없어지고,<br/>
+    그리고 살뜰한 부모며 동생들과도 멀리 떨어져서<br/>
+    그 어느 바람 세인 쓸쓸한 거리 끝에 헤매었다.<br/><br/>
+    바로 날도 저물어서,<br/>
+    바람은 더욱 세게 불고, 추위는 점점 더해 오는데,<br/>
+    나는 목수네 헌 삿을 깐,<br/>
+    한 방에 들어서 쥔을 붙이었다.<br/><br/>
+    이리하여 나는 이 습내 나는 춥고, 누긋한 방에서,<br/>
+    낮이나 밤이나 나는 나 혼자도 너무 많은 것같이 생각하며,<br/>
+    딜옹배기에 북덕불이라도 담겨 오면,<br/>
+    이것을 안고 손을 쬐며 재 위에 뜻 없이 글자를 쓰기도 하며,<br/>
+    또 문밖에 나가지도 않고 자리에 누워서,<br/>
+    머리에 손깍지 베개를 하고 굴기도 하면서,<br/>
+    나는 내 슬픔이며 어리석음이며를 소처럼 연하여 새김질하는 것이었다.<br/><br/>
+    내 가슴이 꽉 메어 올 적이며,<br/>
+    내 눈에 뜨거운 것이 핑 괴일 적이며,<br/>
+    또 내 스스로 화끈 낯이 붉도록 부끄러울 적이며,<br/>
+    나는 내 슬픔과 어리석음에 눌리어 죽을 수밖에 없는 것을 느끼는 것이었다.<br/><br/>
+    그러나 잠시 뒤에 나는 고개를 들어,<br/>
+    허연 문창을 바라보든가 또 눈을 떠서 높은 천정을 쳐다보는 것인데,<br/>
+    이때 나는 내 뜻이며 힘으로, 나를 이끌어 가는 것이 힘든 일인 것을 생각하고,<br/>
+    이것들보다 더 크고, 높은 것이 있어서, 나를 마음대로 굴려 가는 것을 생각하는 것인데,<br/>
+    이렇게 하여 여러 날이 지나는 동안에,<br/>
+    내 어지러운 마음에는 슬픔이며, 한탄이며, 가라앉을 것은 차츰 앙금이 되어 가라앉고,<br/>
+    외로운 생각만이 드는 때쯤 해서는,<br/>
+    더러 나줏손에 살랑살랑 싸락눈이 와서 문창을 치기도 하는 때도 있는데,<br/>
+    나는 이런 저녁에는 화로를 더욱 다가 끼며, 무릎을 꿇어 보며,<br/>
+    어느 먼 산 뒤옆 바위 숲에 따로 외로이 서서,<br/>
+    어두워 오는데 하얗게 눈을 맞을, 그 마른 잎새에는,<br/>
+    살랑살랑 소리도 나며 눈을 맞을,<br/>
+    그 드물다는 굳고 정한 갈매나무라는 나무를 생각하는 것이었다.
+  </div>
+  `
+};
+
+/* 기록 메뉴 생성 */
+function buildDocMenu(){
+  docMenu.innerHTML = "";
+  const labels = ["기록 1","기록 2","기록 3","기록 4","기록 5","기록 6"];
+  labels.forEach(label=>{
+    const b=document.createElement('button');
+    b.className="docBtn";
+    b.textContent=label;
+    b.addEventListener('click', ()=>openDoc(label));
+    docMenu.appendChild(b);
+  });
+}
+
+/* 열기/닫기/표시 */
+function openDocPanel(){
+  buildDocMenu();
+  docTitle("DOCUMENT");
+  docMenu.style.display="grid";
+  docContent.style.display="none";
+  docPanel.style.display="block";
+}
+function closeDocPanel(){
+  docPanel.style.display="none";
+}
+function openDoc(label){
+  const html = DOCS[label] || "<div class='docParagraph'>내용이 없습니다.</div>";
+  docContent.innerHTML = `<div class="docParagraph" style="margin-bottom:.5em;"><b>${label}</b></div>` + html;
+  docTitle(label.toUpperCase());
+  docMenu.style.display="none";
+  docContent.style.display="block";
+}
+function docTitle(t){
+  const el=document.getElementById('docTitle');
+  if(el) el.textContent = t;
+}
+
+/* 이벤트 */
+btnDoc.addEventListener('click', (e)=>{ e.stopPropagation(); openDocPanel(); });
+docExit.addEventListener('click', (e)=>{ e.stopPropagation(); closeDocPanel(); });
 
 /* ===== 첫 배치 ===== */
 applyRezScale(); fitCamera();
