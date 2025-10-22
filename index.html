@@ -106,7 +106,7 @@
     <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
-  <!-- Overlay (4단계: 탭 → 허용(안드로이드 전용) → Start → Welcome) -->
+  <!-- Overlay (4단계: 탭 → 허용(안드) → Start → Welcome) -->
   <div id="overlay">
     <div id="overlayContent">
       <!-- STEP 1 -->
@@ -120,7 +120,7 @@
       <button id="startBtn" class="stageBtn" aria-label="Press to start">PRESS HERE TO START</button>
       <div id="startSub" class="subText" style="display:none;">시작하려면 여기를 누르세요</div>
 
-      <!-- STEP 4 (WELCOME도 테두리 버튼 스타일로) -->
+      <!-- STEP 4 (WELCOME도 테두리 버튼 스타일) -->
       <div id="msg" class="stageBtn stageText" style="display:none;">WELCOME TO HISTORY OF NIGHTMARE</div>
       <div id="msgSub" class="subText" style="display:none;">악몽의 역사에 오신 것을 환영합니다</div>
     </div>
@@ -202,9 +202,9 @@ function tryHttpsRedirect(){
     }else{ httpsBox.textContent="(HTTPS 주소 설정: CONFIG.HTTPS_ORIGIN)"; httpsBlock.style.display='flex'; return false; }
   } return false;
 }
-btnCopy?.addEventListener('click', async ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음');
+btnCopy?.addEventListener('pointerup', async ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음');
   try{ await navigator.clipboard.writeText(CONFIG.HTTPS_ORIGIN); alert('복사됨'); }catch{ alert(CONFIG.HTTPS_ORIGIN); } });
-btnOpen?.addEventListener('click', ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음'); location.href=CONFIG.HTTPS_ORIGIN; });
+btnOpen?.addEventListener('pointerup', ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음'); location.href=CONFIG.HTTPS_ORIGIN; });
 if(!tryHttpsRedirect() && shouldForceHttps()) httpsBlock.style.display='flex';
 
 /* ===== VDO.Ninja ===== */
@@ -307,15 +307,24 @@ function applyRezScale(){
 /* ===== Ninja overlay ===== */
 (function preloadOverlay(){ ninja.src=ninjaUrl(); })();
 function setOverlay(on){ ninja.style.opacity = on ? String(CONFIG.BLEND) : '0'; if (on && !ninja.contentWindow) ninja.src=ninjaUrl(); }
-btnIn.addEventListener('click', ()=> setOverlay(true));
-btnOut.addEventListener('click',()=> setOverlay(false));
+btnIn.addEventListener('pointerup', ()=> setOverlay(true));
+btnOut.addEventListener('pointerup',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src=ninjaUrl(); } }, 60000);
+
+/* ===== 입력 유틸: pointerup만 사용 + 입력잠금(debounce) ===== */
+let inputLock=false;
+function lockInput(ms=300){ inputLock=true; setTimeout(()=>{ inputLock=false; }, ms); }
+function addTap(el, handler){
+  el.addEventListener('pointerup', (e)=>{
+    if(inputLock) return;
+    handler(e);
+  }, {passive:true});
+}
 
 /* ===== Flow states (iOS는 STEP 2 생략) ===== */
 function setStep(step){
   // step: 1=tap → 2=allow(안드) → 3=start → 4=welcome
   tapAnywhere.style.display = (step===1)? 'block':'none';
-  // iOS에서는 허용 단계 자체를 숨김
   const showAllow = (step===2) && !isIOS;
   allowBtn.style.display     = showAllow ? 'inline-block':'none';
   allowSub.style.display     = showAllow ? 'block':'none';
@@ -327,62 +336,60 @@ function setStep(step){
 function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
 }
-function onPress(el, handler){
-  el.addEventListener('touchend', (e)=>{ e.preventDefault(); handler(); }, {passive:false});
-  el.addEventListener('click', handler);
-}
 
-/* STEP 1: 화면 탭
-   - iOS: 즉시 권한 팝업 → 성공 시 STEP 3
-   - 안드로이드: STEP 2(허용 버튼)로 이동 */
-onPress(overlay, async ()=>{
+/* STEP 1: 안내 문구 자체를 탭해야 진행 (오버레이 전체 아님) */
+addTap(tapAnywhere, async (e)=>{
   if (getComputedStyle(tapAnywhere).display==='none') return;
+  lockInput(); // 같은 탭이 다음 요소에 전파되지 않도록
   if (isIOS){
     try{
-      await startCamera();
-      fitCamera(); ensureLoop();
-      setStep(3);
-    }catch(e){
+      await startCamera(); fitCamera(); ensureLoop();
+      // 레이아웃 재배치 후 잠깐 딜레이 뒤 다음 단계 노출
+      setTimeout(()=>{ setStep(3); }, 50);
+    }catch{
       tapAnywhere.innerHTML = '카메라 접근이 거부되었습니다. <b>설정 > 사파리 > 카메라</b>에서 허용 후 다시 시도하세요.';
     }
   }else{
-    setStep(2);
+    // 안드로이드는 허용 버튼 단계로
+    setTimeout(()=>{ setStep(2); }, 50);
   }
 });
 
-/* STEP 2 (안드로이드 전용): 허용 버튼 → 권한 요청 → STEP 3 */
-onPress(allowBtn, async ()=>{
+/* STEP 2: 허용 버튼 → 권한 요청 → STEP 3 (버블링 차단) */
+addTap(allowBtn, async (e)=>{
+  e.stopPropagation();
+  if (getComputedStyle(allowBtn).display==='none') return;
+  lockInput();
   try{
-    await startCamera();
-    fitCamera(); ensureLoop();
-    setStep(3);
-  }catch(e){
-    allowSub.innerHTML = '권한 요청이 거부되었습니다. <b>브라우저 설정에서 카메라를 허용</b>한 뒤 다시 시도하세요.';
+    await startCamera(); fitCamera(); ensureLoop();
+    setTimeout(()=>{ setStep(3); }, 50);
+  }catch{
+    allowSub.innerHTML = '권한 요청이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.';
   }
 });
 
-/* STEP 3: Start → 전체화면 + STEP 4 → 페이드아웃 + 오버레이 ON */
-onPress(startBtn, async ()=>{
+/* STEP 3: Start → 전체화면 + STEP 4 → 페이드아웃 + 오버레이 ON (버블링 차단) */
+addTap(startBtn, async (e)=>{
+  e.stopPropagation();
+  if (getComputedStyle(startBtn).display==='none') return;
+  lockInput();
   await goFullscreen();
-  setStep(4);
+  setTimeout(()=>{ setStep(4); }, 50);
   fadeOutOverlay(1200);
   setOverlay(true);
 });
 
-/* 권한 이미 허용 시: 즉시 카메라 준비 + STEP 3로 */
+/* 권한 이미 허용 시: 즉시 카메라 준비 + STEP 3로 (자동 환영까지는 안 감) */
 (async function precheckPermission(){
   try{
-    // iOS는 permissions API가 제한되어 있을 수 있으므로 try/catch
     const ps = await (navigator.permissions?.query({name:'camera'}) || Promise.resolve(null));
     if(ps && ps.state==='granted'){
-      await startCamera();
-      fitCamera(); ensureLoop();
-      setStep(3);
+      await startCamera(); fitCamera(); ensureLoop();
+      setStep(3); // 여기서 바로 STEP 4로 가지 않음
     }else{
       setStep(1);
     }
   }catch{
-    // 확인 불가(iOS 등): 기본 STEP 1로 노출
     setStep(1);
   }
 })();
@@ -390,7 +397,7 @@ onPress(startBtn, async ()=>{
 /* ===== HUD (3연타) ===== */
 (function(){
   let show=false,taps=0,last=0;
-  addEventListener('touchend', ()=>{
+  addEventListener('pointerup', ()=>{
     const now=Date.now(); taps=(now-last<400)?(taps+1):1; last=now;
     if(taps>=3){ show=!show; diag.style.display=show?'block':'none'; if(show) probe(); }
   });
