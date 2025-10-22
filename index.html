@@ -147,6 +147,11 @@
         </ul>
         <button id="sleepBtn" class="stageBtn" aria-label="Press to sleep">PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP</button>
       </div>
+
+      <!-- GOOD NIGHT 메시지 (SLEEP 클릭 후 표시) -->
+      <div id="goodNight" class="stageText" style="display:none; margin-top:8px;">
+        GOOD NIGHT. HAVE A NICE DREAM.
+      </div>
     </div>
   </div>
 
@@ -252,6 +257,7 @@ const welcomeBtn=document.getElementById('welcomeBtn');
 const welcomeSub=document.getElementById('welcomeSub');
 const introWrap=document.getElementById('introWrap');
 const sleepBtn=document.getElementById('sleepBtn');
+const goodNight=document.getElementById('goodNight');
 const diag=document.getElementById('diag');
 
 /* ===== Viewport fix + relayout ===== */
@@ -350,6 +356,7 @@ function setStep(step){
   welcomeBtn.style.display   = (step===3)? 'inline-block':'none';
   welcomeSub.style.display   = (step===3)? 'block':'none';
   introWrap.style.display    = (step===4)? 'block':'none';
+  // GOOD NIGHT 메시지는 단계 전환에 영향받지 않음 (명시적 제어)
 }
 function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
@@ -384,12 +391,29 @@ addTap(welcomeBtn, (e)=>{
   lockInput(); setTimeout(()=>setStep(4), 50);
 });
 
-/* STEP 4: PRESS HERE TO SLEEP → 전체화면 + 오버레이 ON + 페이드아웃 */
+/* STEP 4: PRESS HERE TO SLEEP → 전체화면 + 오버레이 ON + GOOD NIGHT 표시 후 3초 뒤 페이드아웃 */
 addTap(sleepBtn, async (e)=>{
   e.stopPropagation(); lockInput();
   await goFullscreen();
-  fadeOutOverlay(1200);
   setOverlay(true);
+
+  // INTRO / 기타 요소 숨기고 GOOD NIGHT만 노출
+  introWrap.style.display='none';
+  tapAnywhere.style.display='none';
+  allowBtn.style.display='none';
+  allowSub.style.display='none';
+  welcomeBtn.style.display='none';
+  welcomeSub.style.display='none';
+
+  // 오버레이가 혹시 숨겨져 있었다면 노출
+  overlay.style.display='flex';
+  overlayContent.classList.remove('hidden');
+
+  // 메시지 표시
+  goodNight.style.display='block';
+
+  // 3초 후 오버레이 페이드아웃
+  fadeOutOverlay(3000);
 });
 
 /* ===== HUD (3연타) ===== */
