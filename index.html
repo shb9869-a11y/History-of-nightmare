@@ -28,7 +28,6 @@
   }
   @media (orientation:landscape){
     :root{
-      /* 가로 모드에서는 더 보수적으로 축소 */
       --gap:24px;
       --stage-fs:clamp(12px,1.8vmin,18px);
       --sub-fs:clamp(10px,1.4vmin,15px);
@@ -71,22 +70,16 @@
   .controls{ position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:100;display:flex;gap:8px; }
   .uiBtn{ padding:.4em .8em; text-transform:uppercase; letter-spacing:var(--letter-space); }
 
-  /* Overlay: 스크롤 가능하게 변경 */
+  /* Overlay: 스크롤 가능 */
   #overlay{
     position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
-    cursor:pointer;
-    overflow:auto; /* << 핵심: 컨텐츠가 길면 스크롤 */
-    -webkit-overflow-scrolling:touch;
+    cursor:pointer; overflow:auto; -webkit-overflow-scrolling:touch;
   }
   #overlayContent{
     text-align:center; transition:opacity .45s ease;
-    display:flex; flex-direction:column; gap:12px;
-    align-items:center;
+    display:flex; flex-direction:column; gap:12px; align-items:center;
     max-width:min(900px, 92vw);
-
-    /* 안전한 최대 높이(상하 여백 고려) */
     max-height:calc(var(--vhpx) - 2 * (var(--gap) + 20px + env(safe-area-inset-top) + env(safe-area-inset-bottom)));
-    overflow:visible;  /* 자체는 보이되 내부 introWrap이 스크롤 */
   }
   .hidden{ opacity:0 }
 
@@ -101,24 +94,9 @@
 
   /* INTRO: 본문 스크롤 박스 */
   #introWrap{
-    display:none;
-    text-align:left;
-    width:100%;
-    max-width:min(72ch, 92vw);
-    margin:0 auto;
-
-    /* 세로/가로 공통: 안전한 스크롤 영역 확보 */
-    max-height:calc(
-      var(--vhpx)
-      - 3.2em               /* 타이틀/여백 대략치 */
-      - env(safe-area-inset-top)
-      - env(safe-area-inset-bottom)
-      - 40px                /* 내부 여백 */
-    );
-    overflow:auto;
-    -webkit-overflow-scrolling:touch;
-    overscroll-behavior:contain;
-    padding-right:8px; /* iOS 스크롤바 겹침 여유 */
+    display:none; text-align:left; width:100%; max-width:min(72ch, 92vw); margin:0 auto;
+    max-height:calc(var(--vhpx) - 3.2em - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
+    overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding-right:8px;
   }
   #introWrap h2{ text-align:center; margin:6px 0 10px; letter-spacing:.06em; }
   #introWrap ol{ margin:0; padding-left:1.2em; font-size:var(--body-fs); }
@@ -126,20 +104,16 @@
   #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); padding-left:1.1em; }
   #introWrap .tips li{ margin:.25em 0; line-height:1.5; word-break:keep-all; }
 
-  /* Sleep 버튼: 항상 하단에 보이도록 sticky */
+  /* Sleep 버튼: sticky */
   #sleepBtn{
-    display:block !important;
-    margin:12px auto 0;
-    font-size:clamp(12px,1.6vmin,18px);
-    padding:.45em .95em;
+    display:block !important; margin:12px auto 0;
+    font-size:clamp(12px,1.6vmin,18px); padding:.45em .95em;
     letter-spacing:var(--letter-space);
-    position:sticky;
-    bottom:0;
-    background:rgba(0,0,0,.55);
-    backdrop-filter:blur(2px);
+    position:sticky; bottom:0;
+    background:rgba(0,0,0,.55); backdrop-filter:blur(2px);
   }
 
-  /* HTTPS help (생략 가능) */
+  /* HTTPS help */
   #httpsBlock{ position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px;text-align:center; }
   #httpsInner{ max-width:560px }
   .kbd{ display:inline-block;border:1px solid #888;padding:2px 6px;border-radius:4px;background:#111 }
@@ -168,7 +142,7 @@
     <button class="uiBtn" id="btnOut">OUT</button>
   </div>
 
-  <!-- Overlay (탭 → 권한(iOS 바로 / 안드 허용버튼) → Welcome → Intro+Sleep) -->
+  <!-- Overlay -->
   <div id="overlay" aria-label="Tap anywhere to start">
     <div id="overlayContent">
       <!-- STEP 1: 안내 -->
@@ -311,18 +285,12 @@ function scheduleLayoutRefresh(d=60){
   clearTimeout(relayoutTimer);
   relayoutTimer=setTimeout(()=>{
     setViewportVars(); fitCamera(); applyRezScale();
-    /* INTRO 스크롤 초기화로 글자 짤림 방지 */
-    overlay.scrollTop = 0;
-    introWrap.scrollTop = 0;
+    overlay.scrollTop = 0; introWrap.scrollTop = 0;
   }, d);
 }
 setViewportVars();
 addEventListener('resize', ()=>scheduleLayoutRefresh(80));
-addEventListener('orientationchange', ()=>{
-  /* 방향 전환 직후/약간 뒤 두 번 리레이아웃 */
-  scheduleLayoutRefresh(120);
-  scheduleLayoutRefresh(360);
-});
+addEventListener('orientationchange', ()=>{ scheduleLayoutRefresh(120); scheduleLayoutRefresh(360); });
 if(visualViewport){
   visualViewport.addEventListener('resize', ()=>scheduleLayoutRefresh(60), {passive:true});
   visualViewport.addEventListener('scroll', ()=>scheduleLayoutRefresh(60), {passive:true});
@@ -392,7 +360,7 @@ btnIn.addEventListener('click', ()=> setOverlay(true));
 btnOut.addEventListener('click',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src=ninjaUrl(); } }, 60000);
 
-/* ===== 입력 유틸 (멀티 이벤트) ===== */
+/* ===== 입력 유틸 ===== */
 let inputLock=false;
 function lockInput(ms=300){ inputLock=true; setTimeout(()=>{ inputLock=false; }, ms); }
 function addMultiTap(el, handler){
@@ -402,22 +370,19 @@ function addMultiTap(el, handler){
   el.addEventListener('click', wrap, {passive:true});
 }
 
-/* ===== 8-bit 비프 사운드 ===== */
+/* ===== 8-bit 비프 ===== */
 let audioCtx=null;
 function beep(){
   try{
     if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
-    o.type = "square";
-    o.frequency.value = 880;
-    g.gain.value = 0.12;
+    o.type = "square"; o.frequency.value = 880; g.gain.value = 0.12;
     o.connect(g); g.connect(audioCtx.destination);
     const now = audioCtx.currentTime;
     g.gain.setValueAtTime(0.12, now);
     g.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-    o.start(now);
-    o.stop(now + 0.09);
+    o.start(now); o.stop(now + 0.09);
   }catch(e){}
 }
 
@@ -434,11 +399,12 @@ function setStep(step){
   introWrap.style.display    = (step===4)? 'block':'none';
 
   if (step===4){
-    /* sleep 버튼 보이기 + 스크롤 맨 위로 */
     sleepBtn.style.display='block';
-    overlay.scrollTop = 0;
-    introWrap.scrollTop = 0;
+    overlay.scrollTop = 0; introWrap.scrollTop = 0;
   }
+
+  /* ✅ 카메라 권한 이후(웰컴/인트로 단계)부터 레졸룸 오버레이 항상 ON */
+  if (step===3 || step===4) setOverlay(true); // ✅
 }
 function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
@@ -453,8 +419,12 @@ addMultiTap(overlay, async (e)=>{
   if(e.target.closest('#allowBtn,#welcomeBtn,#sleepBtn')) return;
   lockInput();
   if (isIOS){
-    try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
-    catch{ tapAnywhere.innerHTML = '카메라 접근이 거부되었습니다. <b>설정 > 사파리 > 카메라</b>에서 허용 후 다시 시도하세요.'; }
+    try{
+      await startCamera(); fitCamera(); ensureLoop(); setStep(3);
+      setOverlay(true); // ✅ iOS: 첫 탭으로 권한 얻는 즉시 레졸룸 표시
+    }catch{
+      tapAnywhere.innerHTML = '카메라 접근이 거부되었습니다. <b>설정 > 사파리 > 카메라</b>에서 허용 후 다시 시도하세요.';
+    }
   }else{
     setStep(2);
   }
@@ -465,21 +435,25 @@ addMultiTap(allowBtn, async (e)=>{
   e.stopPropagation();
   if (getComputedStyle(allowBtn).display==='none') return;
   lockInput();
-  try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
-  catch{ allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.'; }
+  try{
+    await startCamera(); fitCamera(); ensureLoop(); setStep(3);
+    setOverlay(true); // ✅ 안드로이드: 허용 성공 즉시 레졸룸 표시
+  }catch{
+    allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.';
+  }
 });
 addMultiTap(welcomeBtn, (e)=>{
   e.stopPropagation();
   if (getComputedStyle(welcomeBtn).display==='none') return;
-  lockInput(); setStep(4);
+  lockInput(); setStep(4); /* setStep이 알아서 setOverlay(true) 해줌 */ // ✅
 });
 
-/* SLEEP: 전체화면 + 오버레이 + 비프 */
+/* SLEEP: 전체화면 + 오버레이 + 비프 (이미 ON 상태 유지) */
 addMultiTap(sleepBtn, async (e)=>{
   e.stopPropagation(); lockInput();
   beep();
   await goFullscreen();
-  setOverlay(true);
+  setOverlay(true); // ✅ 안전하게 한 번 더 보장
   // GOOD NIGHT 표시
   introWrap.style.display='none';
   tapAnywhere.style.display='none';
