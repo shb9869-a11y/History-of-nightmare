@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>History of Nightmare — PWA + Rez 65% + Proscenium</title>
+<title>HISTORY OF NIGHTMARE</title> <!-- ← 페이지 타이틀 변경 -->
 
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#000000">
@@ -18,7 +18,6 @@
     --line-color:rgba(255,255,255,.9); --line-w:1px; --line-r:2px;
     --ff-ui:"Courier New", Courier, monospace;
 
-    /* 기본 타이포 (세로 기준) */
     --stage-fs:clamp(14px,2.2vmin,22px);
     --sub-fs:clamp(11px,1.6vmin,16px);
     --body-fs:clamp(12px,1.8vmin,18px);
@@ -55,7 +54,7 @@
     border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .25s ease;background:transparent;
   }
 
-  /* Proscenium frame (그대로 유지) */
+  /* Proscenium frame (원래대로) */
   .proscenium{
     position:fixed;
     left:calc(var(--gap) + env(safe-area-inset-left));
@@ -66,23 +65,23 @@
     z-index:90; pointer-events:none; transform:translateZ(0);
   }
 
-  /* 우하단 컨트롤: 기본 버튼(사각 테두리) */
+  /* Controls */
   .controls{
     position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));
-    z-index:120;display:flex;gap:8px;align-items:center;
+    z-index:120;display:flex;gap:10px;align-items:center;
   }
   .uiBtn{
     padding:.45em .9em;border:var(--btn-border) solid #fff;text-transform:uppercase;letter-spacing:var(--letter-space);
     background:transparent; border-radius:0;
   }
-  /* DOCUMENT 버튼만 사각형 느낌 제거 */
+  /* Document: 사각형 느낌/밑줄 제거 → 텍스트 링크 느낌 없이 미니멀 */
   #btnDoc{
     border:none !important; background:transparent !important; padding:0 !important;
     text-transform:uppercase; letter-spacing:.06em;
-    text-decoration:underline; text-underline-offset:4px;
+    text-decoration:none; /* ← 밑줄 제거 */
   }
 
-  /* Overlay container */
+  /* Overlay */
   #overlay{
     position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
     cursor:pointer; overflow:auto; -webkit-overflow-scrolling:touch;
@@ -95,7 +94,6 @@
   }
   .hidden{ opacity:0 }
 
-  /* 모든 텍스트 테두리: 직각, 내부 배경 제거 */
   .stageBtn{
     display:none; padding:var(--btn-pad-y) var(--btn-pad-x);
     border:var(--btn-border) solid #fff; text-transform:uppercase;
@@ -105,7 +103,7 @@
   .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
   .subText{ font-size:var(--sub-fs); opacity:.95; }
 
-  /* INTRO 본문 */
+  /* Intro */
   #introWrap{
     display:none; text-align:left; width:100%; max-width:min(72ch, 92vw); margin:0 auto;
     max-height:calc(var(--vhpx) - 3.2em - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
@@ -117,7 +115,7 @@
   #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); padding-left:1.1em; }
   #introWrap .tips li{ margin:.25em 0; line-height:1.5; word-break:keep-all; }
 
-  /* Sleep 버튼: 직각, 배경 제거 */
+  /* Sleep */
   #sleepBtn{
     display:block !important; margin:12px auto 0;
     font-size:clamp(12px,1.6vmin,18px); padding:.45em .95em;
@@ -126,7 +124,7 @@
     background:transparent; border:var(--btn-border) solid #fff; border-radius:0;
   }
 
-  /* HTTPS 안내 */
+  /* HTTPS */
   #httpsBlock{ position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px;text-align:center; }
   #httpsInner{ max-width:560px }
   .kbd{ display:inline-block;border:1px solid #888;padding:2px 6px;border-radius:4px;background:#111 }
@@ -141,7 +139,7 @@
   .app-mode .any-top-banner,
   .app-mode header.site-header { display:none !important; height:0 !important; }
 
-  /* ===== Document 패널 ===== */
+  /* ===== Document 패널 (사각형 느낌 제거) ===== */
   #docPanel{
     position:fixed; inset:0; z-index:250; display:none;
     background:rgba(0,0,0,.82);
@@ -155,20 +153,17 @@
     display:flex; align-items:center; justify-content:space-between; gap:8px;
   }
   #docTitle{ font-size:clamp(16px,2vmin,22px); letter-spacing:.06em; text-transform:uppercase; }
-  /* EXIT도 링크 느낌 */
   .docExit{
     padding:0; border:none; background:transparent; border-radius:0;
-    text-transform:uppercase; letter-spacing:.06em; text-decoration:underline; text-underline-offset:4px;
+    text-transform:uppercase; letter-spacing:.06em;
+    text-decoration:none; /* ← 밑줄 제거 */
   }
-  /* 박스/사각형 느낌 제거 */
   #docBody{
     flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch;
     border:none; border-radius:0; padding:0;
     font-size:var(--body-fs); line-height:1.6;
     background:transparent;
   }
-
-  /* 기록 목록: 텍스트 링크 스타일 */
   #docMenu{
     display:grid; gap:10px;
     grid-template-columns:repeat( auto-fit, minmax(120px, 1fr) );
@@ -176,7 +171,7 @@
   .docBtn{
     padding:0; border:none; border-radius:0; background:transparent;
     text-align:left; text-transform:uppercase; letter-spacing:.04em;
-    text-decoration:underline; text-underline-offset:4px;
+    text-decoration:none; /* ← 밑줄 제거 */
   }
   #docContent{ padding-top:8px; }
   .docParagraph{ margin:.5em 0; word-break:keep-all; }
@@ -186,33 +181,26 @@
 <body>
   <canvas id="view"></canvas>
 
-  <!-- iOS 대응: allow 권한을 강하게 지정 -->
   <iframe id="ninjaOverlay"
           allow="autoplay *; fullscreen *; camera *; microphone *; clipboard-read *; clipboard-write *"
           allowtransparency="true" referrerpolicy="no-referrer" src="about:blank"></iframe>
 
   <div class="proscenium" aria-hidden="true"></div>
 
-  <!-- 우하단: Document (링크 느낌) -->
   <div class="controls">
     <button class="uiBtn" id="btnDoc">Document</button>
   </div>
 
-  <!-- Overlay (탭 → 권한(iOS 바로 / 안드 허용버튼) → Welcome → Intro+Sleep) -->
   <div id="overlay" aria-label="Tap anywhere to start">
     <div id="overlayContent">
-      <!-- STEP 1: 안내 -->
       <div id="tapAnywhere" class="subText">화면을 가볍게 탭하여 <b>카메라 허용</b>을 진행해주세요</div>
 
-      <!-- STEP 2: 안드로이드 전용 허용 버튼 -->
       <button id="allowBtn" class="stageBtn" aria-label="Request camera permission">허용 버튼</button>
       <div id="allowSub" class="subText" style="display:none;">버튼을 눌러 브라우저의 카메라 권한 창을 띄우세요</div>
 
-      <!-- STEP 3: Welcome -->
       <button id="welcomeBtn" class="stageBtn stageText" aria-label="Welcome">WELCOME TO HISTORY OF NIGHTMARE</button>
       <div id="welcomeSub" class="subText" style="display:none;">악몽의 역사에 오신 것을 환영합니다</div>
 
-      <!-- STEP 4: INTRO + SLEEP -->
       <div id="introWrap">
         <h2 class="stageText">INTRODUCTION</h2>
         <ol>
@@ -232,14 +220,12 @@
         <button id="sleepBtn" class="stageBtn" aria-label="Press to sleep">PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP</button>
       </div>
 
-      <!-- GOOD NIGHT 메시지 -->
       <div id="goodNight" class="stageText" style="display:none; margin-top:8px;">
         GOOD NIGHT. HAVE A NICE DREAM.
       </div>
     </div>
   </div>
 
-  <!-- (선택) HTTPS 안내 -->
   <div id="httpsBlock">
     <div id="httpsInner">
       <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
@@ -255,7 +241,6 @@
 
   <div id="diag"></div>
 
-  <!-- ===== Document Panel ===== -->
   <div id="docPanel" role="dialog" aria-modal="true" aria-labelledby="docTitle">
     <div id="docInner">
       <div id="docHeader">
@@ -263,7 +248,6 @@
         <button class="docExit" id="docExit">EXIT</button>
       </div>
       <div id="docBody">
-        <!-- 메뉴가 기본 -->
         <div id="docMenu"></div>
         <div id="docContent" style="display:none"></div>
       </div>
@@ -271,12 +255,10 @@
   </div>
 
 <script>
-/* ===== PWA SW ===== */
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(console.warn);
 }
 
-/* 앱 모드 감지 (배너 제거 등) */
 function isAppMode() {
   return window.matchMedia("(display-mode: standalone)").matches ||
          window.navigator.standalone ||
@@ -287,39 +269,26 @@ window.matchMedia("(display-mode: standalone)").addEventListener("change", (e)=>
   document.documentElement.classList.toggle("app-mode", e.matches);
 });
 
-/* ===== Fullscreen helpers ===== */
 async function goFullscreen(){
   const el=document.documentElement;
-  try{
-    if(el.requestFullscreen) await el.requestFullscreen();
-    else if(el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
-  }catch(e){}
+  try{ if(el.requestFullscreen) await el.requestFullscreen(); else if(el.webkitRequestFullscreen) await el.webkitRequestFullscreen(); }catch(e){}
 }
 const isAndroid = /Android/i.test(navigator.userAgent);
-
-/* Android: 첫 제스처 즉시 전체화면 + 가로 고정(가능 시) */
 async function tryEnterFullscreenEarly(){
   if(!isAndroid) return;
   try{ await goFullscreen(); }catch(_){}
-  try{
-    if(screen.orientation && screen.orientation.lock){
-      await screen.orientation.lock('landscape');
-    }
-  }catch(_){}
+  try{ if(screen.orientation && screen.orientation.lock){ await screen.orientation.lock('landscape'); } }catch(_){}
 }
 
 (()=> {
-/* ===== Config ===== */
 const CONFIG = { ROOM_ID:"YOURROOMID", HTTPS_ORIGIN:"", BLEND:0.5, REZ_SCALE:0.65 };
 
-/* ===== iOS 판별 ===== */
 const isIOS = (() => {
   const ua = navigator.userAgent || "";
   const touchMac = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
   return /iPad|iPhone|iPod/.test(ua) || touchMac;
 })();
 
-/* ===== Refs ===== */
 const view=document.getElementById('view');
 const vctx=view.getContext('2d',{alpha:false});
 const ninja=document.getElementById('ninjaOverlay');
@@ -341,14 +310,12 @@ const btnCopy=document.getElementById('copyHttps');
 const btnOpen=document.getElementById('openHttps');
 const diag=document.getElementById('diag');
 
-/* Document UI */
 const btnDoc=document.getElementById('btnDoc');
 const docPanel=document.getElementById('docPanel');
 const docExit=document.getElementById('docExit');
 const docMenu=document.getElementById('docMenu');
 const docContent=document.getElementById('docContent');
 
-/* ===== HTTPS (필요 시) ===== */
 function shouldForceHttps(){ const local=/^(localhost|127\.0\.0\.1)$/i.test(location.hostname); return !window.isSecureContext && !local; }
 function tryHttpsRedirect(){
   if(shouldForceHttps()){
@@ -363,7 +330,6 @@ btnCopy?.addEventListener('click', async ()=>{ if(!CONFIG.HTTPS_ORIGIN) return a
 btnOpen?.addEventListener('click', ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음'); location.href=CONFIG.HTTPS_ORIGIN; });
 if(!tryHttpsRedirect() && shouldForceHttps()) httpsBlock.style.display='flex';
 
-/* ===== Viewport vars ===== */
 function setViewportVars(){
   const vv=visualViewport, w=Math.round(vv?.width||innerWidth), h=Math.round(vv?.height||innerHeight);
   document.documentElement.style.setProperty('--vwpx', w+'px');
@@ -385,7 +351,6 @@ if(visualViewport){
   visualViewport.addEventListener('scroll', ()=>scheduleLayoutRefresh(60), {passive:true});
 }
 
-/* ===== Camera (B/W) ===== */
 const cam=document.createElement('video'); cam.autoplay=true; cam.muted=true; cam.playsInline=true;
 const proc=document.createElement('canvas'); const pctx=proc.getContext('2d',{willReadFrequently:true});
 const PROC_SCALE=0.60;
@@ -428,7 +393,6 @@ function loop(){
   }
 }
 
-/* ===== Ninja (Resolume feed) — 항상 가시화 ===== */
 const injectedCss=encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
   #container,.container{background:transparent!important;}
@@ -438,9 +402,9 @@ const ninjaBase=`https://vdo.ninja/?view=${encodeURIComponent(CONFIG.ROOM_ID)}&c
 const ninjaUrl=()=>`${ninjaBase}&ts=${Date.now()}`;
 
 const isiOSUA = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
-if(!isiOSUA){ ninja.src = ninjaUrl(); }  // 안드 등에서만 초기 로드
+if(!isiOSUA){ ninja.src = ninjaUrl(); }
 
-let overlayDesired=true; // 항상 겹침
+let overlayDesired=true;
 function applyRezScale(){
   const s=Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1));
   ninja.style.width=`calc(var(--vwpx) * ${s})`;
@@ -465,17 +429,7 @@ setInterval(()=>{
   }catch(_){}
 }, 1500);
 
-/* ===== 입력 유틸 ===== */
-let inputLock=false;
-function lockInput(ms=300){ inputLock=true; setTimeout(()=>{ inputLock=false; }, ms); }
-function addMultiTap(el, handler){
-  const wrap=(e)=>{ if(inputLock) return; handler(e); };
-  el.addEventListener('pointerup', wrap, {passive:true});
-  el.addEventListener('touchend', wrap, {passive:true});
-  el.addEventListener('click', wrap, {passive:true});
-}
-
-/* ===== 8-bit 비프 ===== */
+/* ===== SFX: 모든 버튼에서 8-bit 효과음 ===== */
 let audioCtx=null, lastBeep=0;
 function beep(){
   try{
@@ -491,8 +445,6 @@ function beep(){
   }catch(e){}
 }
 function beepOnce(){ const now=Date.now(); if(now-lastBeep<120) return; lastBeep=now; beep(); }
-
-/* 모든 버튼에서 효과음 */
 ['click','pointerup','touchend'].forEach(ev=>{
   document.addEventListener(ev, (e)=>{
     const btn = e.target.closest('button');
@@ -500,7 +452,7 @@ function beepOnce(){ const now=Date.now(); if(now-lastBeep<120) return; lastBeep
   }, true);
 });
 
-/* ===== 단계 표시 ===== */
+/* ===== 단계 ===== */
 let stepState=1;
 function setStep(step){
   stepState=step;
@@ -513,6 +465,7 @@ function setStep(step){
   introWrap.style.display    = (step===4)? 'block':'none';
 
   if (step===4){
+    // sleepBtn 표시
     sleepBtn.style.display='block';
     overlay.scrollTop = 0; introWrap.scrollTop = 0;
   }
@@ -522,14 +475,11 @@ function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
 }
 
-/* ===== 초기 단계 ===== */
 setStep(1);
 
-/* 첫 화면 아무 데나 탭 */
-addMultiTap(overlay, async (e)=>{
+overlay.addEventListener('click', async (e)=>{
   if(stepState!==1) return;
   if(e.target.closest('#allowBtn,#welcomeBtn,#sleepBtn')) return;
-  lockInput();
 
   tryEnterFullscreenEarly();
   showOverlayNow();
@@ -542,27 +492,20 @@ addMultiTap(overlay, async (e)=>{
   }
 });
 
-/* Android 허용 버튼 */
-addMultiTap(allowBtn, async (e)=>{
-  e.stopPropagation();
+allowBtn.addEventListener('click', async (e)=>{
   if (getComputedStyle(allowBtn).display==='none') return;
-  lockInput();
   tryEnterFullscreenEarly();
   showOverlayNow();
   try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
   catch{ allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.'; }
 });
 
-/* Welcome → Intro */
-addMultiTap(welcomeBtn, (e)=>{
-  e.stopPropagation();
+welcomeBtn.addEventListener('click', ()=>{
   if (getComputedStyle(welcomeBtn).display==='none') return;
-  lockInput(); setStep(4); showOverlayNow();
+  setStep(4); showOverlayNow();
 });
 
-/* Sleep */
-addMultiTap(sleepBtn, async (e)=>{
-  e.stopPropagation(); lockInput();
+sleepBtn.addEventListener('click', async ()=>{
   try{ await goFullscreen(); }catch(_){}
   showOverlayNow();
   introWrap.style.display='none';
@@ -577,7 +520,7 @@ addMultiTap(sleepBtn, async (e)=>{
   fadeOutOverlay(3000);
 });
 
-/* ===== HUD (3연타) ===== */
+/* HUD */
 (function(){
   let show=false,taps=0,last=0;
   addEventListener('pointerup', ()=>{
@@ -586,7 +529,6 @@ addMultiTap(sleepBtn, async (e)=>{
   });
   async function probe(){
     const secure=window.isSecureContext, a2hs=matchMedia("(display-mode: standalone)").matches;
-    let camP='unknown'; try{ const ps=await navigator.permissions?.query?.({name:'camera'}).catch(()=>null); camP=ps?ps.state:'n/a'; }catch{}
     diag.textContent =
 `secureContext: ${secure}
 display-mode: ${a2hs?'standalone':'browser'}
@@ -599,8 +541,7 @@ time: ${new Date().toLocaleTimeString()}`;
   }
 })();
 
-/* ===== Document Panel 로직 ===== */
-
+/* Document Panel */
 const DOCS = {
   "기록 1": `
   <div class="docParagraph">이 모든 이야기는 내가 나를 매장하는 독특한 의식으로부터 비롯되었다.</div>
@@ -628,105 +569,52 @@ const DOCS = {
   <div class="docParagraph">비가 오는 <b>2022년 3월 24일 03시 24분</b>. 우리는 예정된 약속에 따라 집 앞 공원에 모여 간단히 몸을 풀고 난 후 분주히 행군길에 올랐다.</div>
   <div class="docParagraph">그날 그곳엔 호우주의보가 발령되었었다. 우리는 우비와 장화를 챙겨 신은 채, 해를 보기 위해서 주광빛 신호등을 따라 어느 비닐하우스 공업 단지 사이를 걸었다. 어디선가 찬송가가 들려왔다. 그때 최소연은 말했다.</div>
   <div class="docParagraph docPoem">
-    하늘이 보이는 곳으로 간다.<br/>
-    바람이 있는 곳으로 간다.<br/>
-    은은한 따스함을 느낄 수 있는 곳으로 가, 존재가 있는 곳으로 간다.<br/>
-    고양이. 꽃. 무당벌레. 비둘기. 사람.<br/>
-    사람이 없는 곳으로 가자.<br/>
-    공개되지 않는 공간으로 가 노래를 부르자.<br/>
-    춤을 추자.<br/>
-    잠깐 누워보며,<br/>
-    많이 걷기도,<br/>
-    느리게 걸어보기도 하는<br/>
-    취미를 가지자.<br/>
-    취미를 가지자.
+    하늘이 보이는 곳으로 간다.<br/>바람이 있는 곳으로 간다.<br/>은은한 따스함을 느낄 수 있는 곳으로 가, 존재가 있는 곳으로 간다.<br/>
+    고양이. 꽃. 무당벌레. 비둘기. 사람.<br/>사람이 없는 곳으로 가자.<br/>공개되지 않는 공간으로 가 노래를 부르자.<br/>춤을 추자.<br/>
+    잠깐 누워보며, 많이 걷기도, 느리게 걸어보기도 하는 취미를 가지자.<br/>취미를 가지자.
   </div>
   `,
   "기록 4": `
   <div class="docParagraph"><b>가지 않은 길 — 로버트 프로스트</b></div>
   <div class="docParagraph docPoem">
-    노란 숲 속에 길이 두 갈래<br/>
-    나는 두 길을 다 가지 못한 것이 유감이구나<br/>
-    오랫동안 서서<br/>
-    한 길이 굽어 꺾여 내려간 데까지<br/>
-    바라볼 수 있는데까지 멀리 바라만 보았네<br/><br/>
-    그리고<br/>
-    그 길엔 사람이 걸은 자취가 적어 나는 생각했던 게지요<br/>
-    그날 아침 그 길에는 사람이 걸은 자취 따위는 없었네<br/><br/>
-    아<br/>
-    나는 다른 한 길을 위하여 한 길을 남겨 놓았네<br/>
-    길은 길에 연하여 끝없으므로<br/>
-    내가 다시 돌아올 것을 의심하면서<br/><br/>
-    먼 훗날, 나는 그 길을 보며 이야기할 거야<br/>
-    숲 속엔 두 갈래 길이 있었다고<br/>
-    나는 사람이 적게 간 길을 택하였다고<br/>
-    그리고, 그것이 모든 차이를 만들었다고.
+    노란 숲 속에 길이 두 갈래<br/>나는 두 길을 다 가지 못한 것이 유감이구나<br/>오랫동안 서서<br/>
+    한 길이 굽어 꺾여 내려간 데까지<br/>바라볼 수 있는데까지 멀리 바라만 보았네<br/><br/>
+    그리고<br/>그 길엔 사람이 걸은 자취가 적어 나는 생각했던 게지요<br/>그날 아침 그 길에는 사람이 걸은 자취 따위는 없었네<br/><br/>
+    아<br/>나는 다른 한 길을 위하여 한 길을 남겨 놓았네<br/>길은 길에 연하여 끝없으므로<br/>내가 다시 돌아올 것을 의심하면서<br/><br/>
+    먼 훗날, 나는 그 길을 보며 이야기할 거야<br/>숲 속엔 두 갈래 길이 있었다고<br/>나는 사람이 적게 간 길을 택하였다고<br/>그리고, 그것이 모든 차이를 만들었다고.
   </div>
   `,
   "기록 5": `
   <div class="docParagraph"><b>바냐 아저씨 — 안톤 체홉</b></div>
   <div class="docParagraph docPoem">
-    살아야죠.<br/>
-    우리 살아가도록 해요.<br/>
-    길고 긴 낮과 긴긴 밤의 연속을 살아가는 거예요.<br/>
-    운명이 우리에게 가져다주는 시련을 참고 견디며,<br/>
-    마음의 평화가 없더라도, 지금 이 순간에도, 나이가 든 후에도,<br/>
-    다른 사람을 위해서 일하도록 해요.<br/><br/>
-    그러다가 우리의 시간이 오면 공손히 죽음을 받아들이고<br/>
-    내세에서 말하도록 해요.<br/>
-    우리가 얼마나 괴로웠고, 얼마나 울었는지,<br/>
-    그리고 얼마나 슬펐는지 말이에요.<br/><br/>
-    그러면 하나님이 우릴 가엾게 여기실 테고,<br/>
-    밝고 아름다우며 우아한 삶을 보고 우리는 쉬게 될 거예요.<br/>
-    지금 우리의 불행을 감동과 미소로 뒤돌아보면서 우리는 쉬게 될 거예요.<br/>
-    전 믿어요. 뜨겁고 열렬하게 믿고 있어요.<br/>
-    우린, 쉬게 될 거예요.
+    살아야죠.<br/>우리 살아가도록 해요.<br/>길고 긴 낮과 긴긴 밤의 연속을 살아가는 거예요.<br/>
+    운명이 우리에게 가져다주는 시련을 참고 견디며,<br/>마음의 평화가 없더라도, 지금 이 순간에도, 나이가 든 후에도,<br/>다른 사람을 위해서 일하도록 해요.<br/><br/>
+    그러다가 우리의 시간이 오면 공손히 죽음을 받아들이고 내세에서 말하도록 해요.<br/>
+    우리가 얼마나 괴로웠고, 얼마나 울었는지, 그리고 얼마나 슬펐는지 말이에요.<br/><br/>
+    그러면 하나님이 우릴 가엾게 여기실 테고, 밝고 아름다우며 우아한 삶을 보고 우리는 쉬게 될 거예요.<br/>
+    지금 우리의 불행을 감동과 미소로 뒤돌아보면서 우리는 쉬게 될 거예요.<br/>전 믿어요. 뜨겁고 열렬하게 믿고 있어요.<br/>우린, 쉬게 될 거예요.
   </div>
   `,
   "기록 6": `
   <div class="docParagraph"><b>남신의주 유동 박시봉 방 — 백석</b></div>
   <div class="docParagraph docPoem">
-    어느 사이에 나는 아내도 없고, 또,<br/>
-    아내와 같이 살던 집도 없어지고,<br/>
-    그리고 살뜰한 부모며 동생들과도 멀리 떨어져서<br/>
-    그 어느 바람 세인 쓸쓸한 거리 끝에 헤매었다.<br/><br/>
-    바로 날도 저물어서,<br/>
-    바람은 더욱 세게 불고, 추위는 점점 더해 오는데,<br/>
-    나는 목수네 헌 삿을 깐,<br/>
-    한 방에 들어서 쥔을 붙이었다.<br/><br/>
-    이리하여 나는 이 습내 나는 춥고, 누긋한 방에서,<br/>
-    낮이나 밤이나 나는 나 혼자도 너무 많은 것같이 생각하며,<br/>
-    딜옹배기에 북덕불이라도 담겨 오면,<br/>
-    이것을 안고 손을 쬐며 재 위에 뜻 없이 글자를 쓰기도 하며,<br/>
-    또 문밖에 나가지도 않고 자리에 누워서,<br/>
-    머리에 손깍지 베개를 하고 굴기도 하면서,<br/>
-    나는 내 슬픔이며 어리석음이며를 소처럼 연하여 새김질하는 것이었다.<br/><br/>
-    내 가슴이 꽉 메어 올 적이며,<br/>
-    내 눈에 뜨거운 것이 핑 괴일 적이며,<br/>
-    또 내 스스로 화끈 낯이 붉도록 부끄러울 적이며,<br/>
-    나는 내 슬픔과 어리석음에 눌리어 죽을 수밖에 없는 것을 느끼는 것이었다.<br/><br/>
-    그러나 잠시 뒤에 나는 고개를 들어,<br/>
-    허연 문창을 바라보든가 또 눈을 떠서 높은 천정을 쳐다보는 것인데,<br/>
-    이때 나는 내 뜻이며 힘으로, 나를 이끌어 가는 것이 힘든 일인 것을 생각하고,<br/>
-    이것들보다 더 크고, 높은 것이 있어서, 나를 마음대로 굴려 가는 것을 생각하는 것인데,<br/>
-    이렇게 하여 여러 날이 지나는 동안에,<br/>
-    내 어지러운 마음에는 슬픔이며, 한탄이며, 가라앉을 것은 차츰 앙금이 되어 가라앉고,<br/>
-    외로운 생각만이 드는 때쯤 해서는,<br/>
-    더러 나줏손에 살랑살랑 싸락눈이 와서 문창을 치기도 하는 때도 있는데,<br/>
-    나는 이런 저녁에는 화로를 더욱 다가 끼며, 무릎을 꿇어 보며,<br/>
-    어느 먼 산 뒤옆 바위 숲에 따로 외로이 서서,<br/>
-    어두워 오는데 하얗게 눈을 맞을, 그 마른 잎새에는,<br/>
-    살랑살랑 소리도 나며 눈을 맞을,<br/>
-    그 드물다는 굳고 정한 갈매나무라는 나무를 생각하는 것이었다.
+    어느 사이에 나는 아내도 없고, 또,<br/>아내와 같이 살던 집도 없어지고,<br/>그리고 살뜰한 부모며 동생들과도 멀리 떨어져서<br/>그 어느 바람 세인 쓸쓸한 거리 끝에 헤매었다.<br/><br/>
+    바로 날도 저물어서, 바람은 더욱 세게 불고, 추위는 점점 더해 오는데,<br/>나는 목수네 헌 삿을 깐, 한 방에 들어서 쥔을 붙이었다.<br/><br/>
+    이리하여 나는 이 습내 나는 춥고, 누긋한 방에서,<br/>낮이나 밤이나 나는 나 혼자도 너무 많은 것같이 생각하며,<br/>딜옹배기에 북덕불이라도 담겨 오면, 이것을 안고 손을 쬐며 재 위에 뜻 없이 글자를 쓰기도 하며,<br/>
+    또 문밖에 나가지도 않고 자리에 누워서, 머리에 손깍지 베개를 하고 굴기도 하면서,<br/>나는 내 슬픔이며 어리석음이며를 소처럼 연하여 새김질하는 것이었다.<br/><br/>
+    내 가슴이 꽉 메어 올 적이며, 내 눈에 뜨거운 것이 핑 괴일 적이며,<br/>또 내 스스로 화끈 낯이 붉도록 부끄러울 적이며,<br/>나는 내 슬픔과 어리석음에 눌리어 죽을 수밖에 없는 것을 느끼는 것이었다.<br/><br/>
+    그러나 잠시 뒤에 나는 고개를 들어, 허연 문창을 바라보든가 또 눈을 떠서 높은 천정을 쳐다보는 것인데,<br/>
+    이때 나는 내 뜻이며 힘으로, 나를 이끌어 가는 것이 힘든 일인 것을 생각하고,<br/>이것들보다 더 크고, 높은 것이 있어서, 나를 마음대로 굴려 가는 것을 생각하는 것인데,<br/>
+    이렇게 하여 여러 날이 지나는 동안에, 내 어지러운 마음에는 슬픔이며, 한탄이며, 가라앉을 것은 차츰 앙금이 되어 가라앉고,<br/>
+    외로운 생각만이 드는 때쯤 해서는, 더러 나줏손에 살랑살랑 싸락눈이 와서 문창을 치기도 하는 때도 있는데,<br/>
+    나는 이런 저녁에는 화로를 더욱 다가 끼며, 무릎을 꿇어 보며,<br/>어느 먼 산 뒤옆 바위 숲에 따로 외로이 서서,<br/>어두워 오는데 하얗게 눈을 맞을, 그 마른 잎새에는,<br/>살랑살랑 소리도 나며 눈을 맞을,<br/>그 드물다는 굳고 정한 갈매나무라는 나무를 생각하는 것이었다.
   </div>
   `
 };
 
-/* 기록 메뉴 생성 */
 function buildDocMenu(){
   docMenu.innerHTML = "";
-  const labels = ["기록 1","기록 2","기록 3","기록 4","기록 5","기록 6"];
-  labels.forEach(label=>{
+  ["기록 1","기록 2","기록 3","기록 4","기록 5","기록 6"].forEach(label=>{
     const b=document.createElement('button');
     b.className="docBtn";
     b.textContent=label;
@@ -734,8 +622,6 @@ function buildDocMenu(){
     docMenu.appendChild(b);
   });
 }
-
-/* 열기/닫기/표시 */
 function openDocPanel(){
   buildDocMenu();
   docTitle("DOCUMENT");
@@ -743,9 +629,7 @@ function openDocPanel(){
   docContent.style.display="none";
   docPanel.style.display="block";
 }
-function closeDocPanel(){
-  docPanel.style.display="none";
-}
+function closeDocPanel(){ docPanel.style.display="none"; }
 function openDoc(label){
   const html = DOCS[label] || "<div class='docParagraph'>내용이 없습니다.</div>";
   docContent.innerHTML = `<div class="docParagraph" style="margin-bottom:.5em;"><b>${label}</b></div>` + html;
@@ -753,16 +637,11 @@ function openDoc(label){
   docMenu.style.display="none";
   docContent.style.display="block";
 }
-function docTitle(t){
-  const el=document.getElementById('docTitle');
-  if(el) el.textContent = t;
-}
+function docTitle(t){ const el=document.getElementById('docTitle'); if(el) el.textContent = t; }
 
-/* 이벤트 */
-btnDoc.addEventListener('click', (e)=>{ e.stopPropagation(); openDocPanel(); });
-docExit.addEventListener('click', (e)=>{ e.stopPropagation(); closeDocPanel(); });
+document.getElementById('btnDoc').addEventListener('click', (e)=>{ e.stopPropagation(); openDocPanel(); });
+document.getElementById('docExit').addEventListener('click', (e)=>{ e.stopPropagation(); closeDocPanel(); });
 
-/* ===== 첫 배치 ===== */
 applyRezScale(); fitCamera();
 
 })(); // IIFE
