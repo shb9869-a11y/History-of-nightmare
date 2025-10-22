@@ -18,7 +18,7 @@
     --line-color:rgba(255,255,255,.9); --line-w:1px; --line-r:2px;
     --ff-ui:"Courier New", Courier, monospace;
 
-    /* vmin 기반으로 비율 유지 */
+    /* vmin 기반 기본 타이포 */
     --stage-fs:clamp(14px,2.2vmin,22px);
     --sub-fs:clamp(11px,1.6vmin,16px);
     --body-fs:clamp(12px,1.8vmin,18px);
@@ -26,13 +26,22 @@
     --btn-pad-y:.45em; --btn-pad-x:1em; --btn-border:1px;
     --letter-space:.03em; --line-height:1.45;
   }
-  @media (orientation:landscape){ :root{ --gap:24px; } }
+  @media (orientation:landscape){
+    :root{
+      /* 가로 모드에서는 더 보수적으로 축소 */
+      --gap:24px;
+      --stage-fs:clamp(12px,1.8vmin,18px);
+      --sub-fs:clamp(10px,1.4vmin,15px);
+      --body-fs:clamp(11px,1.5vmin,16px);
+    }
+  }
 
   html,body{
     margin:0;height:100%;background:#000;color:#fff;overflow:hidden;
     -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
     font-family:var(--ff-ui); line-height:var(--line-height);
     text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased;
+    -webkit-text-size-adjust:100%;
   }
   *,*::before,*::after{ box-sizing:border-box; }
   button{ font:inherit;color:inherit;background:none;border:none;padding:0;margin:0;cursor:pointer; }
@@ -62,16 +71,22 @@
   .controls{ position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:100;display:flex;gap:8px; }
   .uiBtn{ padding:.4em .8em; text-transform:uppercase; letter-spacing:var(--letter-space); }
 
-  /* Overlay */
+  /* Overlay: 스크롤 가능하게 변경 */
   #overlay{
     position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
-    cursor:pointer; /* 화면 어디든 탭 가능 */
+    cursor:pointer;
+    overflow:auto; /* << 핵심: 컨텐츠가 길면 스크롤 */
+    -webkit-overflow-scrolling:touch;
   }
   #overlayContent{
     text-align:center; transition:opacity .45s ease;
-    display:flex; flex-direction:column; gap:12px; align-items:center;
-    /* 안내문 폭 제한: 가로/세로 모두 안정적 */
+    display:flex; flex-direction:column; gap:12px;
+    align-items:center;
     max-width:min(900px, 92vw);
+
+    /* 안전한 최대 높이(상하 여백 고려) */
+    max-height:calc(var(--vhpx) - 2 * (var(--gap) + 20px + env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+    overflow:visible;  /* 자체는 보이되 내부 introWrap이 스크롤 */
   }
   .hidden{ opacity:0 }
 
@@ -84,27 +99,44 @@
   .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
   .subText{ font-size:var(--sub-fs); opacity:.95; }
 
-  /* INTRO */
+  /* INTRO: 본문 스크롤 박스 */
   #introWrap{
-    display:none; text-align:left;
-    /* 본문 폭 제한 + 가운데 배치로 가로모드 안정화 */
-    max-width:min(72ch, 92vw);
+    display:none;
+    text-align:left;
     width:100%;
+    max-width:min(72ch, 92vw);
     margin:0 auto;
+
+    /* 세로/가로 공통: 안전한 스크롤 영역 확보 */
+    max-height:calc(
+      var(--vhpx)
+      - 3.2em               /* 타이틀/여백 대략치 */
+      - env(safe-area-inset-top)
+      - env(safe-area-inset-bottom)
+      - 40px                /* 내부 여백 */
+    );
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    padding-right:8px; /* iOS 스크롤바 겹침 여유 */
   }
   #introWrap h2{ text-align:center; margin:6px 0 10px; letter-spacing:.06em; }
   #introWrap ol{ margin:0; padding-left:1.2em; font-size:var(--body-fs); }
-  #introWrap li{ margin:.3em 0; line-height:1.55; }
-  #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); }
-  #introWrap .tips li{ margin:.25em 0; }
+  #introWrap li{ margin:.3em 0; line-height:1.55; word-break:keep-all; }
+  #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); padding-left:1.1em; }
+  #introWrap .tips li{ margin:.25em 0; line-height:1.5; word-break:keep-all; }
 
-  /* Sleep 버튼: 중앙 고정 (JS inline 스타일보다 우선) */
+  /* Sleep 버튼: 항상 하단에 보이도록 sticky */
   #sleepBtn{
     display:block !important;
-    margin:16px auto 0;
+    margin:12px auto 0;
     font-size:clamp(12px,1.6vmin,18px);
-    padding:.4em .9em;
+    padding:.45em .95em;
     letter-spacing:var(--letter-space);
+    position:sticky;
+    bottom:0;
+    background:rgba(0,0,0,.55);
+    backdrop-filter:blur(2px);
   }
 
   /* HTTPS help (생략 가능) */
@@ -275,10 +307,22 @@ function setViewportVars(){
   document.documentElement.style.setProperty('--vhpx', h+'px');
 }
 let relayoutTimer=null;
-function scheduleLayoutRefresh(d=60){ clearTimeout(relayoutTimer); relayoutTimer=setTimeout(()=>{ setViewportVars(); fitCamera(); applyRezScale(); }, d); }
+function scheduleLayoutRefresh(d=60){
+  clearTimeout(relayoutTimer);
+  relayoutTimer=setTimeout(()=>{
+    setViewportVars(); fitCamera(); applyRezScale();
+    /* INTRO 스크롤 초기화로 글자 짤림 방지 */
+    overlay.scrollTop = 0;
+    introWrap.scrollTop = 0;
+  }, d);
+}
 setViewportVars();
 addEventListener('resize', ()=>scheduleLayoutRefresh(80));
-addEventListener('orientationchange', ()=>{ scheduleLayoutRefresh(120); scheduleLayoutRefresh(300); });
+addEventListener('orientationchange', ()=>{
+  /* 방향 전환 직후/약간 뒤 두 번 리레이아웃 */
+  scheduleLayoutRefresh(120);
+  scheduleLayoutRefresh(360);
+});
 if(visualViewport){
   visualViewport.addEventListener('resize', ()=>scheduleLayoutRefresh(60), {passive:true});
   visualViewport.addEventListener('scroll', ()=>scheduleLayoutRefresh(60), {passive:true});
@@ -366,10 +410,9 @@ function beep(){
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.type = "square";
-    o.frequency.value = 880;         // 8-bit 느낌의 짧은 높은 톤
-    g.gain.value = 0.12;             // 볼륨
+    o.frequency.value = 880;
+    g.gain.value = 0.12;
     o.connect(g); g.connect(audioCtx.destination);
-    // 아주 짧은 엔벨로프
     const now = audioCtx.currentTime;
     g.gain.setValueAtTime(0.12, now);
     g.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
@@ -389,8 +432,13 @@ function setStep(step){
   welcomeBtn.style.display   = (step===3)? 'inline-block':'none';
   welcomeSub.style.display   = (step===3)? 'block':'none';
   introWrap.style.display    = (step===4)? 'block':'none';
-  /* sleep 버튼은 중앙 고정을 위해 block로 노출 */
-  if (step===4) sleepBtn.style.display='block';
+
+  if (step===4){
+    /* sleep 버튼 보이기 + 스크롤 맨 위로 */
+    sleepBtn.style.display='block';
+    overlay.scrollTop = 0;
+    introWrap.scrollTop = 0;
+  }
 }
 function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
@@ -429,7 +477,7 @@ addMultiTap(welcomeBtn, (e)=>{
 /* SLEEP: 전체화면 + 오버레이 + 비프 */
 addMultiTap(sleepBtn, async (e)=>{
   e.stopPropagation(); lockInput();
-  beep();                        // 8-bit 효과음!
+  beep();
   await goFullscreen();
   setOverlay(true);
   // GOOD NIGHT 표시
