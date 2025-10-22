@@ -69,8 +69,7 @@
   .hidden{ opacity:0 }
 
   .stageBtn{
-    display:none;
-    padding:var(--btn-pad-y) var(--btn-pad-x);
+    display:none; padding:var(--btn-pad-y) var(--btn-pad-x);
     border:var(--btn-border) solid #fff; text-transform:uppercase;
     letter-spacing:var(--letter-space); font-size:var(--stage-fs);
   }
@@ -81,7 +80,7 @@
   #introWrap{ display:none; text-align:left; }
   #introWrap h2{ text-align:center; margin:6px 0 10px; letter-spacing:.06em; }
   #introWrap ol{ margin:0; padding-left:1.2em; font-size:var(--body-fs); }
-  #introWrap li{ margin:.3em 0; line-height:1.5; }
+  #introWrap li{ margin:.3em 0; line-height:1.55; }
   #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); }
   #introWrap .tips li{ margin:.25em 0; }
   #sleepBtn{ margin-top:14px; }
@@ -134,17 +133,17 @@
       <div id="introWrap">
         <h2 class="stageText">INTRODUCTION</h2>
         <ol>
-          <li>안녕하세요, <b>크리에이티브 허브 모임</b>입니다. 공연 <b>《악몽의 역사》</b>를 찾아주셔서 감사합니다.</li>
-          <li><b>《악몽의 역사》</b>는 연출가 손희범이 <b>2024년 11월</b> 이후 계속 겪어 온 악몽의 원인을 추적하는 여정입니다.</li>
-          <li>지금부터 여러분은 이 앱을 통해 공연 속 ‘악몽’의 흔적을 함께 추적하는 <b>공동 발굴자</b>가 됩니다.</li>
-          <li>본 공연은 <b>지정 좌석이 없습니다</b>. 공간을 자유롭게 이동하며 관람해주세요.</li>
-          <li>휴대폰을 들고 공연 공간을 탐사하며, 곳곳의 <b>퍼포머</b>를 가까이에서 관찰하실 수 있습니다.</li>
-          <li>공연 중 여러분의 <b>카메라 영상 위로</b> 리서치 자료, 문서, 그리고 퍼포머의 과정 일부가 <b>실시간으로 투사</b>됩니다.</li>
+          <li>안녕하세요. <b>크리에이티브 허브 모임</b>입니다. 공연 <b>《악몽의 역사》</b>에 와주셔서 감사합니다.</li>
+          <li>이 작품은 연출가 <b>손희범</b>이 <b>2024년 11월 이후</b> 지속된 악몽의 <b>원인을 추적</b>하는 여정입니다.</li>
+          <li>여러분은 이 앱을 활용해 공연 중 전개되는 ‘악몽의 역사’를 함께 따라가는 <b>공동 발굴자</b>가 됩니다.</li>
+          <li>본 공연은 <b>지정 좌석이 없습니다</b>. 자유롭게 이동하며 관람해 주세요.</li>
+          <li>휴대폰으로 공간을 탐사하고, 곳곳의 <b>퍼포머</b>를 가까이에서 관찰할 수 있습니다.</li>
+          <li>공연 중 여러분이 촬영하는 영상 위에, 제작에 사용된 <b>리서치 자료·문서</b>와 <b>퍼포머의 과정</b>이 <b>실시간으로 투사</b>됩니다.</li>
         </ol>
         <ul class="tips">
           <li>휴대폰은 <b>가로 모드</b> 사용을 추천합니다.</li>
           <li>잠시 후 <b>비상벨이 세 번</b> 울립니다.</li>
-          <li>비상벨이 세 번 울리면 아래 <b>“PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP”</b> 버튼을 눌러 <b>악몽 속으로 진입</b>하세요.</li>
+          <li>세 번 울린 뒤 아래 <b>“PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP”</b> 버튼을 눌러 <b>악몽 속으로 진입</b>하세요.</li>
         </ul>
         <button id="sleepBtn" class="stageBtn" aria-label="Press to sleep">PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP</button>
       </div>
@@ -331,9 +330,9 @@ btnIn.addEventListener('pointerup', ()=> setOverlay(true));
 btnOut.addEventListener('pointerup',()=> setOverlay(false));
 setInterval(()=>{ if(ninja.style.opacity!=='0'){ ninja.src=ninjaUrl(); } }, 60000);
 
-/* ===== 입력 유틸 ===== */
+/* ===== 입력 유틸: pointerup + 잠금 ===== */
 let inputLock=false;
-function lockInput(ms=500){ inputLock=true; setTimeout(()=>{ inputLock=false; }, ms); }
+function lockInput(ms=300){ inputLock=true; setTimeout(()=>{ inputLock=false; }, ms); }
 function addTap(el, handler){
   el.addEventListener('pointerup', (e)=>{
     if(inputLock) return;
@@ -356,50 +355,38 @@ function fadeOutOverlay(afterMs=0){
   setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
 }
 
-/* ===== 초기: 무조건 1단계 ===== */
+/* ===== 초기: 1단계 고정 ===== */
 setStep(1);
 
-/* STEP 1: 안내 문구 탭 */
+/* STEP 1: 안내 문구 탭 → (iOS) 권한 즉시 / (안드) 허용 버튼 */
 addTap(tapAnywhere, async ()=>{
   if (getComputedStyle(tapAnywhere).display==='none') return;
   lockInput();
   if (isIOS){
-    try{
-      await startCamera(); fitCamera(); ensureLoop();
-      setTimeout(()=>{ setStep(3); }, 50);
-    }catch{
-      tapAnywhere.innerHTML = '카메라 접근이 거부되었습니다. <b>설정 > 사파리 > 카메라</b>에서 허용 후 다시 시도하세요.';
-    }
+    try{ await startCamera(); fitCamera(); ensureLoop(); setTimeout(()=>setStep(3), 50); }
+    catch{ tapAnywhere.innerHTML = '카메라 접근이 거부되었습니다. <b>설정 > 사파리 > 카메라</b>에서 허용 후 다시 시도하세요.'; }
   }else{
-    setTimeout(()=>{ setStep(2); }, 50);
+    setTimeout(()=>setStep(2), 50);
   }
 });
 
-/* STEP 2 (안드): 허용 버튼 → 권한 요청 → 웰컴 */
+/* STEP 2: 안드로이드 권한 요청 → 웰컴 */
 addTap(allowBtn, async (e)=>{
-  e.stopPropagation();
-  if (getComputedStyle(allowBtn).display==='none') return;
+  e.stopPropagation(); if (getComputedStyle(allowBtn).display==='none') return;
   lockInput();
-  try{
-    await startCamera(); fitCamera(); ensureLoop();
-    setTimeout(()=>{ setStep(3); }, 50);
-  }catch{
-    allowSub.innerHTML = '권한 요청이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.';
-  }
+  try{ await startCamera(); fitCamera(); ensureLoop(); setTimeout(()=>setStep(3), 50); }
+  catch{ allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.'; }
 });
 
 /* STEP 3: WELCOME 버튼 탭 → INTRO */
 addTap(welcomeBtn, (e)=>{
-  e.stopPropagation();
-  if (getComputedStyle(welcomeBtn).display==='none') return;
-  lockInput();
-  setTimeout(()=>{ setStep(4); }, 50);
+  e.stopPropagation(); if (getComputedStyle(welcomeBtn).display==='none') return;
+  lockInput(); setTimeout(()=>setStep(4), 50);
 });
 
 /* STEP 4: PRESS HERE TO SLEEP → 전체화면 + 오버레이 ON + 페이드아웃 */
 addTap(sleepBtn, async (e)=>{
-  e.stopPropagation();
-  lockInput();
+  e.stopPropagation(); lockInput();
   await goFullscreen();
   fadeOutOverlay(1200);
   setOverlay(true);
