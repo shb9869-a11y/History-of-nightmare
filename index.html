@@ -199,12 +199,25 @@ window.matchMedia("(display-mode: standalone)").addEventListener("change", (e)=>
   document.documentElement.classList.toggle("app-mode", e.matches);
 });
 
+/* ===== Fullscreen helpers ===== */
 async function goFullscreen(){
   const el=document.documentElement;
   try{
-    if(el.requestFullscreen)await el.requestFullscreen();
-    else if(el.webkitRequestFullscreen)await el.webkitRequestFullscreen();
+    if(el.requestFullscreen) await el.requestFullscreen();
+    else if(el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
   }catch(e){}
+}
+const isAndroid = /Android/i.test(navigator.userAgent);
+
+/* 안드 전용: 첫 제스처 때 바로 전체화면 + (가능하면) 가로 고정 */
+async function tryEnterFullscreenEarly(){
+  if(!isAndroid) return;
+  try{ await goFullscreen(); }catch(_){}
+  try{
+    if(screen.orientation && screen.orientation.lock){
+      await screen.orientation.lock('landscape');  // 일부 단말에서만 동작
+    }
+  }catch(_){}
 }
 
 (()=> {
@@ -322,7 +335,7 @@ function loop(){
   }
 }
 
-/* ===== Ninja ===== */
+/* ===== Ninja (Resolume feed) ===== */
 const injectedCss=encodeURIComponent(`
   html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
   #container,.container{background:transparent!important;}
@@ -331,25 +344,18 @@ const injectedCss=encodeURIComponent(`
 const ninjaBase=`https://vdo.ninja/?view=${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&autoplay=1&muted=1&playsinline=1&noaudio&codec=vp8&solo&transparent=1&css=${injectedCss}`;
 const ninjaUrl=()=>`${ninjaBase}&ts=${Date.now()}`;
 
-/* ▶ 오버레이 가시화 플래그 & 함수 */
 let overlayDesired=false;
 function showOverlayNow(){
   overlayDesired=true;
   if(ninja.src==='about:blank'){ ninja.src=ninjaUrl(); }
-  // 이미 로드되어 있으면 즉시 표시
   ninja.style.opacity = String(CONFIG.BLEND);
 }
 function hideOverlay(){ overlayDesired=false; ninja.style.opacity='0'; }
 
-/* 로드 완료 후에도 바로 표시 (초기 지연 대비) */
 ninja.addEventListener('load', ()=>{
   if(overlayDesired) ninja.style.opacity = String(CONFIG.BLEND);
 });
-
-/* 초기 프리로드 */
 (function preloadOverlay(){ ninja.src=ninjaUrl(); })();
-
-/* 크기/스케일 적용 */
 function applyRezScale(){
   const s=Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1));
   ninja.style.width=`calc(var(--vwpx) * ${s})`;
@@ -360,14 +366,11 @@ function applyRezScale(){
 function setOverlay(on){ on?showOverlayNow():hideOverlay(); }
 btnIn.addEventListener('click', ()=> setOverlay(true));
 btnOut.addEventListener('click',()=> setOverlay(false));
-
-/* 워치독: 표시 요청했는데 안 뜨면 재주입 */
 setInterval(()=>{
   if(!overlayDesired) return;
   const want = String(CONFIG.BLEND);
   if(ninja.style.opacity!==want) ninja.style.opacity=want;
   try{
-    // contentWindow가 없거나 강제로 about:blank로 바뀐 경우 대비
     const needsReload = !ninja.contentWindow || (ninja.src && ninja.src.endsWith('about:blank'));
     if(needsReload) ninja.src = ninjaUrl();
   }catch(_){}
@@ -416,7 +419,6 @@ function setStep(step){
     overlay.scrollTop = 0; introWrap.scrollTop = 0;
   }
 
-  // 웰컴/인트로 구간에서는 항상 오버레이 유지
   if (step===3 || step===4) showOverlayNow();
 }
 function fadeOutOverlay(afterMs=0){
@@ -426,13 +428,17 @@ function fadeOutOverlay(afterMs=0){
 /* 초기 단계 */
 setStep(1);
 
-/* ▲ 첫 탭: 권한 시도 전에 바로 레졸룸 표시 요청 */
+/* ▶ 첫 탭: 안드로이드 즉시 전체화면 + 레졸룸 표시 + (iOS는 권한 시도) */
 addMultiTap(overlay, async (e)=>{
   if(stepState!==1) return;
   if(e.target.closest('#allowBtn,#welcomeBtn,#sleepBtn')) return;
   lockInput();
 
-  showOverlayNow(); // <<<<<<<<<<<< 핵심: 첫 탭 즉시 표시
+  // ANDROID: 바로 전체화면 시도
+  tryEnterFullscreenEarly();
+
+  // 레졸룸 오버레이 즉시 요청
+  showOverlayNow();
 
   if (isIOS){
     try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
@@ -442,13 +448,14 @@ addMultiTap(overlay, async (e)=>{
   }
 });
 
-/* Android 허용 버튼 */
+/* Android 허용 버튼: 전체화면 재보장 + 오버레이 */
 addMultiTap(allowBtn, async (e)=>{
   e.stopPropagation();
   if (getComputedStyle(allowBtn).display==='none') return;
   lockInput();
 
-  showOverlayNow(); // 허용 직전에도 보장
+  tryEnterFullscreenEarly();  // 제스처 안에서 한 번 더
+  showOverlayNow();
 
   try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
   catch{ allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.'; }
@@ -465,8 +472,9 @@ addMultiTap(welcomeBtn, (e)=>{
 addMultiTap(sleepBtn, async (e)=>{
   e.stopPropagation(); lockInput();
   beep();
-  await goFullscreen();
-  showOverlayNow(); // 안전 확보
+  // 안드로이드는 이미 전체화면일 가능성 높지만 한 번 더 보장
+  tryEnterFullscreenEarly();
+  showOverlayNow();
   introWrap.style.display='none';
   tapAnywhere.style.display='none';
   allowBtn.style.display='none';
@@ -495,7 +503,7 @@ display-mode: ${a2hs?'standalone':'browser'}
 viewport: ${innerWidth}x${innerHeight}
 rez-scale: ${CONFIG.REZ_SCALE}
 overlayDesired: ${overlayDesired}
-camera perm: ${camP}
+android: ${isAndroid}
 time: ${new Date().toLocaleTimeString()}`;
     if(diag.style.display==='block') setTimeout(probe, 800);
   }
