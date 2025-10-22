@@ -55,7 +55,7 @@
     border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .25s ease;background:transparent;
   }
 
-  /* Proscenium frame */
+  /* Proscenium frame (라운드 유지 지시 없으므로 그대로) */
   .proscenium{
     position:fixed;
     left:calc(var(--gap) + env(safe-area-inset-left));
@@ -66,14 +66,14 @@
     z-index:90; pointer-events:none; transform:translateZ(0);
   }
 
-  /* 우하단 컨트롤: Document만 */
+  /* 우하단 컨트롤: Document만 (라운드 제거, 배경 제거) */
   .controls{
     position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));
     z-index:120;display:flex;gap:8px;
   }
   .uiBtn{
     padding:.45em .9em;border:var(--btn-border) solid #fff;text-transform:uppercase;letter-spacing:var(--letter-space);
-    background:rgba(0,0,0,.45);backdrop-filter:blur(2px); border-radius:10px;
+    background:transparent; border-radius:0;
   }
 
   /* Overlay container: 스크롤 가능 (초기 권한/웰컴/인트로) */
@@ -89,11 +89,12 @@
   }
   .hidden{ opacity:0 }
 
+  /* 모든 텍스트 테두리: 직각, 내부 반투명 배경 제거 */
   .stageBtn{
     display:none; padding:var(--btn-pad-y) var(--btn-pad-x);
     border:var(--btn-border) solid #fff; text-transform:uppercase;
     letter-spacing:var(--letter-space); font-size:var(--stage-fs);
-    background:rgba(0,0,0,.45); backdrop-filter:blur(2px); border-radius:10px;
+    background:transparent; border-radius:0;
   }
   .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
   .subText{ font-size:var(--sub-fs); opacity:.95; }
@@ -110,13 +111,13 @@
   #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); padding-left:1.1em; }
   #introWrap .tips li{ margin:.25em 0; line-height:1.5; word-break:keep-all; }
 
-  /* Sleep 버튼: 하단 sticky */
+  /* Sleep 버튼: 직각, 배경 제거 */
   #sleepBtn{
     display:block !important; margin:12px auto 0;
     font-size:clamp(12px,1.6vmin,18px); padding:.45em .95em;
     letter-spacing:var(--letter-space);
     position:sticky; bottom:0;
-    background:rgba(0,0,0,.55); backdrop-filter:blur(2px); border:var(--btn-border) solid #fff; border-radius:10px;
+    background:transparent; border:var(--btn-border) solid #fff; border-radius:0;
   }
 
   /* HTTPS 안내 */
@@ -148,21 +149,22 @@
     display:flex; align-items:center; justify-content:space-between; gap:8px;
   }
   #docTitle{ font-size:clamp(16px,2vmin,22px); letter-spacing:.06em; text-transform:uppercase; }
-  .docExit{ padding:.4em .9em; border:1px solid #fff; border-radius:10px; background:rgba(0,0,0,.45); text-transform:uppercase; letter-spacing:.03em;}
+  .docExit{ padding:.4em .9em; border:1px solid #fff; border-radius:0; background:transparent; text-transform:uppercase; letter-spacing:.03em;}
   #docBody{
     flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch;
-    border:1px dashed rgba(255,255,255,.35); border-radius:12px; padding:14px;
+    border:1px dashed rgba(255,255,255,.35); border-radius:0; padding:14px;
     font-size:var(--body-fs); line-height:1.6;
+    background:transparent;
   }
 
-  /* 기록 목록 그리드 */
+  /* 기록 목록 그리드 (라운드 제거) */
   #docMenu{
     display:grid; gap:10px;
     grid-template-columns:repeat( auto-fit, minmax(120px, 1fr) );
   }
   .docBtn{
-    padding:.8em 1em; border:1px solid #fff; border-radius:12px;
-    background:rgba(0,0,0,.35); text-align:center; text-transform:uppercase; letter-spacing:.04em;
+    padding:.8em 1em; border:1px solid #fff; border-radius:0;
+    background:transparent; text-align:center; text-transform:uppercase; letter-spacing:.04em;
   }
   .docParagraph{ margin:.5em 0; word-break:keep-all; }
   .docPoem br{ content:""; }
@@ -212,6 +214,7 @@
           <li>휴대폰은 <b>가로 모드</b> 사용을 추천합니다.</li>
           <li>잠시 후 <b>비상벨이 세 번</b> 울립니다.</li>
           <li>세 번 울린 뒤 <b>“PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP”</b>을 눌러 <b>악몽</b>으로 진입하세요.</li>
+          <li>오른쪽 아래 <b>Document</b> 버튼을 누르면, 창작 과정 리서치 등에서 수집된 <b>작문 자료</b>를 볼 수 있습니다.</li>
         </ul>
         <button id="sleepBtn" class="stageBtn" aria-label="Press to sleep">PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP</button>
       </div>
@@ -491,8 +494,6 @@ function setStep(step){
     sleepBtn.style.display='block';
     overlay.scrollTop = 0; introWrap.scrollTop = 0;
   }
-
-  // 웰컴/인트로 구간에서도 항상 레이어 유지
   showOverlayNow();
 }
 function fadeOutOverlay(afterMs=0){
@@ -509,8 +510,6 @@ addMultiTap(overlay, async (e)=>{
   lockInput();
 
   tryEnterFullscreenEarly();
-
-  // 이 제스처 안에서 바로 Resolume 주입/표시 (iOS 포함)
   showOverlayNow();
 
   if (isIOS){
@@ -581,7 +580,7 @@ time: ${new Date().toLocaleTimeString()}`;
 
 /* ===== Document Panel 로직 ===== */
 
-/* 기록 콘텐츠 (맞춤법/오타 보정 반영) */
+/* 기록 콘텐츠 (맞춤법/띄어쓰기 정돈 반영) */
 const DOCS = {
   "기록 1": `
   <div class="docParagraph">이 모든 이야기는 내가 나를 매장하는 독특한 의식으로부터 비롯되었다.</div>
@@ -598,7 +597,12 @@ const DOCS = {
   <div class="docParagraph">설렘과 초조함으로 시작되었던 이 반복되는 꿈. 그러나 이것이 아침이 되어 출근을 해야 하는 시점까지 반복되어야만 한다는 것을 깨달았을 때, 나는 이것을 <b>악몽</b>이라 부르기 시작했다. 왜냐하면, 나에겐 어딘가로 도망가거나, 숨거나, 거부할 도리가 존재하지 않았기 때문이다.</div>
   `,
   "기록 2": `
-  <div class="docParagraph">준비 중입니다.</div>
+  <div class="docParagraph"><b>2024년 6월 발표 — 유명순 교수 연구 요약</b></div>
+  <div class="docParagraph">우리나라 국민의 절반가량이 장기적인 <b>울분</b> 상태에 놓여 있다는 연구 결과가 나왔다. 특히 10명 중 한 명은 울분 상태가 <b>심각</b>한 수준이며, <b>30대</b>가 높은 수준의 울분을 호소하는 것으로 나타났다.</div>
+  <div class="docParagraph">서울대 보건대학원 <b>유명순</b> 교수팀이 2024년 6월, 만 18세 이상 전국 남녀 <b>1,024명</b>을 대상으로 조사한 결과다.</div>
+  <div class="docParagraph">연구에서 울분은 “부당하고 모욕적이며 신념에 어긋난다고 여겨지는 스트레스 경험에 대한 감정적 반응”을 의미한다. 조사 결과, 응답자의 <b>49.2%</b>가 장기적인 울분 상태에 놓여 있었고, 이 가운데 <b>9.3%</b>는 심각한 수준으로 나타났다.</div>
+  <div class="docParagraph">특히 심각한 울분을 겪는 이들의 <b>60%</b>는 자살을 생각한 적이 있다고 응답했다. 연령별로는 심각 수준의 울분 비율이 <b>30대 13.9%</b>로 가장 높았고, 이 연령대의 경우 울분이 없는 정상 상태의 비율도 낮았다.</div>
+  <div class="docParagraph">반면, 만 60세 이상에서는 심각한 울분 비율이 <b>3.1%</b>로 가장 낮았다. 전반적인 <b>세상의 공정함에 대한 믿음</b> 점수는 20–30대가 가장 낮았고, 만 60세 이상이 가장 높은 것으로 조사되었다.</div>
   `,
   "기록 3": `
   <div class="docParagraph">비가 오는 <b>2022년 3월 24일 03시 24분</b>. 우리는 예정된 약속에 따라 집 앞 공원에 모여 간단히 몸을 풀고 난 후 분주히 행군길에 올랐다.</div>
