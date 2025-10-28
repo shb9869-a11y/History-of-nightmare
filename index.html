@@ -1,650 +1,333 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>HISTORY OF NIGHTMARE</title> <!-- ← 페이지 타이틀 변경 -->
-
-<link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#000000">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>BaconBot — 비석 사이를 걷는 로봇</title>
+<meta name="theme-color" content="#0a0a0d" />
+<!-- iOS A2HS (홈 화면 추가 시 전체화면) -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="BaconBot" />
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAQMAAAB8I8qEAAAABlBMVEUAAAD///+l2Z/dAAAAIklEQVQY02NgGAU0wAgYGBg2QGIYQOaAqQFjQGQGQwAAf3oGqC2cO0gAAAAASUVORK5CYII=" />
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAQAAAC1QeVaAAAABlBMVEUAAAD///+l2Z/dAAAAI0lEQVQImWNgYGBg+M/AwMDwZ2BgKIEBkGAgQGQYJgYGBgYgAABo8QHk7o4Q8kAAAAASUVORK5CYII="/>
 <style>
   :root{
-    --vwpx:100vw; --vhpx:100vh;
-    --gap:32px;
-    --line-color:rgba(255,255,255,.9); --line-w:1px; --line-r:2px;
-    --ff-ui:"Courier New", Courier, monospace;
-
-    --stage-fs:clamp(14px,2.2vmin,22px);
-    --sub-fs:clamp(11px,1.6vmin,16px);
-    --body-fs:clamp(12px,1.8vmin,18px);
-
-    --btn-pad-y:.45em; --btn-pad-x:1em; --btn-border:1px;
-    --letter-space:.03em; --line-height:1.45;
+    --bg:#0a0a0d;
+    --fg:#f5f5f7;
+    --accent:#ff3355;
+    --stone:#6d6b87;
+    --hud:#111218;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
   }
-  @media (orientation:landscape){
-    :root{
-      --gap:24px;
-      --stage-fs:clamp(12px,1.8vmin,18px);
-      --sub-fs:clamp(10px,1.4vmin,15px);
-      --body-fs:clamp(11px,1.5vmin,16px);
-    }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);} 
+  body{display:grid;place-items:center;font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;}
+  #wrap{position:relative; width:100vw; height:100svh; overflow:hidden; background:var(--bg); padding:var(--safe-top) var(--safe-right) var(--safe-bot) var(--safe-left);} 
+  canvas{ 
+    position:absolute; inset:0; margin:auto; 
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    touch-action:none;
   }
-
-  html,body{
-    margin:0;height:100%;background:#000;color:#fff;overflow:hidden;
-    -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
-    font-family:var(--ff-ui); line-height:var(--line-height);
-    text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased;
-    -webkit-text-size-adjust:100%;
+  .hud{
+    position:absolute; left:0; top:0; right:0; display:flex; gap:8px; align-items:center; padding:calc(8px + var(--safe-top)) 10px 8px 10px;
+    background: linear-gradient( to bottom, rgba(0,0,0,.45), rgba(0,0,0,0));
+    font-size:12px; letter-spacing:.2px; pointer-events:none; user-select:none;
   }
-  *,*::before,*::after{ box-sizing:border-box; }
-  button{ font:inherit;color:inherit;background:none;border:none;padding:0;margin:0;cursor:pointer; }
-
-  /* Camera canvas (B/W) */
-  #view{ position:fixed;left:0;top:0;width:var(--vwpx);height:var(--vhpx);display:block;z-index:0; }
-
-  /* VDO.Ninja overlay (Resolume feed) — 항상 겹침 */
-  #ninjaOverlay{
-    position:fixed;left:50%;top:50%;width:var(--vwpx);height:var(--vhpx);
-    transform:translate(-50%,-50%) scale(1);transform-origin:50% 50%;
-    border:0;z-index:10;pointer-events:none;opacity:0;transition:opacity .25s ease;background:transparent;
+  .chip{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); padding:4px 8px; border-radius:8px; }
+  .logo{font-weight:700; color:var(--accent);} 
+  .pad{ position:absolute; bottom:calc(16px + var(--safe-bot)); left:calc(16px + var(--safe-left)); width:140px; height:140px; opacity:.85; filter: drop-shadow(0 2px 8px rgba(0,0,0,.5)); }
+  .pad .ring{ position:absolute; inset:0; border-radius:50%; border:2px dashed rgba(255,255,255,.18); }
+  .pad .stick{ position:absolute; width:64px; height:64px; left:38px; top:38px; border-radius:50%; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.25);} 
+  .btnE{ position:absolute; right:calc(16px + var(--safe-right)); bottom:calc(28px + var(--safe-bot)); width:76px; height:76px; border-radius:50%; background:rgba(255,51,85,.15); border:2px solid var(--accent); color:var(--fg); font-weight:700; display:grid;place-items:center; opacity:.95; }
+  .btnE span{ transform: translateY(1px); }
+  .hint{ position:absolute; left:50%; bottom:calc(10px + var(--safe-bot)); transform:translateX(-50%); opacity:.85; font-size:12px; text-align:center; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.12); padding:4px 8px; border-radius:8px; }
+  #install{
+    position:absolute; left:50%; bottom:calc(90px + var(--safe-bot)); transform:translateX(-50%);
+    display:none; gap:8px; align-items:center; padding:8px 10px; border-radius:10px;
+    background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.15);
+    backdrop-filter: blur(6px);
   }
-
-  /* Proscenium frame (원래대로) */
-  .proscenium{
-    position:fixed;
-    left:calc(var(--gap) + env(safe-area-inset-left));
-    right:calc(var(--gap) + env(safe-area-inset-right));
-    top:calc(var(--gap) + env(safe-area-inset-top));
-    bottom:calc(var(--gap) + env(safe-area-inset-bottom));
-    border:var(--line-w) solid var(--line-color); border-radius:var(--line-r);
-    z-index:90; pointer-events:none; transform:translateZ(0);
-  }
-
-  /* Controls */
-  .controls{
-    position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));
-    z-index:120;display:flex;gap:10px;align-items:center;
-  }
-  .uiBtn{
-    padding:.45em .9em;border:var(--btn-border) solid #fff;text-transform:uppercase;letter-spacing:var(--letter-space);
-    background:transparent; border-radius:0;
-  }
-  /* Document: 사각형 느낌/밑줄 제거 → 텍스트 링크 느낌 없이 미니멀 */
-  #btnDoc{
-    border:none !important; background:transparent !important; padding:0 !important;
-    text-transform:uppercase; letter-spacing:.06em;
-    text-decoration:none; /* ← 밑줄 제거 */
-  }
-
-  /* Overlay */
-  #overlay{
-    position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;
-    cursor:pointer; overflow:auto; -webkit-overflow-scrolling:touch;
-  }
-  #overlayContent{
-    text-align:center; transition:opacity .45s ease;
-    display:flex; flex-direction:column; gap:12px; align-items:center;
-    max-width:min(900px, 92vw);
-    max-height:calc(var(--vhpx) - 2 * (var(--gap) + 20px + env(safe-area-inset-top) + env(safe-area-inset-bottom)));
-  }
-  .hidden{ opacity:0 }
-
-  .stageBtn{
-    display:none; padding:var(--btn-pad-y) var(--btn-pad-x);
-    border:var(--btn-border) solid #fff; text-transform:uppercase;
-    letter-spacing:var(--letter-space); font-size:var(--stage-fs);
-    background:transparent; border-radius:0;
-  }
-  .stageText{ font-size:var(--stage-fs); text-transform:uppercase; letter-spacing:var(--letter-space); }
-  .subText{ font-size:var(--sub-fs); opacity:.95; }
-
-  /* Intro */
-  #introWrap{
-    display:none; text-align:left; width:100%; max-width:min(72ch, 92vw); margin:0 auto;
-    max-height:calc(var(--vhpx) - 3.2em - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px);
-    overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding-right:8px;
-  }
-  #introWrap h2{ text-align:center; margin:6px 0 10px; letter-spacing:.06em; }
-  #introWrap ol{ margin:0; padding-left:1.2em; font-size:var(--body-fs); }
-  #introWrap li{ margin:.3em 0; line-height:1.55; word-break:keep-all; }
-  #introWrap .tips{ margin-top:10px; font-size:var(--body-fs); padding-left:1.1em; }
-  #introWrap .tips li{ margin:.25em 0; line-height:1.5; word-break:keep-all; }
-
-  /* Sleep */
-  #sleepBtn{
-    display:block !important; margin:12px auto 0;
-    font-size:clamp(12px,1.6vmin,18px); padding:.45em .95em;
-    letter-spacing:var(--letter-space);
-    position:sticky; bottom:0;
-    background:transparent; border:var(--btn-border) solid #fff; border-radius:0;
-  }
-
-  /* HTTPS */
-  #httpsBlock{ position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:20px;text-align:center; }
-  #httpsInner{ max-width:560px }
-  .kbd{ display:inline-block;border:1px solid #888;padding:2px 6px;border-radius:4px;background:#111 }
-
-  /* Debug HUD */
-  #diag{
-    position:fixed;left:8px;bottom:8px;z-index:9999;display:none;
-    background:rgba(0,0,0,.7);color:#0f0;font:12px/1.4 var(--ff-ui);
-    padding:8px;border:1px solid #0f0;border-radius:6px;white-space:pre;
-  }
-
-  .app-mode .any-top-banner,
-  .app-mode header.site-header { display:none !important; height:0 !important; }
-
-  /* ===== Document 패널 (사각형 느낌 제거) ===== */
-  #docPanel{
-    position:fixed; inset:0; z-index:250; display:none;
-    background:rgba(0,0,0,.82);
-    padding:calc(14px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(22px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
-  }
-  #docInner{
-    max-width:min(900px, 92vw); margin:0 auto; height:100%;
-    display:flex; flex-direction:column; gap:12px;
-  }
-  #docHeader{
-    display:flex; align-items:center; justify-content:space-between; gap:8px;
-  }
-  #docTitle{ font-size:clamp(16px,2vmin,22px); letter-spacing:.06em; text-transform:uppercase; }
-  .docExit{
-    padding:0; border:none; background:transparent; border-radius:0;
-    text-transform:uppercase; letter-spacing:.06em;
-    text-decoration:none; /* ← 밑줄 제거 */
-  }
-  #docBody{
-    flex:1; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch;
-    border:none; border-radius:0; padding:0;
-    font-size:var(--body-fs); line-height:1.6;
-    background:transparent;
-  }
-  #docMenu{
-    display:grid; gap:10px;
-    grid-template-columns:repeat( auto-fit, minmax(120px, 1fr) );
-  }
-  .docBtn{
-    padding:0; border:none; border-radius:0; background:transparent;
-    text-align:left; text-transform:uppercase; letter-spacing:.04em;
-    text-decoration:none; /* ← 밑줄 제거 */
-  }
-  #docContent{ padding-top:8px; }
-  .docParagraph{ margin:.5em 0; word-break:keep-all; }
-  .docPoem br{ content:""; }
+  #install button{ all:unset; cursor:pointer; padding:6px 10px; border:1px solid rgba(255,255,255,.25); border-radius:8px; }
+  @media (min-aspect-ratio: 16/9){ .hint{ bottom:calc(6px + var(--safe-bot)); } }
 </style>
 </head>
 <body>
-  <canvas id="view"></canvas>
-
-  <iframe id="ninjaOverlay"
-          allow="autoplay *; fullscreen *; camera *; microphone *; clipboard-read *; clipboard-write *"
-          allowtransparency="true" referrerpolicy="no-referrer" src="about:blank"></iframe>
-
-  <div class="proscenium" aria-hidden="true"></div>
-
-  <div class="controls">
-    <button class="uiBtn" id="btnDoc">Document</button>
-  </div>
-
-  <div id="overlay" aria-label="Tap anywhere to start">
-    <div id="overlayContent">
-      <div id="tapAnywhere" class="subText">화면을 가볍게 탭하여 <b>카메라 허용</b>을 진행해주세요</div>
-
-      <button id="allowBtn" class="stageBtn" aria-label="Request camera permission">허용 버튼</button>
-      <div id="allowSub" class="subText" style="display:none;">버튼을 눌러 브라우저의 카메라 권한 창을 띄우세요</div>
-
-      <button id="welcomeBtn" class="stageBtn stageText" aria-label="Welcome">WELCOME TO HISTORY OF NIGHTMARE</button>
-      <div id="welcomeSub" class="subText" style="display:none;">악몽의 역사에 오신 것을 환영합니다</div>
-
-      <div id="introWrap">
-        <h2 class="stageText">INTRODUCTION</h2>
-        <ol>
-          <li>안녕하세요. <b>크리에이티브 허브 모임</b>입니다. 공연 <b>《악몽의 역사》</b>에 와주셔서 감사합니다.</li>
-          <li>이 작품은 연출가 <b>손희범</b>이 <b>2024년 11월 이후</b> 지속된 악몽의 <b>원인을 추적</b>하는 여정입니다.</li>
-          <li>여러분은 이 앱을 활용해 전개되는 ‘악몽의 역사’를 함께 따라가는 <b>공동 발굴자</b>가 됩니다.</li>
-          <li>본 공연은 <b>지정 좌석이 없습니다</b>. 자유롭게 이동하며 관람해 주세요.</li>
-          <li>휴대폰으로 공간을 탐사하고, 곳곳의 <b>퍼포머</b>를 가까이에서 관찰할 수 있습니다.</li>
-          <li>촬영 영상 위에 <b>리서치 자료·문서/퍼포머 과정</b>이 <b>실시간 투사</b>됩니다.</li>
-        </ol>
-        <ul class="tips">
-          <li>휴대폰은 <b>가로 모드</b> 사용을 추천합니다.</li>
-          <li>잠시 후 <b>비상벨이 세 번</b> 울립니다.</li>
-          <li>세 번 울린 뒤 <b>“PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP”</b>을 눌러 <b>악몽</b>으로 진입하세요.</li>
-          <li>오른쪽 아래 <b>Document</b> 버튼을 누르면, 창작 과정 리서치 등에서 수집된 <b>작문 자료</b>를 볼 수 있습니다.</li>
-        </ul>
-        <button id="sleepBtn" class="stageBtn" aria-label="Press to sleep">PRESS&nbsp;HERE&nbsp;TO&nbsp;SLEEP</button>
-      </div>
-
-      <div id="goodNight" class="stageText" style="display:none; margin-top:8px;">
-        GOOD NIGHT. HAVE A NICE DREAM.
-      </div>
+  <div id="wrap">
+    <canvas id="game" width="320" height="180"></canvas>
+    <canvas id="fx" width="320" height="180"></canvas>
+    <div class="hud">
+      <div class="chip logo">BaconBot</div>
+      <div class="chip">WASD / ←→↑↓ 이동</div>
+      <div class="chip">E: 경청(listen)</div>
+      <div class="chip">Shift: 달리기</div>
+    </div>
+    <div class="pad" id="pad" aria-hidden="true">
+      <div class="ring"></div>
+      <div class="stick" id="stick"></div>
+    </div>
+    <button class="btnE" id="btnE" aria-label="listen"><span>E</span></button>
+    <div class="hint">비석에 가까이 가서 <strong>E</strong>를 눌러보세요</div>
+    <div id="install">
+      <span>홈 화면에 추가하면 앱처럼 실행돼요</span>
+      <button id="installBtn">설치</button>
     </div>
   </div>
-
-  <div id="httpsBlock">
-    <div id="httpsInner">
-      <div style="font-size:18px;margin-bottom:10px"><b>보안 연결(HTTPS) 필요</b></div>
-      <div style="opacity:.9">홈 화면 앱에서는 HTTP에서 카메라가 차단됩니다.</div>
-      <div style="margin:12px 0 8px">아래 주소로 자동 이동하도록 설정하세요:</div>
-      <div id="httpsUrlBox" class="kbd" style="user-select:all;display:inline-block;"></div>
-      <div style="margin-top:12px">
-        <button id="copyHttps" class="uiBtn">주소 복사</button>
-        <button id="openHttps" class="uiBtn">열기</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="diag"></div>
-
-  <div id="docPanel" role="dialog" aria-modal="true" aria-labelledby="docTitle">
-    <div id="docInner">
-      <div id="docHeader">
-        <div id="docTitle">DOCUMENT</div>
-        <button class="docExit" id="docExit">EXIT</button>
-      </div>
-      <div id="docBody">
-        <div id="docMenu"></div>
-        <div id="docContent" style="display:none"></div>
-      </div>
-    </div>
-  </div>
-
 <script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js").catch(console.warn);
-}
+(()=>{
+  // ===== PWA: manifest 생성 & SW 등록 =====
+  const manifest = {
+    name: "BaconBot — 비석 사이를 걷는 로봇",
+    short_name: "BaconBot",
+    start_url: ".",
+    display: "standalone",
+    background_color: "#0a0a0d",
+    theme_color: "#0a0a0d",
+    icons: [
+      { src: makeIcon(192), sizes: "192x192", type: "image/png", purpose:"any" },
+      { src: makeIcon(512), sizes: "512x512", type: "image/png", purpose:"any" }
+    ]
+  };
+  const manBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+  const manURL = URL.createObjectURL(manBlob);
+  const link = document.createElement('link'); link.rel='manifest'; link.href=manURL; document.head.appendChild(link);
 
-function isAppMode() {
-  return window.matchMedia("(display-mode: standalone)").matches ||
-         window.navigator.standalone ||
-         /source=a2hs/.test(location.search);
-}
-document.documentElement.classList.toggle("app-mode", isAppMode());
-window.matchMedia("(display-mode: standalone)").addEventListener("change", (e)=>{
-  document.documentElement.classList.toggle("app-mode", e.matches);
-});
+  function makeIcon(size){
+    const c=document.createElement('canvas'); c.width=size; c.height=size; const x=c.getContext('2d');
+    x.fillStyle='#0a0a0d'; x.fillRect(0,0,size,size);
+    x.fillStyle='#ff3355';
+    x.fillRect(size*0.22,size*0.24,size*0.56,size*0.46);
+    x.fillStyle='#ffffff'; x.fillRect(size*0.34,size*0.36,size*0.08,size*0.08); x.fillRect(size*0.58,size*0.36,size*0.08,size*0.08);
+    return c.toDataURL('image/png');
+  }
 
-async function goFullscreen(){
-  const el=document.documentElement;
-  try{ if(el.requestFullscreen) await el.requestFullscreen(); else if(el.webkitRequestFullscreen) await el.webkitRequestFullscreen(); }catch(e){}
-}
-const isAndroid = /Android/i.test(navigator.userAgent);
-async function tryEnterFullscreenEarly(){
-  if(!isAndroid) return;
-  try{ await goFullscreen(); }catch(_){}
-  try{ if(screen.orientation && screen.orientation.lock){ await screen.orientation.lock('landscape'); } }catch(_){}
-}
+  if ('serviceWorker' in navigator){
+    const swCode = `
+      const C="baconbot-v1";
+      self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['./'])))});
+      self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.map(k=>k!==C&&caches.delete(k)))))})
+      self.addEventListener('fetch',e=>{
+        const u=new URL(e.request.url);
+        if (u.origin===location.origin){
+          e.respondWith(caches.match(e.request).then(r=> r || fetch(e.request).then(res=>{ const cc=res.clone(); caches.open(C).then(c=>c.put(e.request,cc)); return res; }).catch(()=>caches.match('./'))))
+        }
+      });`;
+    const blob = new Blob([swCode], {type:'text/javascript'});
+    const url = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(url, {scope:'./'}).catch(()=>{});
+  }
 
-(()=> {
-const CONFIG = { ROOM_ID:"YOURROOMID", HTTPS_ORIGIN:"", BLEND:0.5, REZ_SCALE:0.65 };
+  let deferredPrompt=null; const installUI=document.getElementById('install'); const installBtn=document.getElementById('installBtn');
+  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; installUI.style.display='flex'; });
+  installBtn?.addEventListener('click', async()=>{ if (!deferredPrompt) return; deferredPrompt.prompt(); const { outcome } = await deferredPrompt.userChoice; deferredPrompt=null; installUI.style.display='none'; });
 
-const isIOS = (() => {
-  const ua = navigator.userAgent || "";
-  const touchMac = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return /iPad|iPhone|iPod/.test(ua) || touchMac;
-})();
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = (window.matchMedia('(display-mode: standalone)').matches) || (window.navigator.standalone===true);
+  if (isIOS && !isStandalone){
+    document.getElementById('install').style.display='flex';
+    document.getElementById('installBtn').textContent='iOS: 공유버튼 → 홈화면에 추가';
+  }
 
-const view=document.getElementById('view');
-const vctx=view.getContext('2d',{alpha:false});
-const ninja=document.getElementById('ninjaOverlay');
+  async function goFullscreen(){
+    try{
+      const el=document.documentElement; if (document.fullscreenElement) return;
+      if (el.requestFullscreen) await el.requestFullscreen();
+    }catch(e){}
+  }
+  window.addEventListener('pointerdown', ()=> goFullscreen(), {once:true, passive:true});
 
-const overlay=document.getElementById('overlay');
-const overlayContent=document.getElementById('overlayContent');
+  // ===== 게임 =====
+  const DPR = Math.max(1, Math.min(3, Math.round(window.devicePixelRatio||1)));
+  const wrap = document.getElementById('wrap');
+  const game = document.getElementById('game');
+  const fx = document.getElementById('fx');
+  const g = game.getContext('2d', { alpha:false });
+  const gx = fx.getContext('2d');
+  g.imageSmoothingEnabled = false; gx.imageSmoothingEnabled = false;
 
-const tapAnywhere=document.getElementById('tapAnywhere');
-const allowBtn=document.getElementById('allowBtn');
-const allowSub=document.getElementById('allowSub');
-const welcomeBtn=document.getElementById('welcomeBtn');
-const welcomeSub=document.getElementById('welcomeSub');
-const introWrap=document.getElementById('introWrap');
-const sleepBtn=document.getElementById('sleepBtn');
-const goodNight=document.getElementById('goodNight');
-const httpsBlock=document.getElementById('httpsBlock');
-const httpsBox=document.getElementById('httpsUrlBox');
-const btnCopy=document.getElementById('copyHttps');
-const btnOpen=document.getElementById('openHttps');
-const diag=document.getElementById('diag');
+  const W = game.width, H = game.height;
 
-const btnDoc=document.getElementById('btnDoc');
-const docPanel=document.getElementById('docPanel');
-const docExit=document.getElementById('docExit');
-const docMenu=document.getElementById('docMenu');
-const docContent=document.getElementById('docContent');
-
-function shouldForceHttps(){ const local=/^(localhost|127\.0\.0\.1)$/i.test(location.hostname); return !window.isSecureContext && !local; }
-function tryHttpsRedirect(){
-  if(shouldForceHttps()){
-    if(CONFIG.HTTPS_ORIGIN){
-      const t=new URL(location.href), o=CONFIG.HTTPS_ORIGIN.replace(/\/+$/,'');
-      location.replace(o+t.pathname+t.search+t.hash); return true;
-    }else{ httpsBox && (httpsBox.textContent="(HTTPS 주소 설정: CONFIG.HTTPS_ORIGIN)"); httpsBlock.style.display='flex'; return false; }
-  } return false;
-}
-btnCopy?.addEventListener('click', async ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음');
-  try{ await navigator.clipboard.writeText(CONFIG.HTTPS_ORIGIN); alert('복사됨'); }catch{ alert(CONFIG.HTTPS_ORIGIN); } });
-btnOpen?.addEventListener('click', ()=>{ if(!CONFIG.HTTPS_ORIGIN) return alert('CONFIG.HTTPS_ORIGIN 비어있음'); location.href=CONFIG.HTTPS_ORIGIN; });
-if(!tryHttpsRedirect() && shouldForceHttps()) httpsBlock.style.display='flex';
-
-function setViewportVars(){
-  const vv=visualViewport, w=Math.round(vv?.width||innerWidth), h=Math.round(vv?.height||innerHeight);
-  document.documentElement.style.setProperty('--vwpx', w+'px');
-  document.documentElement.style.setProperty('--vhpx', h+'px');
-}
-let relayoutTimer=null;
-function scheduleLayoutRefresh(d=60){
-  clearTimeout(relayoutTimer);
-  relayoutTimer=setTimeout(()=>{
-    setViewportVars(); fitCamera(); applyRezScale();
-    overlay.scrollTop = 0; introWrap.scrollTop = 0;
-  }, d);
-}
-setViewportVars();
-addEventListener('resize', ()=>scheduleLayoutRefresh(80));
-addEventListener('orientationchange', ()=>{ scheduleLayoutRefresh(120); scheduleLayoutRefresh(360); });
-if(visualViewport){
-  visualViewport.addEventListener('resize', ()=>scheduleLayoutRefresh(60), {passive:true});
-  visualViewport.addEventListener('scroll', ()=>scheduleLayoutRefresh(60), {passive:true});
-}
-
-const cam=document.createElement('video'); cam.autoplay=true; cam.muted=true; cam.playsInline=true;
-const proc=document.createElement('canvas'); const pctx=proc.getContext('2d',{willReadFrequently:true});
-const PROC_SCALE=0.60;
-function fitCamera(){
-  const dpr=devicePixelRatio||1;
-  const cssW=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
-  const cssH=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
-  view.width=Math.max(1,Math.round(cssW*dpr)); view.height=Math.max(1,Math.round(cssH*dpr));
-  vctx.setTransform(dpr,0,0,dpr,0,0);
-  const scale=matchMedia('(orientation:landscape)').matches? PROC_SCALE*0.9 : PROC_SCALE;
-  proc.width=Math.max(1,Math.floor(cssW*scale)); proc.height=Math.max(1,Math.floor(cssH*scale));
-}
-async function startCamera(){
-  const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-  cam.srcObject=s;
-  cam.addEventListener('loadedmetadata', ()=>scheduleLayoutRefresh(0), {once:true});
-  await cam.play().catch(()=>{});
-}
-let _loop=false; function ensureLoop(){ if(_loop) return; _loop=true; loop(); }
-function loop(){
-  requestAnimationFrame(loop);
-  const cssW=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vwpx'));
-  const cssH=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--vhpx'));
-  const PW=proc.width, PH=proc.height;
-  pctx.clearRect(0,0,PW,PH);
-  if (cam.readyState>=2){
-    const vw=cam.videoWidth, vh=cam.videoHeight;
-    if(vw&&vh){
-      const sc=Math.max(PW/vw, PH/vh), dw=vw*sc, dh=vh*sc, dx=(PW-dw)/2, dy=(PH-dh)/2;
-      pctx.drawImage(cam,dx,dy,dw,dh);
-      const img=pctx.getImageData(0,0,PW,PH), d=img.data;
-      for(let i=0;i<d.length;i+=4){ const g=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0; d[i]=d[i+1]=d[i+2]=g; }
-      pctx.putImageData(img,0,0);
+  function fit(){
+    const {clientWidth:cw, clientHeight:ch} = wrap;
+    const scale = Math.max(1, Math.floor(Math.min(cw/W, ch/H)));
+    const vw = W*scale, vh = H*scale;
+    for (const c of [game, fx]){
+      c.style.width = vw+"px"; c.style.height = vh+"px"; c.style.left = ((cw-vw)/2|0) + "px"; c.style.top = ((ch-vh)/2|0) + "px";
     }
   }
-  vctx.clearRect(0,0,cssW,cssH);
-  if(PW>0&&PH>0){
-    const sc2=Math.max(cssW/PW, cssH/PH), dw2=PW*sc2, dh2=PH*sc2, dx2=(cssW-dw2)/2, dy2=(cssH-dh2)/2;
-    vctx.drawImage(proc, dx2, dy2, dw2, dh2);
+  new ResizeObserver(fit).observe(wrap);
+  window.addEventListener('orientationchange', ()=>setTimeout(fit, 200));
+
+  const world = { w: 1024, h: 1024, stones: [], fog: new Set(), seed: Math.random()*1e9|0 };
+  function rng(seed){ return ()=> (seed = (seed*1664525 + 1013904223)>>>0)/4294967296; }
+  const R = rng(world.seed);
+  const STONE_CT = 140; 
+  for (let i=0;i<STONE_CT;i++){
+    const x = (R()*world.w)|0, y = (R()*world.h)|0;
+    const w = 10 + (R()*18|0); const h2 = 16 + (R()*36|0); const rot = (R()*0.4 - 0.2);
+    world.stones.push({x,y,w,h:h2,rot, id:i});
   }
-}
 
-const injectedCss=encodeURIComponent(`
-  html,body{background:transparent!important;margin:0!important;overflow:hidden!important;}
-  #container,.container{background:transparent!important;}
-  video,canvas{position:fixed!important; inset:0!important; width:100vw!important; height:100vh!important; object-fit:cover!important; background:transparent!important;}
-`);
-const ninjaBase=`https://vdo.ninja/?view=${encodeURIComponent(CONFIG.ROOM_ID)}&clean&autostart&autoplay=1&muted=1&playsinline=1&noaudio&codec=vp8&solo&transparent=1&css=${injectedCss}`;
-const ninjaUrl=()=>`${ninjaBase}&ts=${Date.now()}`;
+  const player = { x: world.w/2, y: world.h/2, vx:0, vy:0, spd: 0.9, run:1.6, dir:1, pulse:0 };
 
-const isiOSUA = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
-if(!isiOSUA){ ninja.src = ninjaUrl(); }
+  const keys = new Set();
+  window.addEventListener('keydown', e=>{ keys.add(e.key.toLowerCase()); if(['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) e.preventDefault(); });
+  window.addEventListener('keyup', e=> keys.delete(e.key.toLowerCase()));
 
-let overlayDesired=true;
-function applyRezScale(){
-  const s=Math.max(0.2, Math.min(1, Number(CONFIG.REZ_SCALE)||1));
-  ninja.style.width=`calc(var(--vwpx) * ${s})`;
-  ninja.style.height=`calc(var(--vhpx) * ${s})`;
-  ninja.style.left='50%'; ninja.style.top='50%';
-  ninja.style.transform=`translate(-50%,-50%) scale(${1/s})`;
-}
-function showOverlayNow(){
-  overlayDesired=true;
-  if(ninja.src==='about:blank'){ ninja.src=ninjaUrl(); }
-  ninja.setAttribute('allow','autoplay *; fullscreen *; camera *; microphone *; clipboard-read *; clipboard-write *');
-  ninja.style.opacity = String(CONFIG.BLEND);
-}
-ninja.addEventListener('load', ()=>{ if(overlayDesired) ninja.style.opacity=String(CONFIG.BLEND); });
-setInterval(()=>{
-  if(!overlayDesired) return;
-  const want = String(CONFIG.BLEND);
-  if(ninja.style.opacity!==want) ninja.style.opacity=want;
-  try{
-    const needsReload = !ninja.contentWindow || (ninja.src && ninja.src.endsWith('about:blank'));
-    if(needsReload) ninja.src = ninjaUrl();
-  }catch(_){}
-}, 1500);
-
-/* ===== SFX: 모든 버튼에서 8-bit 효과음 ===== */
-let audioCtx=null, lastBeep=0;
-function beep(){
-  try{
-    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = "square"; o.frequency.value = 880; g.gain.value = 0.12;
-    o.connect(g); g.connect(audioCtx.destination);
-    const now = audioCtx.currentTime;
-    g.gain.setValueAtTime(0.12, now);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-    o.start(now); o.stop(now + 0.09);
-  }catch(e){}
-}
-function beepOnce(){ const now=Date.now(); if(now-lastBeep<120) return; lastBeep=now; beep(); }
-['click','pointerup','touchend'].forEach(ev=>{
-  document.addEventListener(ev, (e)=>{
-    const btn = e.target.closest('button');
-    if(btn) beepOnce();
-  }, true);
-});
-
-/* ===== 단계 ===== */
-let stepState=1;
-function setStep(step){
-  stepState=step;
-  tapAnywhere.style.display = (step===1)? 'block':'none';
-  const showAllow = (step===2) && !isIOS;
-  allowBtn.style.display     = showAllow ? 'inline-block':'none';
-  allowSub.style.display     = showAllow ? 'block':'none';
-  welcomeBtn.style.display   = (step===3)? 'inline-block':'none';
-  welcomeSub.style.display   = (step===3)? 'block':'none';
-  introWrap.style.display    = (step===4)? 'block':'none';
-
-  if (step===4){
-    // sleepBtn 표시
-    sleepBtn.style.display='block';
-    overlay.scrollTop = 0; introWrap.scrollTop = 0;
+  const pad = document.getElementById('pad');
+  const stick = document.getElementById('stick');
+  const btnE = document.getElementById('btnE');
+  let joy = {ax:0, ay:0, active:false};
+  function padStart(e){ joy.active=true; moveStick(e); }
+  function padMove(e){ if(joy.active) moveStick(e); }
+  function padEnd(){ joy.active=false; stick.style.left = '38px'; stick.style.top='38px'; joy.ax=0; joy.ay=0; }
+  function moveStick(e){
+    const rect = pad.getBoundingClientRect(); const cx = rect.left + rect.width/2; const cy = rect.top + rect.height/2;
+    const p = (e.touches? e.touches[0]:e);
+    let dx = p.clientX - cx, dy = p.clientY - cy; const mag = Math.hypot(dx,dy); const max = 40; if (mag>max){ dx*=max/mag; dy*=max/mag; }
+    stick.style.left = (rect.width/2 + dx - 32) + 'px'; stick.style.top  = (rect.height/2 + dy - 32) + 'px';
+    joy.ax = dx/max; joy.ay = dy/max;
   }
-  showOverlayNow();
-}
-function fadeOutOverlay(afterMs=0){
-  setTimeout(()=>{ overlayContent.classList.add('hidden'); setTimeout(()=>{ overlay.style.display='none'; }, 450); }, afterMs);
-}
+  pad.addEventListener('pointerdown', padStart); pad.addEventListener('pointermove', padMove); pad.addEventListener('pointerup', padEnd); pad.addEventListener('pointercancel', padEnd);
+  btnE.addEventListener('click', ()=> tryListen());
 
-setStep(1);
-
-overlay.addEventListener('click', async (e)=>{
-  if(stepState!==1) return;
-  if(e.target.closest('#allowBtn,#welcomeBtn,#sleepBtn')) return;
-
-  tryEnterFullscreenEarly();
-  showOverlayNow();
-
-  if (isIOS){
-    try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
-    catch{ tapAnywhere.innerHTML = '카메라 접근이 거부되었습니다. <b>설정 > 사파리 > 카메라</b>에서 허용 후 다시 시도하세요.'; }
-  }else{
-    setStep(2);
+  const AudioCtx = window.AudioContext || window.webkitAudioContext; 
+  const actx = new AudioCtx();
+  let audioReady=false; 
+  function resumeAudio(){ if(!audioReady){ actx.resume(); audioReady=true; beep(220, .04); }}
+  window.addEventListener('pointerdown', resumeAudio, {once:true, passive:true});
+  function beep(freq=440, dur=.06, type='square', gain=0.08){
+    const o = actx.createOscillator(); const g = actx.createGain();
+    o.type = type; o.frequency.value=freq; g.gain.value=gain; 
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur);
   }
-});
-
-allowBtn.addEventListener('click', async (e)=>{
-  if (getComputedStyle(allowBtn).display==='none') return;
-  tryEnterFullscreenEarly();
-  showOverlayNow();
-  try{ await startCamera(); fitCamera(); ensureLoop(); setStep(3); }
-  catch{ allowSub.innerHTML = '권한이 거부되었습니다. <b>브라우저 설정에서 카메라 허용</b> 후 다시 시도하세요.'; }
-});
-
-welcomeBtn.addEventListener('click', ()=>{
-  if (getComputedStyle(welcomeBtn).display==='none') return;
-  setStep(4); showOverlayNow();
-});
-
-sleepBtn.addEventListener('click', async ()=>{
-  try{ await goFullscreen(); }catch(_){}
-  showOverlayNow();
-  introWrap.style.display='none';
-  tapAnywhere.style.display='none';
-  allowBtn.style.display='none';
-  allowSub.style.display='none';
-  welcomeBtn.style.display='none';
-  welcomeSub.style.display='none';
-  overlay.style.display='flex';
-  overlayContent.classList.remove('hidden');
-  goodNight.style.display='block';
-  fadeOutOverlay(3000);
-});
-
-/* HUD */
-(function(){
-  let show=false,taps=0,last=0;
-  addEventListener('pointerup', ()=>{
-    const now=Date.now(); taps=(now-last<400)?(taps+1):1; last=now;
-    if(taps>=3){ show=!show; diag.style.display=show?'block':'none'; if(show) probe(); }
-  });
-  async function probe(){
-    const secure=window.isSecureContext, a2hs=matchMedia("(display-mode: standalone)").matches;
-    diag.textContent =
-`secureContext: ${secure}
-display-mode: ${a2hs?'standalone':'browser'}
-viewport: ${innerWidth}x${innerHeight}
-rez-scale: ${CONFIG.REZ_SCALE}
-overlayDesired: ${overlayDesired}
-android: ${isAndroid}
-time: ${new Date().toLocaleTimeString()}`;
-    if(diag.style.display==='block') setTimeout(probe, 800);
+  function drone(near){
+    const t = actx.currentTime;
+    if (!drone.g){ drone.o = actx.createOscillator(); drone.g = actx.createGain(); drone.o.type='triangle'; drone.o.frequency.value=50; drone.g.gain.value=0.0; drone.o.connect(drone.g).connect(actx.destination); drone.o.start(); }
+    const target = Math.min(.15, near*.12);
+    drone.g.gain.cancelScheduledValues(t); drone.g.gain.linearRampToValueAtTime(target, t+.2);
   }
+
+  function collides(nx, ny){
+    for(const s of world.stones){
+      const cx=s.x+s.w/2, cy=s.y+s.h/2; const dx=nx-cx, dy=ny-cy; const c=Math.cos(-s.rot), si=Math.sin(-s.rot);
+      const rx = dx*c - dy*si, ry = dx*si + dy*c; const hw=(s.w/2)+3, hh=(s.h/2)+3;
+      if (Math.abs(rx)<hw && Math.abs(ry)<hh) return true;
+    }
+    return false;
+  }
+
+  function nearestStone(px,py){ let best=null, bd=1e9; for(const s of world.stones){ const cx=s.x+s.w/2, cy=s.y+s.h/2; const d = Math.hypot(px-cx, py-cy); if (d<bd){ bd=d; best=s; } } return {stone:best, dist:bd}; }
+  function tryListen(){ const n = nearestStone(player.x, player.y); if (n.dist<38){ beep(880,.08,'square',.1); setTimeout(()=>beep(660,.08,'square',.08),60); showWhisper(n.stone); } else { beep(140,.05,'square',.05); } }
+
+  const whispers = [
+    "나는 얼굴을 잃고, 귀로만 걷는다.",
+    "기억의 살결이 돌 사이에서 뒤틀린다.",
+    "빛은 고요를 문질러, 소리를 만든다.",
+    "오차가 감정이고, 잔향이 초상이다.",
+    "돌은 서 있고, 이야기는 흘러간다.",
+    "네가 듣는 동안, 나는 보이지 않는다.",
+    "움푹 팬 시간 속에서 심장이 파형으로 뛴다.",
+    "유령 같은 프레임이 나를 붙잡는다.",
+  ];
+  let whisperTimer=0, whisperText="", whisperAlpha=0;
+  function showWhisper(stone){ whisperText = whispers[(stone.id + (Math.random()*whispers.length|0)) % whispers.length]; whisperAlpha = 1; whisperTimer = 180; }
+
+  const cam = {x:0,y:0, shake:0};
+  let last=0; function loop(t){ requestAnimationFrame(loop); const dt = Math.min(32, (t-last)||16); last=t; update(dt/16); render(); }
+
+  function update(dt){
+    let ax=0, ay=0; if (keys.has('a')||keys.has('arrowleft')) ax-=1; if (keys.has('d')||keys.has('arrowright')) ax+=1; if (keys.has('w')||keys.has('arrowup')) ay-=1; if (keys.has('s')||keys.has('arrowdown')) ay+=1; ax += joy.ax; ay += joy.ay;
+    const mag = Math.hypot(ax,ay); let spd = player.spd * (keys.has('shift')? player.run:1);
+    if (mag>0){ ax/=mag; ay/=mag; player.vx = ax*spd; player.vy = ay*spd; player.dir = (Math.abs(ax)>Math.abs(ay)? (ax>=0?1:-1) : player.dir); } else { player.vx*=0.6; player.vy*=0.6; }
+    let nx = player.x + player.vx*dt*3; let ny = player.y + player.vy*dt*3;
+    if (!collides(nx, player.y)) player.x = clamp(nx, 8, world.w-8); else player.vx=0;
+    if (!collides(player.x, ny)) player.y = clamp(ny, 8, world.h-8); else player.vy=0;
+    cam.x += ((player.x - W/2) - cam.x)*0.08; cam.y += ((player.y - H/2) - cam.y)*0.08;
+    const n = nearestStone(player.x, player.y); const near = Math.max(0, 1 - (n.dist/140)); drone(near); cam.shake = Math.max( cam.shake*0.9, near*1.6 );
+    const tx = (player.x/8|0), ty=(player.y/8|0); world.fog.add(tx+","+ty);
+    if (whisperTimer>0){ whisperTimer-=1; if (whisperTimer<32) whisperAlpha = whisperTimer/32; }
+    if (mag>0.1){ if (!update.stepT) update.stepT=0; update.stepT+=dt; if (update.stepT>0.18){ update.stepT=0; beep(220+Math.random()*40, .04, 'square', .06); } }
+    pad.style.display = matchMedia('(pointer: coarse)').matches? 'block':'none'; btnE.style.display = pad.style.display;
+  }
+
+  function clamp(v,min,max){ return v<min?min:(v>max?max:v); }
+
+  function drawRobot(x,y,dir){
+    const sprite = [
+      "..111....111",
+      "..111....111",
+      "...11..11..",
+      "..22222222.",
+      ".2222222222",
+      ".2223ff3222",
+      ".222f..f222",
+      ".2222..2222",
+      "..22.22.22",
+      "...2.22.2.",
+      "...2....2.",
+      "..22....22",
+    ];
+    const px = 1; 
+    for(let j=0;j<sprite.length;j++){
+      for(let i=0;i<sprite[j].length;i++){
+        const c=sprite[j][i]; if(c==='.') continue;
+        if (c==='1') g.fillStyle='#ff667a'; if (c==='2') g.fillStyle='#ff3355'; if (c==='3') g.fillStyle='#ffe7ea'; if (c==='f') g.fillStyle='#ffffff';
+        g.fillRect((x+i*px)|0, (y+j*px)|0, px, px);
+      }
+    }
+    if (Math.sin(performance.now()*0.005)>0.6){ g.fillStyle='#111'; g.fillRect(x+6, y+5, 2,1); g.fillRect(x+2, y+5, 2,1); }
+  }
+
+  function drawStone(s, cx, cy){
+    g.save(); g.translate(s.x-cx, s.y-cy); g.translate(s.w/2, s.h/2); g.rotate(s.rot); g.translate(-s.w/2, -s.h/2);
+    g.fillStyle= (s.id%2? '#514e6b':'#6d6b87'); g.fillRect(0,0,s.w,s.h);
+    g.strokeStyle='rgba(255,255,255,.08)'; g.lineWidth=1; g.strokeRect(2,2,s.w-4,s.h-4);
+    g.fillStyle='rgba(0,0,0,.25)'; g.fillRect(-3, s.h-1, s.w+6, 2); g.restore();
+  }
+
+  function drawFog(cx,cy){
+    g.save(); g.globalCompositeOperation='source-over'; g.fillStyle='rgba(0,0,0,.6)'; g.fillRect(0,0,W,H);
+    g.globalCompositeOperation='destination-out'; g.fillStyle='rgba(0,0,0,1)';
+    const sx = (cx/8|0)-24, sy=(cy/8|0)-24;
+    for(let ty=sy; ty<sy+48; ty++){
+      for(let tx=sx; tx<sx+64; tx++){
+        if (world.fog.has(tx+","+ty)) g.fillRect((tx*8 - cx)|0, (ty*8 - cy)|0, 8, 8);
+      }
+    }
+    g.restore();
+  }
+
+  function postProcess(){
+    gx.clearRect(0,0,W,H); gx.drawImage(game,0,0);
+    const lines = 26;
+    for (let i=0;i<lines;i++){
+      const y0 = (H/lines*i)|0; const y1 = (H/lines*(i+1)|0) - y0; const off = Math.sin((performance.now()*0.002 + i*0.9)) * (cam.shake*2 + 1);
+      gx.drawImage(game, 0, y0, W, y1, off|0, y0, W, y1);
+    }
+    const grad = gx.createRadialGradient(W/2,H/2, H*0.1, W/2,H/2, H*0.66); grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,.38)'); gx.fillStyle=grad; gx.fillRect(0,0,W,H);
+    if (whisperAlpha>0 && whisperText){ gx.save(); gx.globalAlpha = Math.max(0, Math.min(1, whisperAlpha)); gx.font='8px ui-monospace, monospace'; gx.textAlign='center'; gx.textBaseline='bottom'; const lines = wrapText(gx, whisperText, W*0.7); for (let i=0;i<lines.length;i++){ const y = H-12 - (lines.length-1-i)*10; gx.fillStyle='rgba(0,0,0,.55)'; gx.fillRect(W/2- (gx.measureText(lines[i]).width/2 +6), y-9, gx.measureText(lines[i]).width+12, 12); gx.fillStyle='#e6e2e8'; gx.fillText(lines[i], W/2, y);} gx.restore(); }
+  }
+
+  function wrapText(ctx, text, max){ const words = text.split(' '); const out=[]; let line=''; for (const w of words){ const test = line? line+" "+w : w; if (ctx.measureText(test).width>max){ out.push(line); line=w; } else line=test;} if (line) out.push(line); return out; }
+
+  function render(){
+    g.fillStyle= '#0a0b10'; g.fillRect(0,0,W,H);
+    const jitterX = (Math.random()-0.5)*cam.shake; const jitterY=(Math.random()-0.5)*cam.shake; const cx = (cam.x|0)+jitterX; const cy=(cam.y|0)+jitterY;
+    for(let i=0;i<80;i++){ g.fillStyle = (i%7? 'rgba(255,255,255,.03)':'rgba(255,180,200,.03)'); const nx = ((Math.random()*W)|0), ny=((Math.random()*H)|0); g.fillRect(nx,ny,1,1); }
+    const view = {x:cx, y:cy, w:W, h:H};
+    for(const s of world.stones){ if (!(s.x-6 + s.w+12 < view.x || s.x-6 > view.x+view.w || s.y-6 + s.h+12 < view.y || s.y-6 > view.y+view.h)) drawStone(s, cx, cy); }
+    const rx = (player.x - cx - 6)|0; const ry = (player.y - cy - 10)|0; drawRobot(rx, ry, player.dir);
+    drawFog(cx,cy); postProcess();
+  }
+
+  window.addEventListener('keydown', (e)=>{ if(e.key.toLowerCase()==='e') tryListen(); });
+  fit(); requestAnimationFrame(loop);
 })();
-
-/* Document Panel */
-const DOCS = {
-  "기록 1": `
-  <div class="docParagraph">이 모든 이야기는 내가 나를 매장하는 독특한 의식으로부터 비롯되었다.</div>
-  <div class="docParagraph"><b>때는 2022년 11월 20일.</b> 우리는 모두 함께 우리 스스로를 매장하는 독특한 의식을 치렀다. 그 절차는 다음과 같다.</div>
-  <div class="docParagraph">우선 우리는 각각 두 장의 하얀 종이에 우리의 나쁜 생각과 좋은 생각을 적어 내려갔다. 집, 돈, 사랑, 꿈, 이름 따위의 것들 말이다.</div>
-  <div class="docParagraph">그 위로 여러 장의 종이를 덧대어 하나의 ‘뇌’를 만들었고, 그다음엔 더 많은 종이를 덧대어 하나의 머리를 만들었다. 또, 그다음엔 종이를 더욱 많이 덧대어 몸과 팔과 다리와 성기와 젖꼭지 등을 만들어 제법 사람의 형태를 띠도록 만들었다.</div>
-  <div class="docParagraph">이것이 완성되었을 때, 우리는 그것을 ‘또 다른 우리’라고 불렀다.</div>
-  <div class="docParagraph">다음 날, 우리는 각자 작은 나무를 한 그루씩 구해왔다. 그리고 ‘또 다른 우리’를 데리고 흔히 우리가 ‘뒷산’이라고 불렀던 공간을 향해 올라갔다. 적당한 위치에 도착한 우리는 삽을 이용해 구덩이를 팠다.</div>
-  <div class="docParagraph">‘또 다른 우리’가 들어갈 수 있을 정도의 구덩이가 파졌을 때, 우리는 그것을 구덩이에 넣고 불로 태워 재로 만들었다. 재가 되어 버린 ‘또 다른 우리’ 위로 흙을 덮었으며, 미리 구해 온 나무를 그 위에 심었다.</div>
-  <div class="docParagraph">우리는 나무를 둘러싸고 선 채로 손을 맞잡았다. 그때 누군가는 소원을 빌었고, 누군가는 노래를 불렀으며, 누군가는 춤을 추었고, 누군가는 눈물을 흘리기도 했다. 그것은 정확히 2022년 11월 20일의 기억이었다.</div>
-  <div class="docParagraph">내가 이 기억을 ‘악몽’이라고 부르게 된 계기는 이로부터 약 6개월이 흐른 시점부터 시작된다.</div>
-  <div class="docParagraph">꿈속의 나는 우리가 흔히 ‘뒷산’이라고 부르던 공간에서 깨어난다. 그곳에서 나는 생명의 존재를 느낄 수 없으며, 오히려 오롯이 나 혼자만이 존재하고 있다고 느낀다.</div>
-  <div class="docParagraph">그러던 순간 나는 마치 무엇인가 나에게 달려와 안길 것만 같은 느낌을 받는다. 그러나 나는 그것이 누구인지 알지 못한다.</div>
-  <div class="docParagraph">설렘과 초조함으로 시작되었던 이 반복되는 꿈. 그러나 이것이 아침이 되어 출근을 해야 하는 시점까지 반복되어야만 한다는 것을 깨달았을 때, 나는 이것을 <b>악몽</b>이라 부르기 시작했다. 왜냐하면, 나에겐 어딘가로 도망가거나, 숨거나, 거부할 도리가 존재하지 않았기 때문이다.</div>
-  `,
-  "기록 2": `
-  <div class="docParagraph"><b>2024년 6월 발표 — 유명순 교수 연구 요약</b></div>
-  <div class="docParagraph">우리나라 국민의 절반가량이 장기적인 <b>울분</b> 상태에 놓여 있다는 연구 결과가 나왔다. 특히 10명 중 한 명은 울분 상태가 <b>심각</b>한 수준이며, <b>30대</b>가 높은 수준의 울분을 호소하는 것으로 나타났다.</div>
-  <div class="docParagraph">서울대 보건대학원 <b>유명순</b> 교수팀이 2024년 6월, 만 18세 이상 전국 남녀 <b>1,024명</b>을 대상으로 조사한 결과다.</div>
-  <div class="docParagraph">연구에서 울분은 “부당하고 모욕적이며 신념에 어긋난다고 여겨지는 스트레스 경험에 대한 감정적 반응”을 의미한다. 조사 결과, 응답자의 <b>49.2%</b>가 장기적인 울분 상태에 놓여 있었고, 이 가운데 <b>9.3%</b>는 심각한 수준으로 나타났다.</div>
-  <div class="docParagraph">특히 심각한 울분을 겪는 이들의 <b>60%</b>는 자살을 생각한 적이 있다고 응답했다. 연령별로는 심각 수준의 울분 비율이 <b>30대 13.9%</b>로 가장 높았고, 이 연령대의 경우 울분이 없는 정상 상태의 비율도 낮았다.</div>
-  <div class="docParagraph">반면, 만 60세 이상에서는 심각한 울분 비율이 <b>3.1%</b>로 가장 낮았다. 전반적인 <b>세상의 공정함에 대한 믿음</b> 점수는 20–30대가 가장 낮았고, 만 60세 이상이 가장 높은 것으로 조사되었다.</div>
-  `,
-  "기록 3": `
-  <div class="docParagraph">비가 오는 <b>2022년 3월 24일 03시 24분</b>. 우리는 예정된 약속에 따라 집 앞 공원에 모여 간단히 몸을 풀고 난 후 분주히 행군길에 올랐다.</div>
-  <div class="docParagraph">그날 그곳엔 호우주의보가 발령되었었다. 우리는 우비와 장화를 챙겨 신은 채, 해를 보기 위해서 주광빛 신호등을 따라 어느 비닐하우스 공업 단지 사이를 걸었다. 어디선가 찬송가가 들려왔다. 그때 최소연은 말했다.</div>
-  <div class="docParagraph docPoem">
-    하늘이 보이는 곳으로 간다.<br/>바람이 있는 곳으로 간다.<br/>은은한 따스함을 느낄 수 있는 곳으로 가, 존재가 있는 곳으로 간다.<br/>
-    고양이. 꽃. 무당벌레. 비둘기. 사람.<br/>사람이 없는 곳으로 가자.<br/>공개되지 않는 공간으로 가 노래를 부르자.<br/>춤을 추자.<br/>
-    잠깐 누워보며, 많이 걷기도, 느리게 걸어보기도 하는 취미를 가지자.<br/>취미를 가지자.
-  </div>
-  `,
-  "기록 4": `
-  <div class="docParagraph"><b>가지 않은 길 — 로버트 프로스트</b></div>
-  <div class="docParagraph docPoem">
-    노란 숲 속에 길이 두 갈래<br/>나는 두 길을 다 가지 못한 것이 유감이구나<br/>오랫동안 서서<br/>
-    한 길이 굽어 꺾여 내려간 데까지<br/>바라볼 수 있는데까지 멀리 바라만 보았네<br/><br/>
-    그리고<br/>그 길엔 사람이 걸은 자취가 적어 나는 생각했던 게지요<br/>그날 아침 그 길에는 사람이 걸은 자취 따위는 없었네<br/><br/>
-    아<br/>나는 다른 한 길을 위하여 한 길을 남겨 놓았네<br/>길은 길에 연하여 끝없으므로<br/>내가 다시 돌아올 것을 의심하면서<br/><br/>
-    먼 훗날, 나는 그 길을 보며 이야기할 거야<br/>숲 속엔 두 갈래 길이 있었다고<br/>나는 사람이 적게 간 길을 택하였다고<br/>그리고, 그것이 모든 차이를 만들었다고.
-  </div>
-  `,
-  "기록 5": `
-  <div class="docParagraph"><b>바냐 아저씨 — 안톤 체홉</b></div>
-  <div class="docParagraph docPoem">
-    살아야죠.<br/>우리 살아가도록 해요.<br/>길고 긴 낮과 긴긴 밤의 연속을 살아가는 거예요.<br/>
-    운명이 우리에게 가져다주는 시련을 참고 견디며,<br/>마음의 평화가 없더라도, 지금 이 순간에도, 나이가 든 후에도,<br/>다른 사람을 위해서 일하도록 해요.<br/><br/>
-    그러다가 우리의 시간이 오면 공손히 죽음을 받아들이고 내세에서 말하도록 해요.<br/>
-    우리가 얼마나 괴로웠고, 얼마나 울었는지, 그리고 얼마나 슬펐는지 말이에요.<br/><br/>
-    그러면 하나님이 우릴 가엾게 여기실 테고, 밝고 아름다우며 우아한 삶을 보고 우리는 쉬게 될 거예요.<br/>
-    지금 우리의 불행을 감동과 미소로 뒤돌아보면서 우리는 쉬게 될 거예요.<br/>전 믿어요. 뜨겁고 열렬하게 믿고 있어요.<br/>우린, 쉬게 될 거예요.
-  </div>
-  `,
-  "기록 6": `
-  <div class="docParagraph"><b>남신의주 유동 박시봉 방 — 백석</b></div>
-  <div class="docParagraph docPoem">
-    어느 사이에 나는 아내도 없고, 또,<br/>아내와 같이 살던 집도 없어지고,<br/>그리고 살뜰한 부모며 동생들과도 멀리 떨어져서<br/>그 어느 바람 세인 쓸쓸한 거리 끝에 헤매었다.<br/><br/>
-    바로 날도 저물어서, 바람은 더욱 세게 불고, 추위는 점점 더해 오는데,<br/>나는 목수네 헌 삿을 깐, 한 방에 들어서 쥔을 붙이었다.<br/><br/>
-    이리하여 나는 이 습내 나는 춥고, 누긋한 방에서,<br/>낮이나 밤이나 나는 나 혼자도 너무 많은 것같이 생각하며,<br/>딜옹배기에 북덕불이라도 담겨 오면, 이것을 안고 손을 쬐며 재 위에 뜻 없이 글자를 쓰기도 하며,<br/>
-    또 문밖에 나가지도 않고 자리에 누워서, 머리에 손깍지 베개를 하고 굴기도 하면서,<br/>나는 내 슬픔이며 어리석음이며를 소처럼 연하여 새김질하는 것이었다.<br/><br/>
-    내 가슴이 꽉 메어 올 적이며, 내 눈에 뜨거운 것이 핑 괴일 적이며,<br/>또 내 스스로 화끈 낯이 붉도록 부끄러울 적이며,<br/>나는 내 슬픔과 어리석음에 눌리어 죽을 수밖에 없는 것을 느끼는 것이었다.<br/><br/>
-    그러나 잠시 뒤에 나는 고개를 들어, 허연 문창을 바라보든가 또 눈을 떠서 높은 천정을 쳐다보는 것인데,<br/>
-    이때 나는 내 뜻이며 힘으로, 나를 이끌어 가는 것이 힘든 일인 것을 생각하고,<br/>이것들보다 더 크고, 높은 것이 있어서, 나를 마음대로 굴려 가는 것을 생각하는 것인데,<br/>
-    이렇게 하여 여러 날이 지나는 동안에, 내 어지러운 마음에는 슬픔이며, 한탄이며, 가라앉을 것은 차츰 앙금이 되어 가라앉고,<br/>
-    외로운 생각만이 드는 때쯤 해서는, 더러 나줏손에 살랑살랑 싸락눈이 와서 문창을 치기도 하는 때도 있는데,<br/>
-    나는 이런 저녁에는 화로를 더욱 다가 끼며, 무릎을 꿇어 보며,<br/>어느 먼 산 뒤옆 바위 숲에 따로 외로이 서서,<br/>어두워 오는데 하얗게 눈을 맞을, 그 마른 잎새에는,<br/>살랑살랑 소리도 나며 눈을 맞을,<br/>그 드물다는 굳고 정한 갈매나무라는 나무를 생각하는 것이었다.
-  </div>
-  `
-};
-
-function buildDocMenu(){
-  docMenu.innerHTML = "";
-  ["기록 1","기록 2","기록 3","기록 4","기록 5","기록 6"].forEach(label=>{
-    const b=document.createElement('button');
-    b.className="docBtn";
-    b.textContent=label;
-    b.addEventListener('click', ()=>openDoc(label));
-    docMenu.appendChild(b);
-  });
-}
-function openDocPanel(){
-  buildDocMenu();
-  docTitle("DOCUMENT");
-  docMenu.style.display="grid";
-  docContent.style.display="none";
-  docPanel.style.display="block";
-}
-function closeDocPanel(){ docPanel.style.display="none"; }
-function openDoc(label){
-  const html = DOCS[label] || "<div class='docParagraph'>내용이 없습니다.</div>";
-  docContent.innerHTML = `<div class="docParagraph" style="margin-bottom:.5em;"><b>${label}</b></div>` + html;
-  docTitle(label.toUpperCase());
-  docMenu.style.display="none";
-  docContent.style.display="block";
-}
-function docTitle(t){ const el=document.getElementById('docTitle'); if(el) el.textContent = t; }
-
-document.getElementById('btnDoc').addEventListener('click', (e)=>{ e.stopPropagation(); openDocPanel(); });
-document.getElementById('docExit').addEventListener('click', (e)=>{ e.stopPropagation(); closeDocPanel(); });
-
-applyRezScale(); fitCamera();
-
-})(); // IIFE
 </script>
 </body>
 </html>
