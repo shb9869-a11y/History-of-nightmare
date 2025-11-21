@@ -1,344 +1,228 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>BaconBot — 비석 사이를 걷는 사람</title>
-<meta name="theme-color" content="#0a0a0d" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="BaconBot" />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>카메라 캡쳐 & 업로드 테스트</title>
 <style>
   :root{
-    --bg:#0a0a0d; --fg:#f5f5f7; --accent:#ff3355;
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bot: env(safe-area-inset-bottom, 0px);
-    --safe-left: env(safe-area-inset-left, 0px);
-    --safe-right: env(safe-area-inset-right, 0px);
+    --bg:#000;
+    --fg:#f5f5f5;
+    --accent:#d0d0d0;
   }
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);}
-  body{display:grid;place-items:center;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;}
-  #wrap{position:relative;width:100vw;height:100svh;overflow:hidden;background:var(--bg);
-        padding:var(--safe-top) var(--safe-right) var(--safe-bot) var(--safe-left);}
-  canvas{position:absolute;inset:0;margin:auto;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;}
-  /* === 화면엔 조이스틱 + E 버튼만 === */
-  .pad{position:absolute;bottom:calc(16px + var(--safe-bot));left:calc(16px + var(--safe-left));
-       width:140px;height:140px;opacity:.9;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));}
-  .pad .ring{position:absolute;inset:0;border-radius:50%;border:2px dashed rgba(255,255,255,.18);}
-  .pad .stick{position:absolute;width:64px;height:64px;left:38px;top:38px;border-radius:50%;
-              background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);}
-  .btnE{position:absolute;right:calc(16px + var(--safe-right));bottom:calc(28px + var(--safe-bot));
-        width:76px;height:76px;border-radius:50%;background:rgba(255,51,85,.15);
-        border:2px solid var(--accent);color:var(--fg);font-weight:700;display:grid;place-items:center;opacity:.95;}
-  .btnE span{transform:translateY(1px);}
+  html,body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    padding:16px;
+    box-sizing:border-box;
+    gap:12px;
+  }
+  h1{
+    font-size:16px;
+    margin:0 0 4px;
+    text-align:center;
+  }
+  #videoWrap{
+    position:relative;
+    width:100%;
+    max-width:640px;
+    background:#222;
+    overflow:hidden;
+    border:1px solid #444;
+    border-radius:8px;
+  }
+  video,canvas{
+    display:block;
+    width:100%;
+    height:auto;
+  }
+  #controls{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  button{
+    padding:8px 16px;
+    border:none;
+    background:#333;
+    color:var(--fg);
+    border-radius:4px;
+    font-size:14px;
+  }
+  button:active{
+    background:#555;
+  }
+  #msg{
+    font-size:12px;
+    white-space:pre-line;
+    text-align:center;
+    color:#ccc;
+    min-height:32px;
+  }
+  #preview{
+    width:100%;
+    max-width:640px;
+    border:1px dashed #444;
+    display:none;
+  }
 </style>
 </head>
 <body>
-  <div id="wrap">
-    <canvas id="game" width="320" height="180"></canvas>
-    <canvas id="fx" width="320" height="180"></canvas>
+  <h1>카메라 캡쳐 & 업로드 테스트</h1>
 
-    <!-- 모바일 전용 컨트롤 -->
-    <div class="pad" id="pad" aria-hidden="true">
-      <div class="ring"></div>
-      <div class="stick" id="stick"></div>
-    </div>
-    <button class="btnE" id="btnE" aria-label="listen"><span>E</span></button>
+  <div id="videoWrap">
+    <video id="video" playsinline autoplay muted></video>
   </div>
 
+  <div id="controls">
+    <button id="startCamBtn" type="button">카메라 켜기</button>
+    <button id="captureBtn" type="button" disabled>CAPTURE & UPLOAD</button>
+  </div>
+
+  <canvas id="canvas" style="display:none;"></canvas>
+  <img id="preview" alt="캡쳐 프리뷰"/>
+
+  <div id="msg"></div>
+
 <script>
-(()=>{
-// ===== PWA (홈 화면 추가/오프라인) =====
-const manifest={name:"BaconBot",short_name:"BaconBot",start_url:".",display:"standalone",
-  background_color:"#0a0a0d",theme_color:"#0a0a0d"};
-const manURL=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:"application/json"}));
-const link=document.createElement("link");link.rel="manifest";link.href=manURL;document.head.appendChild(link);
-if("serviceWorker" in navigator){
-  const swCode=`const C='baconbot-v2';
-self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['./']))));
-self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(K=>Promise.all(K.map(k=>k!==C&&caches.delete(k))))));
-self.addEventListener('fetch',e=>{
-  const u=new URL(e.request.url);
-  if(u.origin===location.origin){
-    e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{
-      const cc=res.clone(); caches.open(C).then(c=>c.put(e.request,cc)); return res;
-    }).catch(()=>caches.match('./'))))
+(() => {
+  // ★ 공연장마다 IP만 바꿔주면 되는 부분 ★
+  const UPLOAD_SERVER = 'http://172.16.71.122:4000';
+
+  const startCamBtn = document.getElementById('startCamBtn');
+  const captureBtn  = document.getElementById('captureBtn');
+  const video       = document.getElementById('video');
+  const canvas      = document.getElementById('canvas');
+  const preview     = document.getElementById('preview');
+  const msg         = document.getElementById('msg');
+
+  let stream = null;
+
+  function log(text){
+    console.log(text);
+    msg.textContent = text;
   }
-});`;
-  const url=URL.createObjectURL(new Blob([swCode],{type:"text/javascript"}));
-  navigator.serviceWorker.register(url,{scope:"./"}).catch(()=>{});
-}
 
-// ===== 기본 세팅 =====
-const wrap=document.getElementById("wrap");
-const game=document.getElementById("game");
-const fx=document.getElementById("fx");
-const g=game.getContext("2d",{alpha:false});
-const gx=fx.getContext("2d");
-g.imageSmoothingEnabled=false; gx.imageSmoothingEnabled=false;
-const W=game.width, H=game.height;
-function fit(){
-  const {clientWidth:cw,clientHeight:ch}=wrap;
-  const scale=Math.max(1,Math.floor(Math.min(cw/W,ch/H)));
-  const vw=W*scale, vh=H*scale;
-  for(const c of [game,fx]){
-    c.style.width=vw+"px"; c.style.height=vh+"px";
-    c.style.left=((cw-vw)/2|0)+"px"; c.style.top=((ch-vh)/2|0)+"px";
-  }
-}
-new ResizeObserver(fit).observe(wrap);
-addEventListener("orientationchange",()=>setTimeout(fit,200));
+  async function startCamera(){
+    log('카메라 요청 중...');
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      log('이 브라우저에서는 getUserMedia를 지원하지 않습니다.');
+      return;
+    }
 
-// ===== 월드 / 플레이어 =====
-const world={w:1024,h:1024,stones:[],fog:new Set(),seed:(Math.random()*1e9|0)};
-function rng(seed){return ()=> (seed=(seed*1664525+1013904223)>>>0)/4294967296;}
-const R=rng(world.seed);
-for(let i=0;i<140;i++){
-  const x=(R()*world.w)|0, y=(R()*world.h)|0;
-  const w=10+(R()*18|0), h=16+(R()*36|0), rot=(R()*0.4-0.2);
-  world.stones.push({x,y,w,h,rot,id:i});
-}
-const player={x:world.w/2,y:world.h/2,vx:0,vy:0,spd:0.9,run:1.6,dir:1,walkT:0};
+    try{
+      // 여기서만 카메라 권한 요청 (유저 버튼 클릭 안에서만)
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height:{ ideal: 720 }
+        },
+        audio: false
+      });
 
-// ===== 입력 =====
-const keys=new Set();
-addEventListener("keydown",e=>{
-  const k=e.key.toLowerCase(); keys.add(k);
-  if(["arrowup","arrowdown","arrowleft","arrowright"].includes(k)) e.preventDefault();
-});
-addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
+      video.srcObject = stream;
+      captureBtn.disabled = false;
+      log('카메라 스트림이 시작되었습니다.\n캡쳐 & 업로드 버튼을 눌러보세요.');
 
-const pad=document.getElementById("pad"), stick=document.getElementById("stick"), btnE=document.getElementById("btnE");
-let joy={ax:0,ay:0,active:false};
-function padStart(e){joy.active=true; moveStick(e);}
-function padMove(e){if(joy.active) moveStick(e);}
-function padEnd(){joy.active=false; stick.style.left="38px"; stick.style.top="38px"; joy.ax=0; joy.ay=0;}
-function moveStick(e){
-  const r=pad.getBoundingClientRect(); const cx=r.left+r.width/2, cy=r.top+r.height/2;
-  const p=e.touches?e.touches[0]:e; let dx=p.clientX-cx, dy=p.clientY-cy;
-  const m=Math.hypot(dx,dy), max=40; if(m>max){dx*=max/m; dy*=max/m;}
-  stick.style.left=(r.width/2+dx-32)+"px"; stick.style.top=(r.height/2+dy-32)+"px";
-  joy.ax=dx/max; joy.ay=dy/max;
-}
-for(const ev of ["pointerdown","pointermove","pointerup","pointercancel"])
-  pad.addEventListener(ev, {pointerdown:padStart,pointermove:padMove,pointerup:padEnd,pointercancel:padEnd}[ev]);
-btnE.addEventListener("click",()=>tryListen());
-
-// ===== 사운드 =====
-const AudioCtx=window.AudioContext||window.webkitAudioContext; const actx=new AudioCtx();
-let audioReady=false;
-addEventListener("pointerdown",()=>{ if(!audioReady){ actx.resume(); audioReady=true; beep(220,.04);} },{once:true,passive:true});
-function beep(freq=440,dur=.06,type="square",gain=0.08){
-  const o=actx.createOscillator(), g=actx.createGain();
-  o.type=type; o.frequency.value=freq; g.gain.value=gain; o.connect(g).connect(actx.destination);
-  o.start(); o.stop(actx.currentTime+dur);
-}
-function drone(near){
-  const t=actx.currentTime;
-  if(!drone.g){
-    drone.o=actx.createOscillator(); drone.g=actx.createGain();
-    drone.o.type="triangle"; drone.o.frequency.value=50; drone.g.gain.value=0;
-    drone.o.connect(drone.g).connect(actx.destination); drone.o.start();
-  }
-  const target=Math.min(.15,near*.12);
-  drone.g.gain.cancelScheduledValues(t); drone.g.gain.linearRampToValueAtTime(target,t+.2);
-}
-
-// ===== 충돌 / 상호작용 =====
-function collides(nx,ny){
-  for(const s of world.stones){
-    const cx=s.x+s.w/2, cy=s.y+s.h/2, dx=nx-cx, dy=ny-cy, c=Math.cos(-s.rot), si=Math.sin(-s.rot);
-    const rx=dx*c-dy*si, ry=dx*si+dy*c, hw=s.w/2+3, hh=s.h/2+3;
-    if(Math.abs(rx)<hw && Math.abs(ry)<hh) return true;
-  }
-  return false;
-}
-function nearestStone(px,py){
-  let best=null, bd=1e9;
-  for(const s of world.stones){ const cx=s.x+s.w/2, cy=s.y+s.h/2, d=Math.hypot(px-cx,py-cy); if(d<bd){bd=d; best=s;} }
-  return {stone:best, dist:bd};
-}
-function tryListen(){
-  const n=nearestStone(player.x,player.y);
-  if(n.dist<38){ beep(880,.08,"square",.1); setTimeout(()=>beep(660,.08,"square",.08),60); showWhisper(n.stone);}
-  else { beep(140,.05,"square",.05); }
-}
-
-// ===== 속삭임 텍스트 =====
-const whispers=[
-  "나는 얼굴을 잃고, 귀로만 걷는다.","기억의 살결이 돌 사이에서 뒤틀린다.",
-  "빛은 고요를 문질러, 소리를 만든다.","오차가 감정이고, 잔향이 초상이다.",
-  "돌은 서 있고, 이야기는 흘러간다.","네가 듣는 동안, 나는 보이지 않는다.",
-  "움푹 팬 시간 속에서 심장이 파형으로 뛴다.","유령 같은 프레임이 나를 붙잡는다."
-];
-let whisperTimer=0, whisperText="", whisperAlpha=0;
-function showWhisper(stone){
-  whisperText=whispers[(stone.id + (Math.random()*whispers.length|0)) % whispers.length];
-  whisperAlpha=1; whisperTimer=180;
-}
-
-// ===== 카메라/루프 =====
-const cam={x:0,y:0,shake:0}; let last=0;
-function loop(t){ requestAnimationFrame(loop); const dt=Math.min(32,(t-last)||16); last=t; update(dt/16); render(); }
-
-function update(dt){
-  let ax=0, ay=0;
-  if(keys.has("a")||keys.has("arrowleft")) ax-=1;
-  if(keys.has("d")||keys.has("arrowright")) ax+=1;
-  if(keys.has("w")||keys.has("arrowup")) ay-=1;
-  if(keys.has("s")||keys.has("arrowdown")) ay+=1;
-  ax+=joy.ax; ay+=joy.ay;
-  const mag=Math.hypot(ax,ay); const spd=player.spd*(keys.has("shift")?player.run:1);
-  if(mag>0){ ax/=mag; ay/=mag; player.vx=ax*spd; player.vy=ay*spd; player.dir=(Math.abs(ax)>Math.abs(ay)?(ax>=0?1:-1):player.dir); player.walkT+=dt; }
-  else { player.vx*=0.6; player.vy*=0.6; }
-
-  let nx=player.x+player.vx*dt*3, ny=player.y+player.vy*dt*3;
-  if(!collides(nx,player.y)) player.x=Math.max(8,Math.min(world.w-8,nx)); else player.vx=0;
-  if(!collides(player.x,ny)) player.y=Math.max(8,Math.min(world.h-8,ny)); else player.vy=0;
-
-  cam.x+=((player.x-W/2)-cam.x)*0.08; cam.y+=((player.y-H/2)-cam.y)*0.08;
-  const n=nearestStone(player.x,player.y); const near=Math.max(0,1-(n.dist/140));
-  drone(near); cam.shake=Math.max(cam.shake*0.9, near*1.6);
-
-  const tx=(player.x/8|0), ty=(player.y/8|0); world.fog.add(tx+","+ty);
-
-  if(whisperTimer>0){ whisperTimer-=1; if(whisperTimer<32) whisperAlpha=whisperTimer/32; }
-  if(mag>0.1){ if(!update.stepT) update.stepT=0; update.stepT+=dt; if(update.stepT>0.18){ update.stepT=0; beep(200+Math.random()*40,.04,"square",.06);} }
-
-  // 모바일에서만 컨트롤 표시
-  const mobile = matchMedia("(pointer: coarse)").matches;
-  pad.style.display = mobile? "block":"none"; btnE.style.display = mobile? "block":"none";
-}
-
-// ===== 사람 모형 (픽셀 도트, 2프레임 걷기) =====
-const humanFrames={
-  R:[
-    [ // A
-      "....11......",
-      "...1221.....",
-      "..122221....",
-      "..12ff21....",
-      "..122221....",
-      "...1111.....",
-      "....11......",
-      "...1222.....",
-      "..122.21....",
-      "..12...21...",
-      "...2...21...",
-      "..22...2....",
-      "..2....2....",
-      "..2....2....",
-      "..2...22....",
-      "..2..2.2...."
-    ],
-    [ // B
-      "....11......",
-      "...1221.....",
-      "..122221....",
-      "..12ff21....",
-      "..122221....",
-      "...1111.....",
-      "....11......",
-      "...1222.....",
-      "..122.21....",
-      "..12..221...",
-      "...2..2.1...",
-      "..22.2.2....",
-      "..2..2......",
-      "..2..2......",
-      "..2..22.....",
-      "..2.2......."
-    ]
-  ]
-};
-function drawHuman(x,y,dir,frame){
-  const f = humanFrames.R[frame%humanFrames.R.length];
-  for(let j=0;j<f.length;j++){
-    const row=f[j];
-    for(let i=0;i<row.length;i++){
-      const c=row[i]; if(c===".") continue;
-      let xi = (dir<0)? (row.length-1-i) : i;
-      if(c==="1") g.fillStyle="#f4d7d7"; // 피부
-      if(c==="2") g.fillStyle="#ff3355"; // 의상
-      if(c==="f") g.fillStyle="#222329"; // 머리/그림자
-      g.fillRect((x+xi)|0,(y+j)|0,1,1);
+    }catch(e){
+      console.error(e);
+      log(
+        '카메라를 열 수 없습니다.\n\n' +
+        '에러: ' + (e.name || '') + ' - ' + (e.message || '') + '\n\n' +
+        '※ 브라우저 주소창 오른쪽 자물쇠/ⓘ 버튼 → 사이트 설정에서\n' +
+        '   카메라가 차단(block)으로 되어 있지 않은지 확인해 주세요.'
+      );
     }
   }
-}
-function drawStone(s,cx,cy){
-  g.save();
-  g.translate(s.x-cx,s.y-cy);
-  g.translate(s.w/2,s.h/2); g.rotate(s.rot); g.translate(-s.w/2,-s.h/2);
-  g.fillStyle=(s.id%2?"#514e6b":"#6d6b87"); g.fillRect(0,0,s.w,s.h);
-  g.strokeStyle="rgba(255,255,255,.08)"; g.lineWidth=1; g.strokeRect(2,2,s.w-4,s.h-4);
-  g.fillStyle="rgba(0,0,0,.25)"; g.fillRect(-3,s.h-1,s.w+6,2);
-  g.restore();
-}
-function drawFog(cx,cy){
-  g.save();
-  g.globalCompositeOperation="source-over"; g.fillStyle="rgba(0,0,0,.6)"; g.fillRect(0,0,W,H);
-  g.globalCompositeOperation="destination-out"; g.fillStyle="rgba(0,0,0,1)";
-  const sx=(cx/8|0)-24, sy=(cy/8|0)-24;
-  for(let ty=sy;ty<sy+48;ty++) for(let tx=sx;tx<sx+64;tx++)
-    if(world.fog.has(tx+","+ty)) g.fillRect((tx*8-cx)|0,(ty*8-cy)|0,8,8);
-  g.restore();
-}
-function postProcess(){
-  gx.clearRect(0,0,W,H); gx.drawImage(game,0,0);
-  // 베이컨풍 스캔라인/글리치 약간
-  const lines=26;
-  for(let i=0;i<lines;i++){
-    const y0=(H/lines*i)|0, y1=(H/lines*(i+1)|0)-y0, off=Math.sin((performance.now()*0.002+i*0.9))*(cam.shake*2+1);
-    gx.drawImage(game,0,y0,W,y1,off|0,y0,W,y1);
-  }
-  const grad=gx.createRadialGradient(W/2,H/2,H*0.1,W/2,H/2,H*0.66);
-  grad.addColorStop(0,"rgba(0,0,0,0)"); grad.addColorStop(1,"rgba(0,0,0,.38)");
-  gx.fillStyle=grad; gx.fillRect(0,0,W,H);
 
-  if(whisperAlpha>0 && whisperText){
-    gx.save(); gx.globalAlpha=Math.max(0,Math.min(1,whisperAlpha));
-    gx.font="8px ui-monospace,monospace"; gx.textAlign="center"; gx.textBaseline="bottom";
-    const lines=wrapText(gx,whisperText,W*0.7);
-    for(let i=0;i<lines.length;i++){
-      const y=H-12-(lines.length-1-i)*10, mw=gx.measureText(lines[i]).width;
-      gx.fillStyle="rgba(0,0,0,.55)"; gx.fillRect(W/2-(mw/2+6),y-9,mw+12,12);
-      gx.fillStyle="#e6e2e8"; gx.fillText(lines[i],W/2,y);
+  async function captureAndUpload(){
+    if(!stream){
+      log('먼저 카메라를 켜 주세요.');
+      return;
     }
-    gx.restore();
+    if(!video.videoWidth || !video.videoHeight){
+      log('비디오 메타데이터를 아직 읽는 중입니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    canvas.width  = w;
+    canvas.height = h;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+
+    // 프리뷰용
+    canvas.toBlob(blob => {
+      if(!blob) return;
+      const url = URL.createObjectURL(blob);
+      preview.src = url;
+      preview.style.display = 'block';
+    }, 'image/jpeg', 0.9);
+
+    log('이미지 캡쳐 완료. 업로드 중...');
+
+    try{
+      const blob = await new Promise(resolve => {
+        canvas.toBlob(b => resolve(b), 'image/jpeg', 0.9);
+      });
+
+      if(!blob){
+        log('캡쳐 Blob 생성에 실패했습니다.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', blob, 'camera_capture_'+Date.now()+'.jpg');
+
+      const res = await fetch(UPLOAD_SERVER + '/upload', {
+        method:'POST',
+        body: formData
+      });
+
+      if(!res.ok){
+        throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      }
+
+      const data = await res.json().catch(() => ({}));
+      console.log('업로드 응답:', data);
+      if(data && data.success && data.url){
+        log('업로드 완료!\n서버 경로: ' + data.url);
+      }else{
+        log('업로드는 되었지만, 서버 응답 형식이 예상과 다릅니다.\n콘솔 로그를 확인해 주세요.');
+      }
+
+    }catch(e){
+      console.error(e);
+      log(
+        '업로드 중 오류가 발생했습니다.\n\n' +
+        '에러: ' + (e.message || e.toString())
+      );
+    }
   }
-}
-function wrapText(ctx,text,max){ const words=text.split(/\s+/); const out=[]; let line=""; for(const w of words){ const test=line? line+" "+w:w; if(ctx.measureText(test).width>max){ out.push(line); line=w; } else line=test; } if(line) out.push(line); return out; }
 
-function render(){
-  g.fillStyle="#0a0b10"; g.fillRect(0,0,W,H);
-  const jitterX=(Math.random()-0.5)*cam.shake, jitterY=(Math.random()-0.5)*cam.shake;
-  const cx=(cam.x|0)+jitterX, cy=(cam.y|0)+jitterY;
+  startCamBtn.addEventListener('click', startCamera);
+  captureBtn.addEventListener('click', captureAndUpload);
 
-  // 약한 노이즈
-  for(let i=0;i<80;i++){
-    g.fillStyle=(i%7? "rgba(255,255,255,.03)":"rgba(255,180,200,.03)");
-    g.fillRect((Math.random()*W|0),(Math.random()*H|0),1,1);
-  }
-
-  const view={x:cx,y:cy,w:W,h:H};
-  for(const s of world.stones){
-    if(!(s.x-6+s.w+12<view.x||s.x-6>view.x+view.w||s.y-6+s.h+12<view.y||s.y-6>view.y+view.h))
-      drawStone(s,cx,cy);
-  }
-
-  // 사람 모형 (12x16 기준 중심 보정)
-  const fxp=(player.x-cx-6)|0, fyp=(player.y-cy-14)|0;
-  const moving=(Math.hypot(player.vx,player.vy)>0.05);
-  const frame = moving? ((player.walkT*8|0)%2):0;
-  drawHuman(fxp,fyp,player.dir,frame);
-
-  drawFog(cx,cy);
-  postProcess();
-}
-
-addEventListener("keydown",e=>{ if(e.key.toLowerCase()==="e") tryListen(); });
-
-fit(); requestAnimationFrame(loop);
+  window.addEventListener('beforeunload', () => {
+    if(stream){
+      stream.getTracks().forEach(t => t.stop());
+    }
+  });
 })();
 </script>
 </body>
