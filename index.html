@@ -1,352 +1,154 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport"
-        content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>둥근모꼴+ Fixedsys</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<title>SLEEP CONSOLE</title>
 
-  <!-- 기본 폰트들 (필요 없으면 지워도 됨) -->
-  <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap">
-  <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap">
+<!-- 픽셀 폰트 -->
+<link rel="stylesheet"
+ href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap">
 
-  <style>
-    :root{
-      --bg-main: #262626;
-      --card-bg: #bfbfbf;
-      --text-main: #f5f5f5;
-      --text-dark: #111111;
-      --accent: #ffffff;
-      --max-width: 1120px;
-    }
+<style>
+:root{
+  --bg: #111;
+  --fg: #eee;
+  --panel: #222;
+  --line: #444;
+}
 
-    *{
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+/* RESET */
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font-family:"Share Tech Mono", monospace;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+}
 
-    body{
-      font-family: "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      background-color: var(--bg-main);
-      color: var(--text-main);
-      min-height: 100vh;
-    }
+/* 전체 컨테이너 */
+.wrapper{
+  width:100%;
+  max-width:900px;
+  margin:0 auto;
+  padding:20px;
+}
 
-    .app{
-      max-width: var(--max-width);
-      margin: 0 auto;
-      padding: 16px 20px 40px;
-    }
+/* ▲ 상단 토끼 애니 박스 */
+.rabbit-box{
+  width:100%;
+  height:200px;
+  background:#222;
+  position:relative;
+  overflow:hidden;
+  border:2px solid #555;
+}
 
-    /* 상단 바 */
-    .top-bar{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 52px;
-      margin-bottom: 24px;
-      font-size: 14px;
-    }
+/* 토끼 캐릭터 */
+.rabbit{
+  position:absolute;
+  bottom:10px;
+  font-size:32px;
+  animation:walk 6s linear infinite;
+  white-space:nowrap;
+}
 
-    .top-left-icon{
-      font-family: "Share Tech Mono", monospace;
-      font-size: 20px;
-      cursor: default;
-    }
+@keyframes walk{
+  0%   { left:-60px; transform:scaleX(1); }
+  48%  { left: calc(100% - 20px); transform:scaleX(1); }
+  50%  { left: calc(100% - 20px); transform:scaleX(-1); }
+  98%  { left:-60px; transform:scaleX(-1); }
+  100% { left:-60px; transform:scaleX(1); }
+}
 
-    .top-center-menu{
-      width: 28px;
-      height: 20px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      cursor: pointer;
-    }
+/* ▼ 콘솔 출력 박스 */
+.console-box{
+  margin-top:18px;
+  background:#000;
+  padding:16px;
+  border:2px solid #555;
+  height:300px;
+  overflow-y:auto;
+  font-size:15px;
+  line-height:1.7;
+  white-space:pre-wrap;
+}
 
-    .top-center-menu span{
-      display: block;
-      height: 2px;
-      background-color: var(--accent);
-    }
+/* 입력창 */
+.input-row{
+  margin-top:12px;
+  display:flex;
+  gap:8px;
+}
 
-    .top-right-link{
-      font-size: 13px;
-      letter-spacing: 0.06em;
-      cursor: pointer;
-    }
+.console-input{
+  flex:1;
+  background:#111;
+  color:#fff;
+  border:2px solid #555;
+  padding:10px 12px;
+  font-family:"Share Tech Mono", monospace;
+  font-size:15px;
+}
 
-    .top-right-link:hover{
-      text-decoration: underline;
-    }
+.send-btn{
+  padding:10px 18px;
+  background:#fff;
+  color:#000;
+  border:none;
+  cursor:pointer;
+  font-family:"Share Tech Mono", monospace;
+  font-size:14px;
+}
 
-    /* 메인 카드 */
-    .font-card{
-      background-color: var(--card-bg);
-      color: var(--text-dark);
-      border-radius: 0;
-      padding: 40px 48px;
-      box-shadow: 0 6px 0 rgba(0,0,0,0.45);
-      display: flex;
-      flex-direction: row;
-      justify-content: space-between;
-      gap: 24px;
-      min-height: 260px;
-    }
-
-    .font-card-left{
-      flex: 1.1;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      min-width: 0;
-    }
-
-    .font-title-main{
-      font-family: "Share Tech Mono", monospace;
-      font-size: 32px;
-      letter-spacing: 0.06em;
-      margin-bottom: 4px;
-    }
-
-    .font-title-sub{
-      font-family: "Share Tech Mono", monospace;
-      font-size: 24px;
-      letter-spacing: 0.08em;
-      margin-bottom: 24px;
-    }
-
-    .font-kor-sample{
-      font-size: 18px;
-      margin-bottom: 10px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .font-kor-sample-sub{
-      font-size: 14px;
-      letter-spacing: 0.04em;
-      opacity: 0.9;
-      margin-bottom: 18px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .font-ascii-line{
-      font-family: "Share Tech Mono", monospace;
-      font-size: 13px;
-      line-height: 1.6;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .font-card-right{
-      flex: 0.9;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: flex-start;
-      min-width: 0;
-    }
-
-    .font-version{
-      font-family: "Share Tech Mono", monospace;
-      font-size: 32px;
-      align-self: flex-end;
-      margin-bottom: 12px;
-    }
-
-    .font-latin-sample{
-      font-family: "Share Tech Mono", monospace;
-      font-size: 14px;
-      line-height: 1.8;
-      margin-bottom: 16px;
-      word-break: break-all;
-    }
-
-    .font-latin-sample strong{
-      font-weight: 700;
-    }
-
-    .font-icon-line{
-      font-family: "Share Tech Mono", monospace;
-      font-size: 16px;
-    }
-
-    /* 하단 영역 */
-    .bottom-section{
-      display: flex;
-      flex-direction: row;
-      gap: 56px;
-      margin-top: 40px;
-      font-size: 13px;
-      line-height: 1.8;
-    }
-
-    .download-col{
-      flex: 0.9;
-    }
-
-    .download-title{
-      font-size: 18px;
-      margin-bottom: 20px;
-      letter-spacing: 0.14em;
-    }
-
-    .download-list{
-      margin-bottom: 18px;
-    }
-
-    .download-list a{
-      display: block;
-      text-decoration: none;
-      color: var(--accent);
-      margin-bottom: 4px;
-    }
-
-    .download-list a span{
-      border-bottom: 1px solid rgba(255,255,255,0.6);
-    }
-
-    .download-note{
-      opacity: 0.9;
-    }
-
-    .desc-col{
-      flex: 1.4;
-      font-size: 12px;
-      line-height: 1.9;
-      opacity: 0.9;
-    }
-
-    .desc-col p + p{
-      margin-top: 10px;
-    }
-
-    /* 반응형 */
-    @media (max-width: 840px){
-      .app{
-        padding: 12px 14px 28px;
-      }
-
-      .font-card{
-        flex-direction: column;
-        padding: 28px 22px 26px;
-      }
-
-      .font-title-main{
-        font-size: 26px;
-      }
-
-      .font-title-sub{
-        font-size: 18px;
-      }
-
-      .font-version{
-        align-self: flex-start;
-        margin-bottom: 16px;
-      }
-
-      .bottom-section{
-        flex-direction: column;
-        gap: 28px;
-      }
-    }
-  </style>
+.send-btn:hover{
+  opacity:0.7;
+}
+</style>
 </head>
+
 <body>
-  <div class="app">
+<div class="wrapper">
 
-    <!-- 상단 바 -->
-    <header class="top-bar">
-      <div class="top-left-icon">☍</div>
-      <div class="top-center-menu" aria-label="menu">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
-      <div class="top-right-link">의뢰하기</div>
-    </header>
-
-    <!-- 가운데 큰 카드 -->
-    <main>
-      <section class="font-card">
-        <!-- 왼쪽 영역 -->
-        <div class="font-card-left">
-          <div>
-            <div class="font-title-main">둥근모꼴+</div>
-            <div class="font-title-sub">Fixedsys</div>
-          </div>
-
-          <div>
-            <div class="font-kor-sample">
-              가나다라마바사아자차카타파하힣
-            </div>
-            <div class="font-kor-sample-sub">
-              ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ ㅋㄲㅉㅃㅆㅠㅑㅕㅛㅒㅖ
-            </div>
-            <div class="font-ascii-line">
-              ABCDEFGHIJKLMNOPQRSTUVWXYZ
-            </div>
-            <div class="font-ascii-line">
-              abcdefghijklmnopqrstuvwxyz
-            </div>
-          </div>
-        </div>
-
-        <!-- 오른쪽 영역 -->
-        <div class="font-card-right">
-          <div class="font-version">1.3</div>
-
-          <div>
-            <div class="font-latin-sample">
-              abcdefghijklmnopqrstuvwxyz<br>
-              1234567890~`@#$%^&amp;*()_+[]&lt;&gt;\ /;:'"“”,.
-            </div>
-            <div class="font-icon-line">♬ ♪ ♥</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 아래 텍스트/다운로드 영역 -->
-      <section class="bottom-section">
-        <!-- 왼쪽: 다운로드 -->
-        <div class="download-col">
-          <h2 class="download-title">다운로드</h2>
-
-          <div class="download-list">
-            <a href="#"><span>TTF (.zip, 1.7MB)</span></a>
-            <a href="#"><span>OTF (.zip, 1.0MB)</span></a>
-            <a href="#"><span>웹폰트 (.zip, 4.2MB)</span></a>
-          </div>
-
-          <p class="download-note">
-            OTF 글꼴은 Windows 앱에서 또렷하게 보이지 않을 수 있으며,
-            Adobe 프로그램에서 글꼴 이름이 영문으로 표시됩니다.
-          </p>
-        </div>
-
-        <!-- 오른쪽: 설명 -->
-        <div class="desc-col">
-          <p>
-            90년대 PC통신에서 쓰였고, 군대 전광판에서도 쓰이던 글꼴이다.
-            구하려고 찾아보니 일본 비트맵 글꼴만 있고 제대로 벡터로 변환된 건 보이지도 않고
-            변환 방법도 달라서 포기하고 있다가, 인터넷에서 어느 분이 제대로 변환하지 않은
-            웹폰트를 배포한 걸 그저께 보고 가져와서 글꼴 오류를 해결하고,
-            도안 위치를 16px에서 또렷이 보이게 옮기고 자모도 쓸 만하게 적당히 고쳐 다듬었다.
-          </p>
-          <p>
-            Windows 1 및 2 기본 글꼴이었던 Fixedsys와 붙여 서로 위화감을 줄였다.
-            이 글꼴은 이렇게 고전 느낌을 내기에 적당하다.
-          </p>
-        </div>
-      </section>
-    </main>
+  <!-- 토끼 돌아다니는 박스 -->
+  <div class="rabbit-box">
+    <div class="rabbit">🐇</div>
   </div>
+
+  <!-- 아래 멘트 누적 콘솔 -->
+  <div id="console" class="console-box"></div>
+
+  <!-- 입력 -->
+  <div class="input-row">
+    <input id="mentInput" class="console-input" placeholder="멘트를 입력하세요…" />
+    <button class="send-btn" onclick="addLine()">입력</button>
+  </div>
+
+</div>
+
+<script>
+const consoleBox = document.getElementById("console");
+const input = document.getElementById("mentInput");
+
+function addLine(){
+  const text = input.value.trim();
+  if(!text) return;
+
+  const line = document.createElement("div");
+  line.textContent = text;
+  consoleBox.appendChild(line);
+
+  input.value = "";
+  consoleBox.scrollTop = consoleBox.scrollHeight;  // 자동 스크롤
+}
+
+// 엔터키 입력
+input.addEventListener("keydown", e=>{
+  if(e.key === "Enter") addLine();
+});
+</script>
+
 </body>
 </html>
