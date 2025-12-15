@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>BOX DETECT – Micro Fragments (Distinct 3+)</title>
+<title>BOX DETECT – Anchored Micro Fragments (Hold Mapping)</title>
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -109,14 +109,21 @@
 <div id="ui">
   <div class="pill">
     <b>감도</b>
-    <input id="conf" type="range" min="0.01" max="0.80" step="0.01" value="0.08">
-    <span id="confVal">0.08</span>
+    <input id="conf" type="range" min="0.01" max="0.80" step="0.01" value="0.10">
+    <span id="confVal">0.10</span>
   </div>
 
   <div class="pill">
     <b>N(미세)</b>
     <input id="topN" type="range" min="1" max="10" step="1" value="4">
     <span id="topNVal">4</span>
+  </div>
+
+  <!-- ✅ 추가: 맵핑 유지 시간 -->
+  <div class="pill">
+    <b>HOLD</b>
+    <input id="holdSec" type="range" min="1" max="8" step="0.5" value="2.5">
+    <span id="holdVal">2.5s</span>
   </div>
 
   <div class="pill">
@@ -165,8 +172,8 @@
 
 <div id="gate">
   <div class="box">
-    <h1>MICRO FRAGMENTS (한 화면 최소 3개 라벨 분산)</h1>
-    <p>박스 더 작게 + 한 화면에서 최소 3개는 서로 다른 라벨(Mom/Hometown/…)이 되게 강제.</p>
+    <h1>ANCHOR + HOLD (사물 기반 + 맵핑 유지)</h1>
+    <p>사물(실제 객체) 위에 작은 박스를 앵커링하고, 라벨/이미지를 몇 초 유지해서 “지금 뭐가 맵핑됐는지” 읽을 시간을 줌.</p>
     <div class="row">
       <button id="start">시작</button>
       <button id="preloadAssets">assets 다시 로드</button>
@@ -187,6 +194,9 @@
   const confVal = document.getElementById("confVal");
   const topNEl = document.getElementById("topN");
   const topNVal = document.getElementById("topNVal");
+  const holdSecEl = document.getElementById("holdSec");
+  const holdValEl = document.getElementById("holdVal");
+
   const linksEl = document.getElementById("links");
   const fillFragEl = document.getElementById("fillFrag");
 
@@ -232,13 +242,13 @@
     return CLASS_TO_LIMEN[cocoClass] || LIMEN_LABELS[fallbackIndex % LIMEN_LABELS.length];
   }
 
-  // ✅ 한 화면(한 tick)에서 최소 3개는 “서로 다른 라벨”로 강제하기 위한 셔플
-  function shuffleInPlace(arr){
-    for (let i = arr.length - 1; i > 0; i--) {
+  function shuffleCopy(arr){
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
       const j = (Math.random() * (i + 1)) | 0;
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      [a[i], a[j]] = [a[j], a[i]];
     }
-    return arr;
+    return a;
   }
 
   const PALETTE = [
@@ -343,81 +353,166 @@
     return model;
   }
 
-  // ====== MICRO BOX GENERATION ======
+  // ====== tracking helpers ======
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  function iou(a,b){
+    // a,b: [x,y,w,h]
+    const ax1=a[0], ay1=a[1], ax2=a[0]+a[2], ay2=a[1]+a[3];
+    const bx1=b[0], by1=b[1], bx2=b[0]+b[2], by2=b[1]+b[3];
+    const ix1=Math.max(ax1,bx1), iy1=Math.max(ay1,by1);
+    const ix2=Math.min(ax2,bx2), iy2=Math.min(ay2,by2);
+    const iw=Math.max(0, ix2-ix1), ih=Math.max(0, iy2-iy1);
+    const inter=iw*ih;
+    const ua=a[2]*a[3] + b[2]*b[3] - inter;
+    return ua>0 ? inter/ua : 0;
+  }
+
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function lerpBox(cur, target, t){
+    return [
+      lerp(cur[0], target[0], t),
+      lerp(cur[1], target[1], t),
+      lerp(cur[2], target[2], t),
+      lerp(cur[3], target[3], t),
+    ];
+  }
+
+  // ====== “사물(객체) 트랙” ======
+  // objectTracks: 실제 coco-ssd bbox에 붙는 앵커
+  let objectTracks = []; // {id, bbox, cls, score, label, labelUntil, lastSeen}
+  let nextObjId = 1;
+
+  // ====== “미세 박스(표현 레이어)” ======
+  let microTracks = []; // {id, objId, bbox, limenLabel, vx, vy, fragSeed, colorIndex}
+
   function rand01(seed){
     const x = Math.sin(seed) * 43758.5453123;
     return x - Math.floor(x);
   }
 
-  // ✅ 박스를 더 작게: 최소 크기/비율을 더 낮춤
-  function microFrom(bbox, seed){
-    const [x,y,w,h] = bbox;
-    const r1 = rand01(seed*12.3 + performance.now()*0.0007);
-    const r2 = rand01(seed*7.7  + performance.now()*0.0005);
-    const r3 = rand01(seed*3.1  + performance.now()*0.0006);
-
-    // 기존: 12~32%
-    // 변경: 6~18% (더 미세)
-    const mw = Math.max(12, w * (0.06 + r1*0.12));
-    const mh = Math.max(12, h * (0.06 + r2*0.12));
-
-    let mx = x + (w - mw) * r2;
-    let my = y + (h - mh) * r3;
-
-    return [mx, my, mw, mh];
+  // ✅ 미세 박스는 “사물 bbox 안에서만” 움직임 (양심)
+  function spawnMicroInside(objBBox, seed){
+    const [x,y,w,h]=objBBox;
+    // 더 작게
+    const mw = Math.max(10, w * (0.05 + rand01(seed*3.1)*0.10));
+    const mh = Math.max(10, h * (0.05 + rand01(seed*7.7)*0.10));
+    const mx = x + (w - mw) * rand01(seed*11.3);
+    const my = y + (h - mh) * rand01(seed*13.7);
+    return [mx,my,mw,mh];
   }
 
-  // ✅ “한 화면에서 최소 3개 라벨이 서로 다르게” 강제
-  // - 첫 3개는 LIMEN_LABELS 셔플해서 서로 다른 라벨을 부여
-  // - 4번째부터는 class 기반(기존 로직) 유지
-  function buildMicroTracks(preds, wantedCount){
-    const microCount = Math.max(3, wantedCount|0);  // ✅ 최소 3 강제
-    const micros = [];
+  function driftMicroAnchored(m, objBBox){
+    let [mx,my,mw,mh]=m.bbox;
+    mx += m.vx; my += m.vy;
 
-    const base = preds.slice(0, Math.min(preds.length, 6));
-    if (base.length === 0) return micros;
+    const [ox,oy,ow,oh]=objBBox;
+    const minX = ox, maxX = ox + ow - mw;
+    const minY = oy, maxY = oy + oh - mh;
 
-    // 첫 3개 라벨은 무조건 서로 다르게
-    const distinct3 = shuffleInPlace(LIMEN_LABELS.slice()).slice(0, 3);
+    if (mx < minX || mx > maxX) m.vx *= -1;
+    if (my < minY || my > maxY) m.vy *= -1;
 
-    let seed = 1000;
-    for (let i=0;i<microCount;i++){
-      const p = base[i % base.length];
-      const mbox = microFrom(p.bbox, seed+i*19);
-
-      let limenLabel;
-      if (i < 3) limenLabel = distinct3[i];         // ✅ 강제 분산
-      else limenLabel = pickLimenLabelByClass(p.class, i); // 기존 유지
-
-      micros.push({
-        id: i+1,
-        bbox: mbox,
-        limenLabel,
-        cocoClass: p.class,
-        score: p.score,
-        colorIndex: i % PALETTE.length,
-        vx: (rand01(200+i*3)-0.5) * 0.8,
-        vy: (rand01(400+i*5)-0.5) * 0.8,
-        fragSeed: 9000 + i*77
-      });
-    }
-    return micros;
+    mx = clamp(mx, minX, maxX);
+    my = clamp(my, minY, maxY);
+    m.bbox = [mx,my,mw,mh];
   }
 
-  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+  function ensureDistinctLabelsOnScreen(objs, now){
+    // 목표: 화면에 최소 3개는 서로 다른 라벨이 존재하도록
+    // 1) 라벨 만료된 애는 새로 부여
+    // 2) 중복이 심하면 일부만 교체해서 다양화
 
-  function driftTracks(){
-    for (const t of tracks){
-      let [x,y,w,h] = t.bbox;
-      x += t.vx; y += t.vy;
+    const holdMs = (+holdSecEl.value) * 1000;
 
-      if (x < 0 || x + w > out.width) t.vx *= -1;
-      if (y < 0 || y + h > out.height) t.vy *= -1;
-
-      x = clamp(x, 0, out.width - w);
-      y = clamp(y, 0, out.height - h);
-      t.bbox = [x,y,w,h];
+    // 만료 처리
+    for (const o of objs){
+      if (!o.label || now > o.labelUntil){
+        o.label = null;
+      }
     }
+
+    // 현재 라벨 집계
+    const used = new Map();
+    for (const o of objs){
+      if (o.label) used.set(o.label, (used.get(o.label)||0)+1);
+    }
+
+    // 먼저 class 기반으로 라벨 채우되, 너무 한쪽으로 쏠리면 분산
+    for (let i=0;i<objs.length;i++){
+      const o=objs[i];
+      if (!o.label){
+        let candidate = pickLimenLabelByClass(o.cls, i);
+        // 이미 같은 라벨이 2개 이상이면 다른 걸 우선
+        if ((used.get(candidate)||0) >= 2){
+          const pool = shuffleCopy(LIMEN_LABELS).filter(L=> (used.get(L)||0)===0);
+          if (pool.length) candidate = pool[0];
+        }
+        o.label = candidate;
+        o.labelUntil = now + holdMs;
+        used.set(candidate,(used.get(candidate)||0)+1);
+      }
+    }
+
+    // 최소 3개 서로 다르게 강제: (objs가 3개 이상 있을 때)
+    if (objs.length >= 3){
+      const uniq = new Set(objs.map(o=>o.label));
+      if (uniq.size < 3){
+        // 부족하면, 중복 라벨 가진 애 중 일부를 unused로 교체
+        const pool = shuffleCopy(LIMEN_LABELS).filter(L=> !uniq.has(L));
+        if (pool.length){
+          // 중복 많은 라벨부터 깎기
+          const counts = {};
+          objs.forEach(o=>{ counts[o.label]=(counts[o.label]||0)+1; });
+          const dupObjs = objs
+            .slice()
+            .sort((a,b)=>(counts[b.label]||0)-(counts[a.label]||0));
+          for (const o of dupObjs){
+            if (new Set(objs.map(x=>x.label)).size >= 3) break;
+            const next = pool.shift();
+            if (!next) break;
+            o.label = next;
+            o.labelUntil = now + holdMs;
+          }
+        }
+      }
+    }
+  }
+
+  function rebuildMicroTracksFromObjects(objs, wantedCount){
+    // wantedCount 만큼 “미세 박스” 만들되, 사물(객체)들에 고르게 분배
+    const microCount = Math.max(3, wantedCount|0);
+    const newMicros = [];
+    if (!objs.length) return newMicros;
+
+    // 분배: 객체마다 최소 1개씩, 남는 건 앞에서부터 추가
+    const perObj = Math.floor(microCount / objs.length);
+    let remainder = microCount % objs.length;
+
+    let idx=0;
+    for (const o of objs){
+      const take = Math.max(1, perObj) + (remainder>0 ? 1 : 0);
+      if (remainder>0) remainder--;
+
+      for (let k=0;k<take;k++){
+        if (newMicros.length >= microCount) break;
+
+        const seed = 9000 + o.id*97 + k*31;
+        const bbox = spawnMicroInside(o.bbox, seed);
+
+        newMicros.push({
+          id: ++idx,
+          objId: o.id,
+          bbox,
+          limenLabel: o.label,           // ✅ 객체 라벨을 그대로 공유(맵핑 인지)
+          colorIndex: (o.id + k) % PALETTE.length,
+          vx: (rand01(seed*2.3)-0.5) * 0.55,   // 너무 산발적이지 않게 속도 낮춤
+          vy: (rand01(seed*5.1)-0.5) * 0.55,
+          fragSeed: seed
+        });
+      }
+    }
+    return newMicros;
   }
 
   function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
@@ -455,9 +550,9 @@
     ctx.save();
     ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
 
-    const scale = 1.2 + r1 * 1.8;
-    const ox = (r2 - 0.5) * w * 0.9;
-    const oy = (r3 - 0.5) * h * 0.9;
+    const scale = 1.1 + r1 * 1.4; // 과도한 요동 줄임
+    const ox = (r2 - 0.5) * w * 0.6;
+    const oy = (r3 - 0.5) * h * 0.6;
 
     const el = assetRec.el;
     let sw=0, sh=0;
@@ -472,11 +567,11 @@
     ctx.globalAlpha = 0.85;
     ctx.drawImage(el, dx, dy, dw, dh);
 
-    ctx.globalAlpha = 0.45;
-    const dw2 = w * (0.7 + r2*0.8);
-    const dh2 = h * (0.7 + r3*0.8);
-    const dx2 = x + (w - dw2)/2 - ox*0.6;
-    const dy2 = y + (h - dh2)/2 - oy*0.6;
+    ctx.globalAlpha = 0.35;
+    const dw2 = w * (0.8 + r2*0.6);
+    const dh2 = h * (0.8 + r3*0.6);
+    const dx2 = x + (w - dw2)/2 - ox*0.4;
+    const dy2 = y + (h - dh2)/2 - oy*0.4;
     ctx.drawImage(el, dx2, dy2, dw2, dh2);
 
     ctx.restore();
@@ -484,25 +579,23 @@
   }
 
   function drawLabelBox(text, x, y, color){
-    ctx.font = `${Math.max(12, Math.round(out.width/90))}px system-ui,-apple-system,sans-serif`;
+    ctx.font = `${Math.max(12, Math.round(out.width/95))}px system-ui,-apple-system,sans-serif`;
     ctx.textBaseline = "top";
     const pad = 6;
     const tw = ctx.measureText(text).width;
-    const th = Math.max(16, Math.round(out.width/70));
+    const th = Math.max(16, Math.round(out.width/75));
 
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillStyle = "rgba(0,0,0,0.60)";
     ctx.fillRect(x, Math.max(0, y - th), tw + pad*2, th);
 
-    ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.95)`;
+    ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.98)`;
     ctx.fillText(text, x + pad, Math.max(0, y - th) + 2);
   }
-
-  let tracks = [];
 
   function render(){
     ctx.clearRect(0,0,out.width,out.height);
 
-    const pts = tracks.map(t => center(t.bbox));
+    const pts = microTracks.map(t => center(t.bbox));
 
     if (linksEl.checked && pts.length >= 2){
       const links = makeLinks(pts, 2);
@@ -510,7 +603,7 @@
         const a=pts[i], b=pts[j];
         const dist = Math.sqrt(dd);
         const norm = Math.min(1, dist / Math.max(out.width, out.height));
-        const alpha = 0.75*(1-norm) + 0.08;
+        const alpha = 0.65*(1-norm) + 0.10;
         ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
         ctx.lineWidth = Math.max(1.2, out.width/1100);
         ctx.beginPath();
@@ -521,7 +614,7 @@
 
     ctx.lineWidth = Math.max(2, out.width/900);
 
-    for (const t of tracks){
+    for (const t of microTracks){
       const [x,y,w,h] = t.bbox;
       const color = PALETTE[t.colorIndex % PALETTE.length];
 
@@ -530,24 +623,109 @@
         drawFragmentIntoBox(asset, t.bbox, t.fragSeed);
       }
 
-      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.95)`;
+      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.98)`;
       ctx.strokeRect(x,y,w,h);
 
+      // ✅ 라벨을 “읽을 시간”이 생겼으니, 텍스트는 유지해서 보여줌
       drawLabelBox(`${t.limenLabel}`, x, y, color);
 
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.beginPath();
-      ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/700), 0, Math.PI*2);
+      ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/750), 0, Math.PI*2);
       ctx.fill();
     }
 
-    countEl.textContent = "Boxes " + tracks.length;
+    countEl.textContent = "Boxes " + microTracks.length;
   }
 
   // ====== LOOP ======
   let running = false;
   let lastT = performance.now();
   let emaFps = 0;
+
+  // ✅ 디텍션은 매 프레임 하면 요동이 심해짐 → 주기적으로만 (안정감)
+  const DETECT_INTERVAL_MS = 220;
+  let lastDetectAt = 0;
+
+  async function stepDetect(now){
+    const conf = +confEl.value;
+    confVal.textContent = conf.toFixed(2);
+
+    let wanted = +topNEl.value;
+    if (wanted < 3) wanted = 3;
+    topNVal.textContent = String(wanted);
+
+    // coco-ssd detect
+    let preds = await model.detect(srcV);
+    preds = preds
+      .filter(p => p.score >= conf)
+      .sort((a,b) => b.score - a.score);
+
+    // 너무 많이 쓰지 말고 상위 몇 개만
+    const selected = preds.slice(0, 6);
+
+    const nowMs = performance.now();
+    // 1) 매칭(간단 IoU)로 objectTracks 업데이트
+    const usedPred = new Set();
+    for (const tr of objectTracks){
+      let bestJ = -1;
+      let bestIoU = 0;
+      for (let j=0;j<selected.length;j++){
+        if (usedPred.has(j)) continue;
+        const p = selected[j];
+        const s = iou(tr.bbox, p.bbox);
+        if (s > bestIoU){
+          bestIoU = s;
+          bestJ = j;
+        }
+      }
+      if (bestJ >= 0 && bestIoU > 0.18){
+        const p = selected[bestJ];
+        usedPred.add(bestJ);
+        tr.bbox = lerpBox(tr.bbox, p.bbox, 0.55); // 부드럽게 따라감(안정감)
+        tr.cls = p.class;
+        tr.score = p.score;
+        tr.lastSeen = nowMs;
+      }
+    }
+
+    // 2) 새 트랙 생성
+    for (let j=0;j<selected.length;j++){
+      if (usedPred.has(j)) continue;
+      const p = selected[j];
+      objectTracks.push({
+        id: nextObjId++,
+        bbox: p.bbox.slice(),
+        cls: p.class,
+        score: p.score,
+        label: null,
+        labelUntil: 0,
+        lastSeen: nowMs
+      });
+    }
+
+    // 3) 오래 안 보인 트랙 제거
+    objectTracks = objectTracks.filter(tr => (nowMs - tr.lastSeen) < 1200);
+
+    // 4) 화면에 쓸 객체는 최대 4개 정도 (읽을 수 있게)
+    objectTracks.sort((a,b)=>b.score-a.score);
+    const activeObjs = objectTracks.slice(0, 4);
+
+    // 5) 라벨 “HOLD” 기반으로 부여 + 최소 3종 다양화
+    ensureDistinctLabelsOnScreen(activeObjs, nowMs);
+
+    // 6) microTracks 재구성(객체에 앵커링)
+    microTracks = rebuildMicroTracksFromObjects(activeObjs, wanted);
+  }
+
+  function stepAnimate(){
+    // micro 박스 움직임은 각 객체 bbox 안에서만
+    const objMap = new Map(objectTracks.map(o=>[o.id,o]));
+    for (const m of microTracks){
+      const o = objMap.get(m.objId);
+      if (o) driftMicroAnchored(m, o.bbox);
+    }
+  }
 
   async function tick(){
     if (!running) return;
@@ -556,24 +734,17 @@
       if (srcV.readyState < 2){ requestAnimationFrame(tick); return; }
       resize();
 
-      const conf = +confEl.value;
-      confVal.textContent = conf.toFixed(2);
-
-      let wanted = +topNEl.value;
-      if (wanted < 3) wanted = 3; // ✅ 내부적으로 3 보장
-      topNVal.textContent = String(wanted);
-
-      let preds = await model.detect(srcV);
-      preds = preds
-        .filter(p => p.score >= conf)
-        .sort((a,b) => b.score - a.score);
-
-      tracks = buildMicroTracks(preds, wanted);
-
-      driftTracks();
-      render();
+      holdValEl.textContent = (+holdSecEl.value).toFixed(1) + "s";
 
       const now = performance.now();
+      if ((now - lastDetectAt) > DETECT_INTERVAL_MS){
+        lastDetectAt = now;
+        await stepDetect(now);
+      }
+
+      stepAnimate();
+      render();
+
       const dt = (now - lastT) / 1000;
       lastT = now;
       const inst = dt>0 ? (1/dt) : 0;
@@ -611,7 +782,7 @@
   videoFileEl.onchange = async ()=>{
     const file = videoFileEl.files?.[0];
     if (!file) return;
-    try{ await useUploadedVideo(file); }catch(e){ log("upload video error: " + (e?.message || e)); }
+    try{ await useUploadedVideo(file); log("source: upload video"); }catch(e){ log("upload video error: " + (e?.message || e)); }
   };
 
   flipBtn.onclick = async ()=>{
@@ -625,10 +796,12 @@
   restartBtn.onclick = ()=>{
     if (!model) { log("not started"); return; }
     running = false;
-    tracks = [];
+    objectTracks = [];
+    microTracks = [];
     ctx.clearRect(0,0,out.width,out.height);
     running = true;
     lastT = performance.now();
+    lastDetectAt = 0;
     tick();
     log("restart");
   };
@@ -689,6 +862,7 @@
       await startCamera();
       running = true;
       lastT = performance.now();
+      lastDetectAt = 0;
       tick();
       log("running");
     }catch(e){
