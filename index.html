@@ -16,25 +16,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 
 <style>
-html,body{
-  margin:0; height:100%;
-  background:#000; color:#ddd;
-  font-family:system-ui,-apple-system,sans-serif;
-  overflow:hidden;
-}
-#wrap{position:fixed; inset:0;}
-video,canvas{
-  position:absolute; inset:0;
-  width:100%; height:100%;
-  object-fit:cover;
-}
-
+html,body{margin:0;height:100%;background:#000;color:#ddd;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;}
+#wrap{position:fixed;inset:0;}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
 /* 카메라 흑백 */
-#video{
-  filter: grayscale(1) contrast(1.15) brightness(1.05);
-}
+#video{filter: grayscale(1) contrast(1.15) brightness(1.05);}
 
-/* UI 패널 */
 #ui{
   position:fixed; top:12px; left:12px; right:12px;
   display:flex; flex-wrap:wrap; gap:10px; align-items:center;
@@ -46,18 +33,14 @@ video,canvas{
   backdrop-filter: blur(8px);
   transition:.2s;
 }
-#ui.hidden{
-  opacity:0; pointer-events:none;
-  transform:translateY(-10px);
-}
+#ui.hidden{opacity:0; pointer-events:none; transform:translateY(-10px);}
 .pill{
   display:flex; gap:8px; align-items:center;
   background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.10);
   border-radius:999px;
   padding:8px 10px;
 }
-
 button{
   appearance:none;
   border:1px solid rgba(255,255,255,.18);
@@ -70,7 +53,6 @@ button{
 button:active{transform:translateY(1px);}
 input[type=range]{width:120px}
 
-/* 메뉴 토글 버튼 */
 #toggleUI{
   position:fixed; top:12px; right:12px;
   z-index:11;
@@ -81,7 +63,6 @@ input[type=range]{width:120px}
   backdrop-filter: blur(8px);
 }
 
-/* 시작 게이트 */
 #gate{
   position:fixed; inset:0;
   display:flex; align-items:center; justify-content:center;
@@ -107,6 +88,8 @@ input[type=range]{width:120px}
   border-radius:12px;
   padding:8px 10px;
   backdrop-filter: blur(8px);
+  max-width:min(80vw,680px);
+  white-space:pre-wrap;
 }
 </style>
 </head>
@@ -122,17 +105,19 @@ input[type=range]{width:120px}
 <div id="ui">
   <div class="pill">
     <b>감도</b>
-    <input id="conf" type="range" min="0.05" max="0.8" step="0.05" value="0.15">
-    <span id="confVal">0.15</span>
+    <input id="conf" type="range" min="0.03" max="0.8" step="0.02" value="0.12">
+    <span id="confVal">0.12</span>
   </div>
 
   <div class="pill">
-    <label><input id="links" type="checkbox" checked> 선 연결</label>
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input id="links" type="checkbox" checked> 선 연결
+    </label>
   </div>
 
   <div class="pill">
     <b>N</b>
-    <input id="topN" type="range" min="3" max="30" value="14">
+    <input id="topN" type="range" min="3" max="30" step="1" value="14">
     <span id="topNVal">14</span>
   </div>
 
@@ -144,6 +129,7 @@ input[type=range]{width:120px}
   <div class="pill">
     <span id="status">대기</span>
     <span id="fps">FPS -</span>
+    <span id="count">Boxes 0</span>
   </div>
 </div>
 
@@ -161,104 +147,232 @@ input[type=range]{width:120px}
 </div>
 
 <script>
-let model, stream, running=false;
-let facingMode="environment";
+(() => {
+  const v = document.getElementById("video");
+  const c = document.getElementById("canvas");
+  const ctx = c.getContext("2d");
 
-const v = video, c = canvas, ctx = c.getContext("2d");
+  const gate = document.getElementById("gate");
+  const startBtn = document.getElementById("start");
+  const flipBtn = document.getElementById("flip");
+  const restartBtn = document.getElementById("restart");
+  const toggleUIBtn = document.getElementById("toggleUI");
+  const ui = document.getElementById("ui");
 
-function resize(){
-  c.width = v.videoWidth || innerWidth;
-  c.height = v.videoHeight || innerHeight;
-}
+  const confEl = document.getElementById("conf");
+  const confVal = document.getElementById("confVal");
+  const linksEl = document.getElementById("links");
+  const topNEl = document.getElementById("topN");
+  const topNVal = document.getElementById("topNVal");
 
-function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
+  const statusEl = document.getElementById("status");
+  const fpsEl = document.getElementById("fps");
+  const countEl = document.getElementById("count");
+  const logEl = document.getElementById("log");
 
-function linkPoints(pts){
-  const links=[];
-  for(let i=0;i<pts.length;i++){
-    let d=[];
-    for(let j=0;j<pts.length;j++){
-      if(i===j) continue;
-      let dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y;
-      d.push({j,dist:dx*dx+dy*dy});
+  let model = null;
+  let stream = null;
+  let running = false;
+  let facingMode = "environment";
+
+  // FPS
+  let lastT = performance.now();
+  let emaFps = 0;
+
+  function log(msg){
+    logEl.textContent = String(msg);
+  }
+
+  function resize(){
+    const w = v.videoWidth || innerWidth;
+    const h = v.videoHeight || innerHeight;
+    if (c.width !== w) c.width = w;
+    if (c.height !== h) c.height = h;
+  }
+
+  function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
+
+  // 각 점에서 가장 가까운 2개 연결 (조금 더 촘촘)
+  function linkPoints(pts, k=2){
+    const links=[];
+    for(let i=0;i<pts.length;i++){
+      const ds=[];
+      for(let j=0;j<pts.length;j++){
+        if(i===j) continue;
+        const dx=pts[i].x-pts[j].x, dy=pts[i].y-pts[j].y;
+        ds.push({j, d:dx*dx+dy*dy});
+      }
+      ds.sort((a,b)=>a.d-b.d);
+      for(let t=0;t<Math.min(k, ds.length);t++){
+        const j = ds[t].j;
+        if(i < j) links.push([i,j,ds[t].d]);
+      }
     }
-    d.sort((a,b)=>a.dist-b.dist);
-    if(d[0] && i<d[0].j) links.push([i,d[0].j,d[0].dist]);
+    return links;
   }
-  return links;
-}
 
-async function startCam(){
-  stream && stream.getTracks().forEach(t=>t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({
-    video:{facingMode:{ideal:facingMode}}, audio:false
-  });
-  v.srcObject = stream;
-  await v.play();
-  resize();
-}
+  async function loadModel(){
+    if(model) return model;
+    statusEl.textContent = "모델 로딩";
+    log("model loading...");
+    model = await cocoSsd.load({ base:"lite_mobilenet_v2" });
+    log("model loaded");
+    return model;
+  }
 
-async function loop(){
-  if(!running) return;
-  let preds = await model.detect(v);
-  const conf = +confEl.value;
-  confVal.textContent = conf.toFixed(2);
+  async function startCam(){
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("getUserMedia not supported");
+    }
+    if(stream){
+      stream.getTracks().forEach(t=>t.stop());
+      stream = null;
+    }
 
-  preds = preds.filter(p=>p.score>=conf)
-               .sort((a,b)=>b.score-a.score)
-               .slice(0,+topN.value);
+    statusEl.textContent = "카메라 요청";
+    log("camera requesting...");
 
-  ctx.clearRect(0,0,c.width,c.height);
-
-  const pts = preds.map(p=>center(p.bbox));
-
-  if(links.checked){
-    linkPoints(pts).forEach(([i,j,d])=>{
-      const a=pts[i], b=pts[j];
-      ctx.strokeStyle="rgba(255,255,255,.4)";
-      ctx.beginPath();
-      ctx.moveTo(a.x,a.y);
-      ctx.lineTo(b.x,b.y);
-      ctx.stroke();
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{
+        facingMode:{ ideal:facingMode },
+        width:{ ideal:1280 },
+        height:{ ideal:720 }
+      }
     });
+
+    v.srcObject = stream;
+    await v.play();
+    resize();
+
+    log("camera started: " + facingMode);
   }
 
-  preds.forEach(p=>{
-    const [x,y,w,h]=p.bbox;
-    ctx.strokeStyle="yellow";
-    ctx.strokeRect(x,y,w,h);
-    ctx.fillStyle="#fff";
-    ctx.beginPath();
-    ctx.arc(x+w/2,y+h/2,3,0,Math.PI*2);
-    ctx.fill();
-  });
+  async function frame(){
+    if(!running) return;
 
-  requestAnimationFrame(loop);
-}
+    try{
+      if(!model) await loadModel();
+      if(v.readyState < 2){ requestAnimationFrame(frame); return; }
 
-start.onclick = async ()=>{
-  gate.style.display="none";
-  status.textContent="로딩";
-  model = await cocoSsd.load({base:"lite_mobilenet_v2"});
-  await startCam();
-  running=true;
-  status.textContent="실행중";
-  loop();
-};
+      resize();
 
-flip.onclick = async ()=>{
-  facingMode = facingMode==="environment"?"user":"environment";
-  await startCam();
-};
+      const conf = +confEl.value;
+      confVal.textContent = conf.toFixed(2);
+      topNVal.textContent = String(topNEl.value);
 
-restart.onclick = ()=>{ running=false; running=true; loop(); };
+      let preds = await model.detect(v);
+      preds = preds
+        .filter(p => p.score >= conf)
+        .sort((a,b)=>b.score-a.score)
+        .slice(0, +topNEl.value);
 
-toggleUI.onclick = ()=>{
-  ui.classList.toggle("hidden");
-  toggleUI.textContent = ui.classList.contains("hidden") ? "☰ 메뉴" : "✕ 닫기";
-};
+      ctx.clearRect(0,0,c.width,c.height);
 
-window.onresize = resize;
+      // points
+      const pts = preds.map(p=>center(p.bbox));
+
+      // links
+      if(linksEl.checked && pts.length >= 2){
+        const links = linkPoints(pts, 2);
+        for(const [i,j,dd] of links){
+          const a=pts[i], b=pts[j];
+          const dist = Math.sqrt(dd);
+          const norm = Math.min(1, dist / Math.max(c.width, c.height));
+          const alpha = 0.75*(1-norm) + 0.08;
+
+          ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+          ctx.lineWidth = Math.max(1.5, c.width/900);
+          ctx.beginPath();
+          ctx.moveTo(a.x,a.y);
+          ctx.lineTo(b.x,b.y);
+          ctx.stroke();
+        }
+      }
+
+      // boxes
+      ctx.lineWidth = Math.max(2, c.width/700);
+      for(const p of preds){
+        const [x,y,w,h] = p.bbox;
+        ctx.strokeStyle = "rgba(255,255,0,0.95)";
+        ctx.strokeRect(x,y,w,h);
+
+        // small center dot
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.beginPath();
+        ctx.arc(x+w/2, y+h/2, Math.max(2, c.width/500), 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      countEl.textContent = "Boxes " + preds.length;
+
+      // FPS
+      const now = performance.now();
+      const dt = (now - lastT) / 1000;
+      lastT = now;
+      const inst = dt>0 ? (1/dt) : 0;
+      emaFps = emaFps ? (emaFps*0.9 + inst*0.1) : inst;
+      fpsEl.textContent = "FPS " + emaFps.toFixed(1);
+
+      requestAnimationFrame(frame);
+
+    }catch(e){
+      running = false;
+      statusEl.textContent = "오류";
+      log("ERROR: " + (e?.message || e));
+      console.error(e);
+    }
+  }
+
+  // UI
+  toggleUIBtn.onclick = ()=>{
+    ui.classList.toggle("hidden");
+    toggleUIBtn.textContent = ui.classList.contains("hidden") ? "☰ 메뉴" : "✕ 닫기";
+  };
+
+  restartBtn.onclick = ()=>{
+    if(!model || !stream){
+      log("not started yet");
+      return;
+    }
+    running = false;
+    ctx.clearRect(0,0,c.width,c.height);
+    running = true;
+    lastT = performance.now();
+    statusEl.textContent = "실행중";
+    frame();
+  };
+
+  flipBtn.onclick = async ()=>{
+    try{
+      facingMode = (facingMode === "environment") ? "user" : "environment";
+      await startCam();
+      log("flip: " + facingMode);
+    }catch(e){
+      log("flip error: " + (e?.message || e));
+    }
+  };
+
+  startBtn.onclick = async ()=>{
+    try{
+      gate.style.display = "none";
+      statusEl.textContent = "시작";
+      await loadModel();
+      await startCam();
+      running = true;
+      lastT = performance.now();
+      statusEl.textContent = "실행중";
+      frame();
+    }catch(e){
+      statusEl.textContent = "오류";
+      log("START ERROR: " + (e?.message || e));
+      gate.style.display = "";
+      console.error(e);
+    }
+  };
+
+  window.addEventListener("resize", resize);
+})();
 </script>
 </body>
 </html>
