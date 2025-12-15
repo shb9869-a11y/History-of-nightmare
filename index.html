@@ -3,20 +3,24 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>LIMEN WORKSHOP – Camera Capture + Object Boxes + Audio Reactive Links</title>
+<title>LIMEN WORKSHOP – Camera Boxes + Audio Reactive Lines (iPhone Test)</title>
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;}
-  canvas{display:block;width:100vw;height:100vh;}
-
-  /* hidden video (source for detection/capture) */
   #camVideo{
     position:fixed; inset:0;
     width:100vw; height:100vh;
     object-fit:cover;
-    opacity:0; pointer-events:none;
+    opacity:1;            /* ✅ 카메라 보이게 */
+    pointer-events:none;
+    z-index:1;
+  }
+  canvas{
+    position:fixed; inset:0;
+    display:block;width:100vw;height:100vh;
+    z-index:2;
   }
 
-  /* Hint / Entry */
+  /* Entry */
   #hint{
     position:fixed; inset:0;
     display:flex; align-items:center; justify-content:center;
@@ -26,28 +30,47 @@
     z-index:50;
   }
   #hint .box{
-    width:min(820px, 94vw);
+    width:min(760px, 94vw);
     border:1px solid rgba(255,255,255,.12);
     border-radius:14px;
     padding:18px 16px;
     background:rgba(0,0,0,.55);
     text-align:left;
   }
+  button, select, input[type="range"]{
+    background:#0f0f0f; color:#eee;
+    border:1px solid rgba(255,255,255,.16);
+    border-radius:10px;
+    padding:10px 12px;
+    font-weight:650;
+    outline:none;
+  }
+  button:hover, select:hover{border-color:rgba(255,255,255,.32)}
+  button:disabled, select:disabled{opacity:.5; cursor:not-allowed}
 
-  /* Top-left / Top-right buttons */
-  #topLeft{
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0;}
+  .label{font-size:12px; color:#aaa; width:120px;}
+  .grow{flex:1; min-width:220px;}
+  .small{font-size:11px; color:#9aa; line-height:1.45;}
+
+  /* Top controls */
+  #top{
     position:fixed; left:12px; top:12px;
-    display:flex; gap:8px;
+    display:flex; gap:8px; flex-wrap:wrap;
     z-index:40;
   }
-  #topRight{
-    position:fixed; right:12px; top:12px;
-    display:flex; gap:8px;
-    z-index:40;
+  .pill{
+    font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size:11px; color:#bbb;
+    padding:8px 10px;
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:999px;
+    background:rgba(0,0,0,.28);
+    backdrop-filter: blur(10px);
   }
   .iconBtn{
-    width:42px; height:42px;
-    display:grid; place-items:center;
+    height:38px;
+    display:inline-flex; align-items:center; gap:8px;
     background:rgba(0,0,0,.38);
     color:#eee;
     border:1px solid rgba(255,255,255,.14);
@@ -55,128 +78,14 @@
     backdrop-filter: blur(10px);
     cursor:pointer;
     user-select:none;
-    font-size:18px;
+    padding:0 12px;
+    font-size:13px;
   }
-  .iconBtn:hover{border-color:rgba(255,255,255,.30)}
   .iconBtn:active{transform:translateY(1px)}
-  .iconBtn.danger{
-    border-color:rgba(255,80,80,.55);
-    color:#ffb9b9;
-  }
 
-  /* Settings panel */
-  #ui{
-    position:fixed; right:12px; top:62px;
-    width:min(560px, calc(100vw - 24px));
-    color:#ddd;
-    font-family:system-ui, -apple-system, sans-serif;
-    background:rgba(0,0,0,.42);
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:14px;
-    box-shadow:0 0 0 1px rgba(255,255,255,.06) inset;
-    backdrop-filter: blur(10px);
-    overflow:hidden;
-    z-index:40;
-    transform-origin: top right;
-  }
-  #ui.hidden{display:none;}
-  #bar{
-    display:flex; align-items:center; gap:8px;
-    padding:10px 10px;
-    border-bottom:1px solid rgba(255,255,255,.08);
-  }
-  #bar .title{font-weight:750; font-size:13px; color:#eee;}
-  #bar .pill{
-    margin-left:auto;
-    font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size:11px; color:#bbb;
-    padding:6px 8px;
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:999px;
-    background:rgba(0,0,0,.25);
-    white-space:nowrap;
-  }
-
-  button, select, input[type="range"], input[type="number"]{
-    background:#0f0f0f; color:#eee;
-    border:1px solid rgba(255,255,255,.16);
-    border-radius:10px;
-    padding:8px 10px;
-    font-weight:650;
-    outline:none;
-  }
-  input[type="range"]{padding:6px 10px;}
-  button:hover, select:hover{border-color:rgba(255,255,255,.32)}
-  button:disabled, select:disabled{opacity:.5; cursor:not-allowed}
-
-  #tabs{
-    display:flex; gap:6px; padding:10px;
-    border-bottom:1px solid rgba(255,255,255,.08);
-  }
-  .tab{
-    flex:1;
-    padding:8px 10px;
-    font-size:12px;
-    border-radius:10px;
-    border:1px solid rgba(255,255,255,.12);
-    background:rgba(0,0,0,.22);
-    cursor:pointer;
-    text-align:center;
-    user-select:none;
-  }
-  .tab.active{
-    border-color:rgba(255,255,255,.34);
-    background:rgba(255,255,255,.06);
-  }
-  #panels{padding:10px;}
-  .panel{display:none;}
-  .panel.active{display:block;}
-
-  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0;}
-  .label{font-size:12px; color:#aaa; width:132px;}
-  .grow{flex:1; min-width:200px;}
-
-  .meter{
-    height:10px; border-radius:999px;
-    background:rgba(255,255,255,.08);
-    border:1px solid rgba(255,255,255,.10);
-    overflow:hidden;
-  }
-  .meter > i{
-    display:block; height:100%;
-    width:0%;
-    background:rgba(255,255,255,.85);
-  }
-
-  .small{font-size:11px; color:#9aa; line-height:1.45;}
-  .mono{
-    font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size:11px;
-    color:#bbb;
-    white-space:pre-wrap;
-    word-break:break-word;
-    background:rgba(0,0,0,.28);
-    border:1px solid rgba(255,255,255,.10);
-    border-radius:10px;
-    padding:8px;
-    max-height:190px;
-    overflow:auto;
-  }
-
-  .entryTitle{font-weight:900; font-size:16px; margin-bottom:10px;}
-  .entryGrid{display:grid; grid-template-columns:1fr; gap:10px;}
-  @media (min-width:720px){ .entryGrid{grid-template-columns:1fr 1fr;} }
-  .entryCard{
-    border:1px solid rgba(255,255,255,.10);
-    border-radius:12px;
-    padding:10px;
-    background:rgba(0,0,0,.20);
-  }
-
-  /* tiny HUD */
-  #touchHUD{
+  #hud{
     position:fixed; left:12px; bottom:12px;
-    z-index:39;
+    z-index:40;
     color:#ddd;
     font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size:11px;
@@ -186,273 +95,108 @@
     padding:8px 10px;
     backdrop-filter: blur(10px);
     pointer-events:none;
+    max-width:min(92vw, 520px);
+    white-space:pre-wrap;
   }
-  #touchHUD .bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.10);margin-top:6px;}
-  #touchHUD .bar i{display:block;height:100%;width:0%;background:rgba(255,80,80,.90);}
 </style>
 </head>
 <body>
 
-<!-- Hidden camera video source -->
-<video id="camVideo" playsinline muted></video>
-
-<!-- ENTRY -->
-<div id="hint">
-  <div class="box">
-    <div class="entryTitle">LIMEN WORKSHOP – Entry</div>
-    <div class="small" style="margin-bottom:12px;">
-      1) <b>Start Audio</b>로 오디오 잠금 해제<br/>
-      2) <b>Camera ON</b>으로 카메라 권한 허용<br/>
-      3) <b>Mic ON</b>으로 현장 수음 시작<br/>
-      4) <b>📸 Capture + Detect</b> 누르면 “그 순간” 사진에서 사물이 박스로 포착되고, 이후 소리에 반응해 꿀렁이며 연결됩니다.
-    </div>
-
-    <div class="row" style="justify-content:space-between;">
-      <div class="row" style="margin:0;">
-        <button id="btnStartAudio">Start Audio</button>
-        <button id="btnCamOn">Camera ON</button>
-        <button id="btnMicOnEntry" disabled>Mic ON (Enter)</button>
-        <button id="btnFS">Fullscreen</button>
-      </div>
-      <div class="small" id="startStatus" style="opacity:.9; margin-left:10px;"></div>
-    </div>
-
-    <div class="entryGrid">
-      <div class="entryCard">
-        <div class="small" style="margin-bottom:8px;">
-          <b>객체 탐지</b>는 기기에서 실행됩니다(TFJS COCO-SSD). iPhone에서 무겁다면 아래 설정에서 탐지 간격을 늘려주세요.
-        </div>
-        <div class="row">
-          <div class="label">Detect interval</div>
-          <div class="grow">
-            <input id="rngDetectMs" type="range" min="400" max="2000" step="50" value="850" style="width:100%;">
-            <div class="small" id="txtDetectMs">850 ms</div>
-          </div>
-        </div>
-        <div class="row">
-          <div class="label">Max boxes</div>
-          <div class="grow">
-            <input id="rngMaxBoxes" type="range" min="3" max="18" step="1" value="10" style="width:100%;">
-            <div class="small" id="txtMaxBoxes">10</div>
-          </div>
-        </div>
-        <div class="row">
-          <button id="btnCapture" class="grow" disabled>📸 Capture + Detect (Enter)</button>
-          <button id="btnClearBoxes" class="grow" disabled>Clear Boxes</button>
-        </div>
-        <div class="small">Capture 후 Entry가 닫히고(입장) 캡처 이미지+박스들이 “점/선”으로 변환되어 오디오 반응합니다.</div>
-      </div>
-
-      <div class="entryCard">
-        <div class="row">
-          <div class="label">Model</div>
-          <div class="mono grow" id="txtModel">loading…</div>
-        </div>
-        <div class="row">
-          <div class="label">Last detect</div>
-          <div class="mono grow" id="txtDetect">-</div>
-        </div>
-        <div class="small">
-          ✅ HTTPS에서만 동작<br/>
-          ✅ iPhone은 과부하 나면 자동으로 Entry 복귀(아래 SYSTEM 탭)로 바꿀 수도 있음 (여기서는 간단히 “수동 리셋”만 둠)
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
+<!-- Camera (visible) -->
+<video id="camVideo" playsinline autoplay muted></video>
 <canvas id="c"></canvas>
 
-<div id="touchHUD">
-  amp: <span id="hudAmp">0.000</span> | boxes: <span id="hudBoxes">0</span><br/>
-  <span id="hudInfo">cam:off | mic:off | model:loading</span>
-  <div class="bar"><i id="hudBar"></i></div>
-</div>
+<!-- Entry -->
+<div id="hint">
+  <div class="box">
+    <div style="font-weight:900;font-size:16px;margin-bottom:10px;">LIMEN WORKSHOP – iPhone Test</div>
+    <div class="small" style="margin-bottom:12px;">
+      ✅ 이 페이지는 <b>HTTPS</b>에서 열어야 카메라/마이크가 정상 동작합니다.<br/>
+      ✅ 순서: <b>Start Audio</b> → <b>Start Camera</b> → <b>Live Detect ON</b> (또는 Capture 한번)<br/>
+      ✅ 검출된 사물/사람 박스가 생기면, 그 중심점들이 <b>현장 수음(amp)</b>에 반응하며 꿀렁 + 라인이 연결됩니다.
+    </div>
 
-<!-- Left top -->
-<div id="topLeft">
-  <div class="iconBtn danger" id="btnReset" title="RESET (Back to Entry)">⟲</div>
-</div>
+    <div class="row">
+      <button id="btnStartAudio">Start Audio</button>
+      <button id="btnStartCam" disabled>Start Camera</button>
+      <button id="btnEnter" disabled>Enter (Hide Entry)</button>
+      <button id="btnFS">Fullscreen</button>
+    </div>
 
-<!-- Right top -->
-<div id="topRight">
-  <div class="iconBtn" id="btnGear" title="Settings">⚙️</div>
-  <div class="iconBtn" id="btnMuteQuick" title="Mute">🔈</div>
-  <div class="iconBtn" id="btnFSQuick" title="Fullscreen">⛶</div>
-</div>
+    <div class="row">
+      <div class="label">Audio input</div>
+      <select id="selAudioSrc" class="grow">
+        <option value="mic" selected>Mic (Live)</option>
+        <option value="file">File (MP3/WAV)</option>
+      </select>
+    </div>
 
-<!-- Settings UI -->
-<div id="ui" class="hidden">
-  <div id="bar">
-    <div class="title">Settings</div>
-    <button id="btnHideUI" title="Close">닫기</button>
-    <div class="pill" id="topPill">audio:off | cam:off | q:1.00</div>
-  </div>
+    <div class="row" id="rowMic">
+      <div class="label">Mic device</div>
+      <select id="selMic" class="grow" disabled><option>Start Audio 후 로드</option></select>
+    </div>
 
-  <div id="tabs">
-    <div class="tab active" data-tab="visual">VISUAL</div>
-    <div class="tab" data-tab="audio">AUDIO</div>
-    <div class="tab" data-tab="detect">DETECT</div>
-  </div>
+    <div class="row" id="rowFile" style="display:none;">
+      <div class="label">Audio file</div>
+      <input id="fileAudio" class="grow" type="file" accept="audio/*">
+    </div>
 
-  <div id="panels">
-    <!-- VISUAL -->
-    <div class="panel active" id="panel-visual">
-      <div class="row">
-        <div class="label">BG image</div>
-        <select id="selBG" class="grow">
-          <option value="0" selected>Off</option>
-          <option value="1">On (dim)</option>
-        </select>
-      </div>
+    <div class="row">
+      <div class="label">Detect</div>
+      <button id="btnLive" disabled>Live Detect: OFF</button>
+      <button id="btnCapture" disabled>📸 Capture + Detect</button>
+      <button id="btnClear" disabled>Clear Boxes</button>
+    </div>
 
-      <div class="row">
-        <div class="label">Idle Drama</div>
-        <div class="grow">
-          <input id="rngIdleDrama" type="range" min="0" max="1" step="0.01" value="0.55" style="width:100%;">
-          <div class="small" id="txtIdleDrama">idle drama: 0.55</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="label">Visual Sens</div>
-        <div class="grow">
-          <input id="rngVisSens" type="range" min="0.6" max="2.6" step="0.01" value="1.55" style="width:100%;">
-          <div class="small" id="txtVisSens">visual sens: 1.55×</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="label">Link dist</div>
-        <div class="grow">
-          <input id="rngLink" type="range" min="30" max="260" step="1" value="140" style="width:100%;">
-          <div class="small" id="txtLink">link: 140</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="label">Glow</div>
-        <div class="grow">
-          <input id="rngGlow" type="range" min="0.10" max="1.0" step="0.01" value="0.45" style="width:100%;">
-          <div class="small" id="txtGlow">glow: 0.45×</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="label">Box wobble</div>
-        <div class="grow">
-          <input id="rngWobble" type="range" min="0" max="1" step="0.01" value="0.62" style="width:100%;">
-          <div class="small" id="txtWobble">wobble: 0.62×</div>
-        </div>
-      </div>
-
-      <div class="small">
-        ✅ 박스(사물) 중심점들이 “점”이 되고, 가까우면 선이 생깁니다.<br/>
-        ✅ amp(현장 수음)가 커지면 더 요동 + 연결이 활발해집니다.
+    <div class="row">
+      <div class="label">Quality</div>
+      <div class="grow">
+        <input id="rngDetectW" type="range" min="240" max="640" step="10" value="320" style="width:100%;">
+        <div class="small" id="txtDetectW">detect width: 320px (아이폰이면 320~420 추천)</div>
       </div>
     </div>
 
-    <!-- AUDIO -->
-    <div class="panel" id="panel-audio">
-      <div class="row">
-        <div class="label">Input level</div>
-        <div class="grow"><div class="meter"><i id="meterIn"></i></div></div>
-      </div>
-
-      <div class="row">
-        <div class="label">Media Gain</div>
-        <div class="grow">
-          <input id="rngMediaGain" type="range" min="0.2" max="3.0" step="0.01" value="1.00" style="width:100%;">
-          <div class="small" id="txtMediaGain">media gain: 1.00×</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="label">Analysis Sens</div>
-        <div class="grow">
-          <input id="rngSens" type="range" min="1" max="12" step="0.1" value="7.0" style="width:100%;">
-          <div class="small" id="txtSens">analysis sens: 7.0×</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="label">Gamma</div>
-        <div class="grow">
-          <input id="rngGamma" type="range" min="0.45" max="1.20" step="0.01" value="0.72" style="width:100%;">
-          <div class="small" id="txtGamma">gamma: 0.72</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="label">Amp cap</div>
-        <div class="grow">
-          <input id="rngCap" type="range" min="0.10" max="0.70" step="0.01" value="0.42" style="width:100%;">
-          <div class="small" id="txtCap">amp cap: 0.42</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="label">Amp / Δ</div>
-        <div class="mono grow" id="txtAmp">amp: 0.0000 | dAmp: 0.0000</div>
+    <div class="row">
+      <div class="label">Line sens</div>
+      <div class="grow">
+        <input id="rngLineSens" type="range" min="0.6" max="3.0" step="0.01" value="1.55" style="width:100%;">
+        <div class="small" id="txtLineSens">line sens: 1.55×</div>
       </div>
     </div>
 
-    <!-- DETECT -->
-    <div class="panel" id="panel-detect">
-      <div class="row">
-        <div class="label">Threshold</div>
-        <div class="grow">
-          <input id="rngScore" type="range" min="0.25" max="0.85" step="0.01" value="0.48" style="width:100%;">
-          <div class="small" id="txtScore">score: 0.48+</div>
-        </div>
-      </div>
-      <div class="row">
-        <div class="label">Use live detect</div>
-        <select id="selLiveDetect" class="grow">
-          <option value="0" selected>Off (capture only)</option>
-          <option value="1">On (slow)</option>
-        </select>
-      </div>
-      <div class="small">
-        iPhone에서 <b>Live Detect</b>는 무거울 수 있어요. 기본은 <b>capture only</b>로 둠.
+    <div class="row">
+      <div class="label">Amp sens</div>
+      <div class="grow">
+        <input id="rngAmpSens" type="range" min="1" max="12" step="0.1" value="7.0" style="width:100%;">
+        <div class="small" id="txtAmpSens">amp sens: 7.0×</div>
       </div>
     </div>
+
+    <div class="small" id="status">대기 중…</div>
   </div>
 </div>
 
-<!-- TFJS + COCO-SSD -->
+<!-- Top bar -->
+<div id="top">
+  <div class="iconBtn" id="btnMute">🔈 Mute</div>
+  <div class="iconBtn" id="btnReset">⟲ RESET</div>
+  <div class="pill" id="pill">audio:off | cam:off | model:loading | boxes:0 | amp:0.000</div>
+</div>
+
+<div id="hud" id="hudText">hud…</div>
+
+<!-- TFJS + COCO-SSD (가벼운 편 / iPhone에서 간헐적으로 느릴 수 있음) -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
 
 <script>
-/* ==========================================================
-   SETTINGS PERSISTENCE
-========================================================== */
-const STORE_KEY = "limen_cam_boxes_audio_v1";
-function loadSettings(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||"{}"); }catch(e){ return {}; } }
-function saveSettings(obj){ localStorage.setItem(STORE_KEY, JSON.stringify(obj)); }
-const S = loadSettings();
-
-function hookRangeSave(id, fallback){
-  const el = document.getElementById(id);
-  if(!el) return;
-  el.value = (S[id] ?? fallback);
-  el.addEventListener('input', ()=>{ S[id] = parseFloat(el.value); saveSettings(S); });
-}
-function hookSelectSave(id, fallback){
-  const el = document.getElementById(id);
-  if(!el) return;
-  if(fallback!=null) el.value = (S[id] ?? fallback);
-  el.addEventListener('change', ()=>{ S[id] = el.value; saveSettings(S); });
-}
-
-/* ==========================================================
+/* =========================
    CANVAS / DPR
-========================================================== */
+========================= */
 const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d', { alpha:false });
-let W=0,H=0,DPR=1;
+const ctx = canvas.getContext('2d', { alpha:true });
 
+let W=0,H=0,DPR=1;
 function resize(){
   DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
   W = innerWidth|0; H = innerHeight|0;
@@ -463,47 +207,61 @@ function resize(){
 addEventListener('resize', resize);
 resize();
 
-/* ==========================================================
-   AUDIO (간소화: 마이크 -> analyser)
-   - 네 코드의 분석 방식(rms->boost->cap) 그대로 유지
-========================================================== */
-let audioCtx=null, analyser=null, timeData=null;
-let micStream=null, micSrc=null;
-let masterGain=null;
-let isMuted=false;
+/* =========================
+   UI refs
+========================= */
+const statusEl = document.getElementById('status');
+const pillEl = document.getElementById('pill');
+const hudEl = document.getElementById('hud');
 
-let amp=0, ampSmooth=0, ampDelta=0, prevAmp=0;
+const btnStartAudio = document.getElementById('btnStartAudio');
+const btnStartCam   = document.getElementById('btnStartCam');
+const btnEnter      = document.getElementById('btnEnter');
+const btnFS         = document.getElementById('btnFS');
 
-hookRangeSave('rngMediaGain', 1.00);
-hookRangeSave('rngSens', 7.0);
-hookRangeSave('rngGamma', 0.72);
-hookRangeSave('rngCap', 0.42);
+const selAudioSrc = document.getElementById('selAudioSrc');
+const rowMic = document.getElementById('rowMic');
+const rowFile = document.getElementById('rowFile');
+const selMic = document.getElementById('selMic');
+const fileAudioInp = document.getElementById('fileAudio');
 
-const rngMediaGain = document.getElementById('rngMediaGain');
-const rngSens = document.getElementById('rngSens');
-const rngGamma = document.getElementById('rngGamma');
-const rngCap = document.getElementById('rngCap');
+const btnLive = document.getElementById('btnLive');
+const btnCapture = document.getElementById('btnCapture');
+const btnClear = document.getElementById('btnClear');
+const btnMute = document.getElementById('btnMute');
+const btnReset = document.getElementById('btnReset');
 
-const txtMediaGain = document.getElementById('txtMediaGain');
-const txtSens = document.getElementById('txtSens');
-const txtGamma = document.getElementById('txtGamma');
-const txtCap = document.getElementById('txtCap');
+const rngDetectW = document.getElementById('rngDetectW');
+const txtDetectW = document.getElementById('txtDetectW');
 
-function getMediaGain(){ return Math.max(0.2, Math.min(3.0, parseFloat(rngMediaGain.value)||1)); }
-function getSens(){ return Math.max(1, Math.min(12, parseFloat(rngSens.value)||7)); }
-function getGamma(){ return Math.max(0.45, Math.min(1.20, parseFloat(rngGamma.value)||0.72)); }
-function getCap(){ return Math.max(0.10, Math.min(0.70, parseFloat(rngCap.value)||0.42)); }
+const rngLineSens = document.getElementById('rngLineSens');
+const txtLineSens = document.getElementById('txtLineSens');
 
-function refreshAudioLabels(){
-  txtMediaGain.textContent = `media gain: ${getMediaGain().toFixed(2)}×`;
-  txtSens.textContent      = `analysis sens: ${getSens().toFixed(1)}×`;
-  txtGamma.textContent     = `gamma: ${getGamma().toFixed(2)}`;
-  txtCap.textContent       = `amp cap: ${getCap().toFixed(2)}`;
+const rngAmpSens = document.getElementById('rngAmpSens');
+const txtAmpSens = document.getElementById('txtAmpSens');
+
+function setStatus(t){ statusEl.textContent = t; }
+
+/* =========================
+   FULLSCREEN
+========================= */
+function toggleFullscreen(){
+  const el = document.documentElement;
+  if(!document.fullscreenElement) el.requestFullscreen?.();
+  else document.exitFullscreen?.();
 }
-['input','change'].forEach(ev=>{
-  [rngMediaGain,rngSens,rngGamma,rngCap].forEach(el=>el.addEventListener(ev, refreshAudioLabels));
-});
-refreshAudioLabels();
+btnFS.addEventListener('click', toggleFullscreen);
+
+/* =========================
+   AUDIO (mic or file) → amp
+========================= */
+let audioCtx=null, analyser=null, timeData=null;
+let masterGain=null, preGain=null;
+let micStream=null, micNode=null;
+let fileEl=null, fileNode=null;
+
+let isMuted=false;
+let amp=0, ampSmooth=0;
 
 function ensureAudio(){
   if(audioCtx) return;
@@ -514,572 +272,511 @@ function ensureAudio(){
 
   masterGain = audioCtx.createGain();
   masterGain.gain.value = 0.9;
+
+  preGain = audioCtx.createGain();
+  preGain.gain.value = 1.0;
+
+  preGain.connect(analyser);
   analyser.connect(masterGain);
   masterGain.connect(audioCtx.destination);
 }
 
+function getAmpSens(){ return Math.max(1, Math.min(12, parseFloat(rngAmpSens.value)||7)); }
+
 function updateAmp(){
-  if(!analyser) { amp=0; ampDelta=0; return; }
+  if(!analyser) { amp=0; return; }
   analyser.getByteTimeDomainData(timeData);
   let sum=0;
   for(let i=0;i<timeData.length;i++){
     const v=(timeData[i]-128)/128;
-    sum += v*v;
+    sum+=v*v;
   }
-  const rms = Math.sqrt(sum/timeData.length);
-
-  const rmsG = rms * getMediaGain();
-  ampSmooth += (rmsG-ampSmooth)*0.12;
-
-  const boosted = Math.pow(Math.max(0, ampSmooth * getSens()), getGamma());
-  const scaled  = Math.min(getCap(), boosted);
-
-  amp = scaled;
-  ampDelta = Math.abs(amp - prevAmp);
-  prevAmp = amp;
+  const rms=Math.sqrt(sum/timeData.length);
+  const boosted = Math.min(1, Math.pow(Math.max(0, rms * getAmpSens()), 0.85));
+  ampSmooth += (boosted - ampSmooth) * 0.15;
+  amp = ampSmooth;
 }
 
-async function startMic(){
-  ensureAudio();
-  await audioCtx.resume();
-
-  if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
-  if(micSrc){ try{ micSrc.disconnect(); }catch(e){} micSrc=null; }
-
-  micStream = await navigator.mediaDevices.getUserMedia({
-    audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false }
-  });
-  micSrc = audioCtx.createMediaStreamSource(micStream);
-  micSrc.connect(analyser);
-
-  setStatus("Mic ON. (이제 캡처 가능)");
-  document.getElementById('btnCapture').disabled = !camOn;
-  document.getElementById('btnClearBoxes').disabled = false;
+async function listMics(){
+  let devices=[];
+  try{ devices = await navigator.mediaDevices.enumerateDevices(); }catch(e){}
+  const mics = devices.filter(d=>d.kind==="audioinput");
+  selMic.innerHTML="";
+  if(!mics.length){
+    selMic.disabled=true;
+    selMic.innerHTML = "<option>마이크 없음</option>";
+    return;
+  }
+  selMic.disabled=false;
+  for(const d of mics){
+    const opt=document.createElement('option');
+    opt.value=d.deviceId;
+    opt.textContent=d.label || `Mic (${d.deviceId.slice(0,6)}…)`;
+    selMic.appendChild(opt);
+  }
 }
 
 function stopMic(){
   if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
-  if(micSrc){ try{ micSrc.disconnect(); }catch(e){} micSrc=null; }
+  if(micNode){ try{ micNode.disconnect(); }catch(e){} micNode=null; }
 }
 
-/* ==========================================================
+function stopFile(){
+  if(fileEl){ try{ fileEl.pause(); }catch(e){} }
+  if(fileNode){ try{ fileNode.disconnect(); }catch(e){} fileNode=null; }
+}
+
+async function startMic(deviceId){
+  ensureAudio();
+  await audioCtx.resume();
+  stopFile();
+  stopMic();
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio:{
+      deviceId: deviceId ? { exact: deviceId } : undefined,
+      echoCancellation:false,
+      noiseSuppression:false,
+      autoGainControl:false
+    }
+  });
+  micNode = audioCtx.createMediaStreamSource(micStream);
+  micNode.connect(preGain);
+}
+
+function ensureFileEl(){
+  if(fileEl) return;
+  fileEl = new Audio();
+  fileEl.loop = true;
+  fileEl.playsInline = true;
+  fileEl.crossOrigin = "anonymous";
+}
+
+async function loadFile(file){
+  ensureAudio();
+  await audioCtx.resume();
+  stopMic();
+  ensureFileEl();
+  const url = URL.createObjectURL(file);
+  fileEl.src = url;
+
+  if(fileNode){ try{ fileNode.disconnect(); }catch(e){} fileNode=null; }
+  fileNode = audioCtx.createMediaElementSource(fileEl);
+  fileNode.connect(preGain);
+
+  try{ await fileEl.play(); }catch(e){
+    setStatus("파일 재생이 막힘: 화면을 한번 터치/클릭 후 다시 시도");
+  }
+}
+
+/* audio source ui */
+function applyAudioUI(){
+  const v = selAudioSrc.value;
+  rowMic.style.display = (v==="mic") ? "" : "none";
+  rowFile.style.display = (v==="file") ? "" : "none";
+}
+selAudioSrc.addEventListener('change', applyAudioUI);
+applyAudioUI();
+
+/* =========================
    CAMERA
-========================================================== */
+========================= */
 const camVideo = document.getElementById('camVideo');
-let camStream=null;
 let camOn=false;
 
 async function startCamera(){
-  try{
-    camStream = await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode:"environment",
-        width:{ideal:1280},
-        height:{ideal:720}
-      },
-      audio:false
-    });
-    camVideo.srcObject = camStream;
-    await camVideo.play();
-    camOn=true;
-    setStatus("Camera ON. (이제 Mic ON → Capture)");
-    document.getElementById('btnCapture').disabled = !(micStream && camOn && modelReady);
-  }catch(e){
-    console.error(e);
-    alert("카메라 권한/접근 실패. HTTPS에서 실행 중인지 확인해줘!");
-  }
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video:{
+      facingMode:{ ideal:"environment" },
+      width:{ ideal:1280 },
+      height:{ ideal:720 }
+    },
+    audio:false
+  });
+  camVideo.srcObject = stream;
+  await camVideo.play();
+  camOn=true;
 }
 
-function stopCamera(){
-  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
-  camOn=false;
-}
-
-/* ==========================================================
-   OBJECT DETECTION (TFJS COCO-SSD)
-   - capture only 기본
-========================================================== */
+/* =========================
+   DETECTION (COCO-SSD)
+========================= */
 let model=null;
 let modelReady=false;
+let liveOn=false;
+let liveTimer=null;
 
-const txtModel = document.getElementById('txtModel');
-const txtDetect = document.getElementById('txtDetect');
+const capCanvas = document.createElement('canvas');
+const capCtx = capCanvas.getContext('2d', { willReadFrequently:true });
 
-hookRangeSave('rngDetectMs', 850);
-hookRangeSave('rngMaxBoxes', 10);
-hookRangeSave('rngScore', 0.48);
-hookSelectSave('selLiveDetect', "0");
-hookSelectSave('selBG', "0");
-
-const rngDetectMs = document.getElementById('rngDetectMs');
-const rngMaxBoxes = document.getElementById('rngMaxBoxes');
-const rngScore = document.getElementById('rngScore');
-
-const txtDetectMs = document.getElementById('txtDetectMs');
-const txtMaxBoxes = document.getElementById('txtMaxBoxes');
-const txtScore = document.getElementById('txtScore');
-
-function refreshDetectLabels(){
-  txtDetectMs.textContent = `${parseInt(rngDetectMs.value,10)} ms`;
-  txtMaxBoxes.textContent = `${parseInt(rngMaxBoxes.value,10)}`;
-  txtScore.textContent = `score: ${parseFloat(rngScore.value).toFixed(2)}+`;
+function getDetectW(){
+  return Math.max(240, Math.min(640, parseInt(rngDetectW.value,10)||320));
 }
-['input','change'].forEach(ev=>{
-  [rngDetectMs,rngMaxBoxes,rngScore].forEach(el=>el.addEventListener(ev, refreshDetectLabels));
-});
-refreshDetectLabels();
 
-function getDetectMs(){ return Math.max(400, Math.min(2000, parseInt(rngDetectMs.value,10)||850)); }
-function getMaxBoxes(){ return Math.max(3, Math.min(18, parseInt(rngMaxBoxes.value,10)||10)); }
-function getScoreTh(){ return Math.max(0.25, Math.min(0.85, parseFloat(rngScore.value)||0.48)); }
+rngDetectW.addEventListener('input', ()=>{
+  txtDetectW.textContent = `detect width: ${getDetectW()}px (아이폰이면 320~420 추천)`;
+});
+rngLineSens.addEventListener('input', ()=>{
+  txtLineSens.textContent = `line sens: ${parseFloat(rngLineSens.value).toFixed(2)}×`;
+});
+rngAmpSens.addEventListener('input', ()=>{
+  txtAmpSens.textContent = `amp sens: ${parseFloat(rngAmpSens.value).toFixed(1)}×`;
+});
+
+function getLineSens(){ return Math.max(0.6, Math.min(3.0, parseFloat(rngLineSens.value)||1.55)); }
 
 async function loadModel(){
   try{
-    txtModel.textContent = "TFJS loading…";
-    // iPhone에서 wasm이 더 안정적인 경우가 많아서 auto로 두고, 필요시 wasm 강제도 가능
-    // await tf.setBackend('wasm'); await tf.ready();
-
-    model = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+    // iPhone에서 CPU backend가 더 안정적인 경우가 많음 (느리지만 터짐 방지)
+    await tf.setBackend('cpu');
+    await tf.ready();
+    model = await cocoSsd.load({ base:'lite_mobilenet_v2' }); // lite가 더 가벼움
     modelReady=true;
-    txtModel.textContent = "COCO-SSD ready (lite_mobilenet_v2)";
-    document.getElementById('btnCapture').disabled = !(micStream && camOn && modelReady);
-    setHudInfo();
+    setStatus("모델 로드 완료. Start Camera → Live Detect ON");
   }catch(e){
     console.error(e);
-    txtModel.textContent = "MODEL LOAD FAILED. (인터넷/HTTPS 확인)";
+    setStatus("모델 로드 실패. 네트워크/HTTPS 확인");
+    modelReady=false;
   }
 }
 
-/* capture frame -> offscreen canvas */
-const capCanvas = document.createElement('canvas');
-const capCtx = capCanvas.getContext('2d', {willReadFrequently:false});
-let capturedBitmap=null; // ImageBitmap for background
-let haveCapture=false;
-
-/* boxes -> nodes */
-let nodes = []; // {cx,cy,w,h,label,score, vx,vy, phase}
-function clearBoxes(){
-  nodes = [];
-  haveCapture=false;
-  capturedBitmap=null;
-  txtDetect.textContent = "-";
-}
-
-function fitCover(srcW, srcH, dstW, dstH){
-  const srcAR = srcW/srcH;
-  const dstAR = dstW/dstH;
-  let sw=srcW, sh=srcH, sx=0, sy=0;
-  if(srcAR > dstAR){
-    // wider: crop left/right
-    sh = srcH;
-    sw = sh*dstAR;
-    sx = (srcW - sw)/2;
-  }else{
-    // taller: crop top/bottom
-    sw = srcW;
-    sh = sw/dstAR;
-    sy = (srcH - sh)/2;
-  }
-  return {sx,sy,sw,sh};
-}
-
-/* Do detection on capCanvas, create nodes mapped to screen */
-async function detectOnCapturedFrame(){
-  if(!modelReady || !model) return;
-  const t0 = performance.now();
-
-  const preds = await model.detect(capCanvas);
-
-  const th = getScoreTh();
-  const maxN = getMaxBoxes();
-
-  const picked = preds
-    .filter(p=>p.score>=th)
-    .sort((a,b)=>b.score-a.score)
-    .slice(0, maxN);
-
-  nodes = picked.map((p, idx)=>{
-    const [x,y,w,h] = p.bbox; // in capCanvas pixels (same aspect as screen cover-cropped)
-    const cx = x + w/2;
-    const cy = y + h/2;
-    return {
-      cx, cy, w, h,
-      label: p.class, score: p.score,
-      vx:(Math.random()*2-1)*0.6,
-      vy:(Math.random()*2-1)*0.6,
-      phase: Math.random()*Math.PI*2,
-      id: idx
-    };
-  });
-
-  haveCapture=true;
-
-  const dt = (performance.now()-t0);
-  txtDetect.textContent =
-    `found ${nodes.length} boxes (th=${th.toFixed(2)}) | detect ${dt.toFixed(0)}ms\n`+
-    nodes.map(n=>`${n.label} ${(n.score*100).toFixed(0)}%`).join(", ");
-
-  setHudInfo();
-}
-
-/* Capture current video frame into capCanvas with screen-cover crop */
 async function captureFrameToCanvas(){
   if(!camOn || !camVideo.videoWidth) return false;
 
-  const vw = camVideo.videoWidth;
+  const dw = getDetectW();
   const vh = camVideo.videoHeight;
+  const vw = camVideo.videoWidth;
+  const dh = Math.round(dw * (vh/vw));
 
-  capCanvas.width = W;
-  capCanvas.height = H;
+  capCanvas.width = dw;
+  capCanvas.height = dh;
 
-  const r = fitCover(vw, vh, W, H);
-  capCtx.drawImage(camVideo, r.sx, r.sy, r.sw, r.sh, 0, 0, W, H);
-
-  try{
-    capturedBitmap = await createImageBitmap(capCanvas);
-  }catch(e){
-    capturedBitmap = null;
-  }
+  capCtx.drawImage(camVideo, 0, 0, dw, dh);
   return true;
 }
 
-/* Live detect loop (optional, slow) */
-let liveDetectTimer=null;
-async function startLiveDetect(){
-  stopLiveDetect();
-  liveDetectTimer = setInterval(async ()=>{
-    if(!camOn || !modelReady) return;
-    if(document.getElementById('selLiveDetect').value!=="1") return;
-    if(!haveCapture) return; // 라이브라도 “캡처된 프레임” 위에서만 업데이트하도록 (안정)
-    await detectOnCapturedFrame();
-  }, getDetectMs());
-}
-function stopLiveDetect(){
-  if(liveDetectTimer){ clearInterval(liveDetectTimer); liveDetectTimer=null; }
+let nodes = []; // detected objects as moving nodes
+
+function detectionsToNodes(dets){
+  // dets: {bbox:[x,y,w,h], class, score}
+  // normalize to screen coords
+  const dw = capCanvas.width, dh = capCanvas.height;
+  const sx = W / dw, sy = H / dh;
+
+  const filtered = dets
+    .filter(d => (d.score ?? 0) >= 0.45)
+    .slice(0, 18);
+
+  const newNodes = [];
+  for(const d of filtered){
+    const [x,y,w,h] = d.bbox;
+    const cx = (x + w*0.5) * sx;
+    const cy = (y + h*0.5) * sy;
+    newNodes.push({
+      cls: d.class,
+      score: d.score,
+      // box in screen coords
+      bx: x*sx, by: y*sy, bw: w*sx, bh: h*sy,
+      // moving center (start at center)
+      x: cx, y: cy,
+      vx: 0, vy: 0,
+      seed: Math.random()*9999,
+      born: performance.now(),
+    });
+  }
+
+  // 안정적으로 “트래킹” 느낌: class가 같고 가까운 노드는 기존 속도/위치 일부 유지
+  for(const nn of newNodes){
+    let best=null, bestD=1e9;
+    for(const on of nodes){
+      if(on.cls !== nn.cls) continue;
+      const dx=on.x-nn.x, dy=on.y-nn.y;
+      const d=dx*dx+dy*dy;
+      if(d<bestD){ bestD=d; best=on; }
+    }
+    if(best && bestD < (120*120)){
+      nn.x = best.x*0.6 + nn.x*0.4;
+      nn.y = best.y*0.6 + nn.y*0.4;
+      nn.vx = best.vx*0.7;
+      nn.vy = best.vy*0.7;
+      nn.seed = best.seed;
+    }
+  }
+
+  nodes = newNodes;
 }
 
-/* ==========================================================
-   UI / BASIC
-========================================================== */
-const ui = document.getElementById('ui');
-function setUIVisible(v){
-  ui.classList.toggle('hidden', !v);
-  S.uiVisible = v ? 1 : 0;
-  saveSettings(S);
+async function detectOnCapturedFrame(){
+  if(!modelReady || !model) return;
+  const dets = await model.detect(capCanvas);
+  detectionsToNodes(dets);
 }
-document.getElementById('btnGear').addEventListener('click', ()=> setUIVisible(ui.classList.contains('hidden')));
-document.getElementById('btnHideUI').addEventListener('click', ()=> setUIVisible(false));
-setUIVisible( (S.uiVisible ?? 0) === 1 );
 
-document.getElementById('btnMuteQuick').addEventListener('click', ()=>{
+async function captureAndDetect(){
+  if(!camOn) { setStatus("카메라가 꺼져있음"); return; }
+  if(!modelReady) { setStatus("모델 로딩 중…"); return; }
+  const ok = await captureFrameToCanvas();
+  if(!ok){ setStatus("캡처 실패(비디오 준비 안됨)"); return; }
+  await detectOnCapturedFrame();
+}
+
+function setLive(on){
+  liveOn = on;
+  btnLive.textContent = `Live Detect: ${on ? "ON" : "OFF"}`;
+  if(liveTimer){ clearInterval(liveTimer); liveTimer=null; }
+  if(on){
+    // 너무 자주 돌리면 iPhone 터질 수 있음 (기본 900ms)
+    liveTimer = setInterval(async ()=>{
+      if(!camOn || !modelReady) return;
+      try{
+        const ok = await captureFrameToCanvas();
+        if(!ok) return;
+        await detectOnCapturedFrame();
+      }catch(e){
+        console.warn(e);
+      }
+    }, 900);
+  }
+}
+
+/* =========================
+   ENTRY / BUTTON WIRING
+========================= */
+btnMute.addEventListener('click', ()=>{
   if(!audioCtx) return;
   isMuted = !isMuted;
   masterGain.gain.setTargetAtTime(isMuted?0:0.9, audioCtx.currentTime, 0.02);
-  document.getElementById('btnMuteQuick').textContent = isMuted ? '🔇' : '🔈';
+  btnMute.textContent = isMuted ? "🔇 Mute" : "🔈 Mute";
 });
 
-function toggleFullscreen(){
-  const el = document.documentElement;
-  if(!document.fullscreenElement) el.requestFullscreen?.();
-  else document.exitFullscreen?.();
-}
-document.getElementById('btnFS').addEventListener('click', toggleFullscreen);
-document.getElementById('btnFSQuick').addEventListener('click', toggleFullscreen);
-
-document.querySelectorAll('.tab').forEach(t=>{
-  t.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
-    S.activeTab = t.dataset.tab;
-    saveSettings(S);
-  });
+btnReset.addEventListener('click', ()=>{
+  // “완전 새로고침” 대신 안전 리셋
+  setLive(false);
+  nodes = [];
+  amp=ampSmooth=0;
+  setStatus("RESET 완료. Start Audio/Camera 다시 진행 가능");
 });
 
-function setStatus(msg){
-  const el = document.getElementById('startStatus');
-  if(el) el.textContent = msg;
-}
-
-function hideEntryAndEnter(){
+btnEnter.addEventListener('click', ()=>{
   document.getElementById('hint').style.display='none';
-}
-function showEntry(msg=""){
-  document.getElementById('hint').style.display='flex';
-  if(msg) setStatus(msg);
-}
-
-document.getElementById('btnReset').addEventListener('click', ()=>{
-  // 간단 리셋: mic/cam 유지하고 entry만 다시 보여주기 원하면 여기 수정 가능
-  showEntry("Reset → Entry로 복귀");
 });
 
-function updateTopPill(q=1){
-  const pill = document.getElementById('topPill');
-  const a = audioCtx ? audioCtx.state : 'off';
-  pill.textContent = `audio:${a} | cam:${camOn?'on':'off'} | q:${q.toFixed(2)}`;
-}
-
-/* ==========================================================
-   ENTRY ACTIONS
-========================================================== */
-document.getElementById('btnStartAudio').addEventListener('click', async ()=>{
-  ensureAudio();
-  await audioCtx.resume();
-  setStatus("Audio unlocked. 이제 Camera ON → Mic ON → Capture");
-  document.getElementById('btnMicOnEntry').disabled = false;
-  setHudInfo();
-});
-
-document.getElementById('btnCamOn').addEventListener('click', async ()=>{
-  await startCamera();
-  document.getElementById('btnCapture').disabled = !(micStream && camOn && modelReady);
-  setHudInfo();
-});
-
-document.getElementById('btnMicOnEntry').addEventListener('click', async ()=>{
+btnStartAudio.addEventListener('click', async ()=>{
   try{
-    await startMic();
-    document.getElementById('btnCapture').disabled = !(micStream && camOn && modelReady);
-    setHudInfo();
+    ensureAudio();
+    await audioCtx.resume();
+    await listMics();
+
+    // 기본: mic 선택이면 바로 mic 연결
+    if(selAudioSrc.value==="mic"){
+      const dev = selMic.disabled ? null : selMic.value;
+      await startMic(dev);
+      setStatus("Audio unlocked. Mic running. 이제 Start Camera → Live Detect ON");
+    }else{
+      setStatus("Audio unlocked. 파일을 선택하세요.");
+    }
+
+    btnStartCam.disabled = false;
+    btnEnter.disabled = false;
+    btnCapture.disabled = false;
+    btnClear.disabled = false;
+    btnLive.disabled = false;
   }catch(e){
     console.error(e);
-    alert("Mic ON 실패. 권한/HTTPS 확인!");
+    setStatus("Start Audio 실패. HTTPS/권한 확인");
   }
 });
 
-/* CAPTURE + DETECT (핵심) */
-document.getElementById('btnCapture').addEventListener('click', async ()=>{
-  if(!modelReady){ alert("모델 로딩이 아직이야."); return; }
-  if(!camOn){ alert("Camera ON 먼저!"); return; }
-  if(!micStream){ alert("Mic ON 먼저!"); return; }
-
-  // 1) capture
-  const ok = await captureFrameToCanvas();
-  if(!ok){ alert("캡처 실패. 카메라 재생 상태 확인."); return; }
-
-  // 2) detect
-  await detectOnCapturedFrame();
-
-  // 3) enter
-  document.getElementById('btnClearBoxes').disabled = false;
-  hideEntryAndEnter();
-
-  // start optional live detect
-  startLiveDetect();
+selMic.addEventListener('change', async ()=>{
+  if(!audioCtx) return;
+  if(selAudioSrc.value!=="mic") return;
+  try{ await startMic(selMic.value); }catch(e){ console.warn(e); }
 });
 
-document.getElementById('btnClearBoxes').addEventListener('click', ()=>{
-  clearBoxes();
-  setHudInfo();
+fileAudioInp.addEventListener('change', async ()=>{
+  if(!audioCtx) { setStatus("Start Audio 먼저!"); return; }
+  if(selAudioSrc.value!=="file") return;
+  const f = fileAudioInp.files && fileAudioInp.files[0];
+  if(!f) return;
+  await loadFile(f);
+  setStatus(`파일 로드됨: ${f.name}. 이제 Start Camera → Live Detect ON`);
 });
 
-/* ==========================================================
-   VISUAL PARAMS
-========================================================== */
-hookRangeSave('rngIdleDrama', 0.55);
-hookRangeSave('rngVisSens', 1.55);
-hookRangeSave('rngLink', 140);
-hookRangeSave('rngGlow', 0.45);
-hookRangeSave('rngWobble', 0.62);
-
-const rngIdleDrama = document.getElementById('rngIdleDrama');
-const rngVisSens   = document.getElementById('rngVisSens');
-const rngLink      = document.getElementById('rngLink');
-const rngGlow      = document.getElementById('rngGlow');
-const rngWobble    = document.getElementById('rngWobble');
-
-const txtIdleDrama = document.getElementById('txtIdleDrama');
-const txtVisSens   = document.getElementById('txtVisSens');
-const txtLink      = document.getElementById('txtLink');
-const txtGlow      = document.getElementById('txtGlow');
-const txtWobble    = document.getElementById('txtWobble');
-
-function getIdleDrama(){ return Math.max(0, Math.min(1, parseFloat(rngIdleDrama.value)||0.55)); }
-function getVisSens(){ return Math.max(0.6, Math.min(2.6, parseFloat(rngVisSens.value)||1.55)); }
-function getLinkDist(){ return Math.max(30, Math.min(260, parseInt(rngLink.value,10)||140)); }
-function getGlow(){ return Math.max(0.10, Math.min(1.0, parseFloat(rngGlow.value)||0.45)); }
-function getWobble(){ return Math.max(0, Math.min(1.0, parseFloat(rngWobble.value)||0.62)); }
-
-function refreshVisLabels(){
-  txtIdleDrama.textContent = `idle drama: ${getIdleDrama().toFixed(2)}`;
-  txtVisSens.textContent   = `visual sens: ${getVisSens().toFixed(2)}×`;
-  txtLink.textContent      = `link: ${getLinkDist()}`;
-  txtGlow.textContent      = `glow: ${getGlow().toFixed(2)}×`;
-  txtWobble.textContent    = `wobble: ${getWobble().toFixed(2)}×`;
-}
-['input','change'].forEach(ev=>{
-  [rngIdleDrama,rngVisSens,rngLink,rngGlow,rngWobble].forEach(el=>el.addEventListener(ev, refreshVisLabels));
+btnStartCam.addEventListener('click', async ()=>{
+  try{
+    await startCamera();
+    setStatus("카메라 ON. Live Detect ON 또는 Capture 버튼 누르세요.");
+  }catch(e){
+    console.error(e);
+    setStatus("카메라 ON 실패. HTTPS/권한 확인");
+  }
 });
-refreshVisLabels();
 
-/* ==========================================================
-   MAIN VISUAL LOOP:
-   - 캡처 이미지(옵션) + nodes(박스 중심점) + 연결선
-   - amp, ampDelta로 꿀렁/당김/튀김
-========================================================== */
-const meterIn = document.getElementById('meterIn');
-let lastFrameT = performance.now();
-let frameMsSmooth = 16.7;
-let lastUiT = 0;
+btnCapture.addEventListener('click', async ()=>{
+  await captureAndDetect();
+});
 
-function setHudInfo(){
-  const info = document.getElementById('hudInfo');
-  const modelTxt = modelReady ? "ready" : "loading";
-  info.textContent = `cam:${camOn?'on':'off'} | mic:${micStream?'on':'off'} | model:${modelTxt}`;
-}
+btnClear.addEventListener('click', ()=>{
+  nodes = [];
+  setStatus("박스/노드 초기화");
+});
 
-function loop(){
-  const now = performance.now();
-  const dt = now - lastFrameT;
-  lastFrameT = now;
-  frameMsSmooth += (dt - frameMsSmooth) * 0.08;
+btnLive.addEventListener('click', ()=>{
+  setLive(!liveOn);
+});
 
-  // background
-  ctx.fillStyle = "#000";
+/* iOS에서 오디오/비디오 잠금 풀기용 */
+addEventListener('pointerdown', async ()=>{
+  try{ if(audioCtx && audioCtx.state==='suspended') await audioCtx.resume(); }catch(e){}
+},{passive:true});
+
+/* =========================
+   DRAW: boxes + wobble nodes + lines (audio reactive)
+========================= */
+function draw(){
+  requestAnimationFrame(draw);
+
+  // background fade (가벼운 잔상)
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
   ctx.fillRect(0,0,W,H);
 
-  // optional captured bg
-  const bgOn = document.getElementById('selBG').value === "1";
-  if(bgOn && capturedBitmap){
-    ctx.globalAlpha = 0.22;
-    ctx.drawImage(capturedBitmap, 0, 0, W, H);
-    ctx.globalAlpha = 1;
+  // audio amp update
+  if(audioCtx) updateAmp(); else { amp=0; }
+
+  // nodes physics (꿀렁)
+  const t = performance.now()*0.001;
+  const a = amp;
+  const lineSens = getLineSens();
+
+  // 박스/노드 없으면 안내 텍스트만
+  if(nodes.length===0){
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = "#fff";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, monospace";
+    ctx.fillText("no boxes. Start Camera → Live Detect ON (or 📸)", 14, 64);
+    ctx.restore();
   }
 
-  // audio
-  if(audioCtx){
-    updateAmp();
-  }else{
-    amp = 0; ampDelta = 0;
-  }
-
-  // UI meters
-  if(now - lastUiT > 110){
-    lastUiT = now;
-    const inPct = Math.max(0, Math.min(1, amp*6.0));
-    meterIn.style.width = (inPct*100).toFixed(1)+"%";
-    document.getElementById('txtAmp').textContent =
-      `amp: ${amp.toFixed(4)} | dAmp: ${ampDelta.toFixed(4)} | frame:${frameMsSmooth.toFixed(1)}ms`;
-    document.getElementById('hudAmp').textContent = amp.toFixed(3);
-    document.getElementById('hudBoxes').textContent = String(nodes.length);
-    document.getElementById('hudBar').style.width = (inPct*100).toFixed(1)+"%";
-    updateTopPill(Math.max(0.28, Math.min(1, 1 - Math.max(0,(frameMsSmooth-16)/45))));
-  }
-
-  const idle = getIdleDrama();
-  const visSens = getVisSens();
-  const glow = getGlow();
-  const wob = getWobble();
-
-  const linkDist = getLinkDist() * (1 + amp*0.9*visSens);
-  const spring = (0.003 + wob*0.010) * (0.45 + amp*2.0);
-  const jitter = (0.10 + idle*0.45 + ampDelta*8.0 + amp*2.2) * wob * visSens;
-
-  // animate nodes
+  // node update
   for(const n of nodes){
-    // gentle orbit + audio wobble
-    n.phase += 0.012 + idle*0.018 + amp*0.08;
-    const ox = Math.cos(n.phase) * (2 + wob*14) * (0.25 + amp*2.0);
-    const oy = Math.sin(n.phase*1.2) * (2 + wob*14) * (0.25 + amp*2.0);
+    const wob = (Math.sin(t*1.7 + n.seed)*0.5 + 0.5);
+    const wob2 = (Math.cos(t*1.2 + n.seed*1.7)*0.5 + 0.5);
+    const push = (0.6 + a*3.2) * 24;
 
-    // random jitter
-    n.vx += (Math.random()-0.5) * jitter;
-    n.vy += (Math.random()-0.5) * jitter;
+    // noise-like force
+    const fx = (wob-0.5) * push;
+    const fy = (wob2-0.5) * push;
 
-    // pull to original (center of bbox) — but we treat cx/cy as “anchor”, so keep separate
-    // 여기서는 cx/cy 자체를 움직이되, 화면 가장자리에서 튕기게
-    n.cx += n.vx + ox;
-    n.cy += n.vy + oy;
+    // center pull to its current detected box center (box center)
+    const cx = n.bx + n.bw*0.5;
+    const cy = n.by + n.bh*0.5;
+    const pull = 0.015 + a*0.035;
+
+    n.vx += fx;
+    n.vy += fy;
+    n.vx += (cx - n.x) * pull;
+    n.vy += (cy - n.y) * pull;
 
     // damping
-    n.vx *= 0.90 - amp*0.12;
-    n.vy *= 0.90 - amp*0.12;
+    n.vx *= 0.82 - a*0.10;
+    n.vy *= 0.82 - a*0.10;
 
-    // bounds bounce
-    if(n.cx < 20){ n.cx=20; n.vx*=-0.8; }
-    if(n.cx > W-20){ n.cx=W-20; n.vx*=-0.8; }
-    if(n.cy < 20){ n.cy=20; n.vy*=-0.8; }
-    if(n.cy > H-20){ n.cy=H-20; n.vy*=-0.8; }
+    n.x += n.vx;
+    n.y += n.vy;
+
+    // screen bounds
+    n.x = Math.max(8, Math.min(W-8, n.x));
+    n.y = Math.max(8, Math.min(H-8, n.y));
   }
 
-  // lines between close nodes
-  let lines = 0;
-  const maxLines = Math.floor(900 * (0.35 + amp*1.2) * (1 - Math.max(0,(frameMsSmooth-18)/60)));
+  // lines between nodes
+  const maxDist = (120 + a*480*lineSens);
+  const maxDist2 = maxDist*maxDist;
+  let lines=0;
+  const maxLines = Math.floor(60 + a*260*lineSens);
+
   for(let i=0;i<nodes.length;i++){
     for(let j=i+1;j<nodes.length;j++){
       if(lines>=maxLines) break;
-      const a=nodes[i], b=nodes[j];
-      const dx=a.cx-b.cx, dy=a.cy-b.cy;
-      const d=Math.hypot(dx,dy);
-      if(d<linkDist){
-        const alpha = (1 - d/linkDist);
-        const punch = Math.min(1, alpha*(0.18 + amp*1.6 + ampDelta*6.0) * glow);
+      const A = nodes[i], B = nodes[j];
+      const dx=A.x-B.x, dy=A.y-B.y;
+      const d2=dx*dx+dy*dy;
+      if(d2<maxDist2){
+        const d = Math.sqrt(d2);
+        const k = 1 - d/maxDist;
+        const alpha = Math.min(1, (0.12 + a*0.9) * k);
 
-        ctx.globalAlpha = punch;
+        ctx.save();
+        ctx.globalAlpha = alpha;
         ctx.strokeStyle = "rgba(255,255,255,0.95)";
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(a.cx, a.cy);
-        ctx.lineTo(b.cx, b.cy);
+        ctx.moveTo(A.x, A.y);
+        ctx.lineTo(B.x, B.y);
         ctx.stroke();
+        ctx.restore();
+
         lines++;
       }
     }
   }
-  ctx.globalAlpha = 1;
 
-  // draw nodes + “box hint” (tiny rectangle)
+  // draw boxes + labels + node points
   for(const n of nodes){
-    const r = 2.4 + amp*18*visSens + idle*1.2;
-    const a = Math.min(1, 0.25 + amp*1.2 + ampDelta*2.5) * glow;
+    // box
+    const glow = 0.20 + a*0.85;
+    ctx.save();
+    ctx.globalAlpha = glow;
+    ctx.strokeStyle = "rgba(255,255,0,0.95)"; // 노란 박스 느낌
+    ctx.lineWidth = 2;
+    ctx.strokeRect(n.bx, n.by, n.bw, n.bh);
 
-    // center dot
-    ctx.globalAlpha = a;
+    // node point (red)
+    ctx.globalAlpha = Math.min(1, 0.35 + a*0.95);
     ctx.fillStyle = "#ff3b3b";
+    const r = 3 + a*10;
     ctx.beginPath();
-    ctx.arc(n.cx, n.cy, r, 0, Math.PI*2);
+    ctx.arc(n.x, n.y, r, 0, Math.PI*2);
     ctx.fill();
 
-    // subtle box outline
-    const bw = Math.max(14, Math.min(180, n.w * (0.35 + amp*0.55)));
-    const bh = Math.max(14, Math.min(180, n.h * (0.35 + amp*0.55)));
-    ctx.globalAlpha = a*0.55;
-    ctx.strokeStyle = "rgba(255,255,255,0.6)";
-    ctx.strokeRect(n.cx - bw/2, n.cy - bh/2, bw, bh);
-    ctx.globalAlpha = 1;
+    // label
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = "#fff";
+    ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
+    const txt = `${n.cls} ${(n.score*100).toFixed(0)}%`;
+    ctx.fillText(txt, n.bx+4, Math.max(12, n.by-6));
+    ctx.restore();
   }
 
-  requestAnimationFrame(loop);
+  // pill/hud
+  const aud = audioCtx ? audioCtx.state : "off";
+  const cam = camOn ? "on" : "off";
+  const mdl = modelReady ? "ready" : "loading";
+  pillEl.textContent = `audio:${aud} | cam:${cam} | model:${mdl} | boxes:${nodes.length} | amp:${amp.toFixed(3)}`;
+
+  hudEl.textContent =
+`amp: ${amp.toFixed(3)}   lineSens: ${getLineSens().toFixed(2)}   detectW: ${getDetectW()}px
+liveDetect: ${liveOn ? "ON" : "OFF"}   nodes:${nodes.length}
+tip: iPhone 느리면 detectW를 320~280으로 낮추고 Live Detect를 OFF 후 📸로 간헐 캡처`;
 }
-loop();
 
-/* ==========================================================
-   DETECT: interval UI change
-========================================================== */
-rngDetectMs.addEventListener('change', ()=> startLiveDetect());
-document.getElementById('selLiveDetect').addEventListener('change', ()=>{
-  startLiveDetect();
-});
-
-/* ==========================================================
-   STARTUP
-========================================================== */
-setStatus("Start Audio → Camera ON → Mic ON → Capture");
-setHudInfo();
+/* =========================
+   MODEL LOAD AT START
+========================= */
+setStatus("모델 로딩 중… (처음 1회 로드)");
 loadModel();
+draw();
 
-addEventListener('pointerdown', async ()=>{
-  if(audioCtx && audioCtx.state==='suspended'){
-    await audioCtx.resume();
-  }
-},{passive:true});
-
+/* safety */
 window.addEventListener('pagehide', ()=>{
+  try{ setLive(false); }catch(e){}
+  try{
+    if(camVideo.srcObject){
+      camVideo.srcObject.getTracks().forEach(t=>t.stop());
+    }
+  }catch(e){}
   try{ stopMic(); }catch(e){}
-  try{ stopCamera(); }catch(e){}
-  stopLiveDetect();
+  try{ stopFile(); }catch(e){}
 });
 </script>
 </body>
