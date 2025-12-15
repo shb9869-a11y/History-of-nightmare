@@ -3,16 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Real-time Box Detection (GitHub Pages Ready)</title>
+  <title>Real-time Box Detection (B/W + Sensitive + Links)</title>
 
-  <!-- TFJS + COCO-SSD (CDN) -->
+  <!-- TFJS + COCO-SSD -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 
   <style>
     html,body{margin:0;height:100%;background:#000;color:#ddd;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;}
-    #wrap{position:fixed;inset:0;display:grid;place-items:center;}
+    #wrap{position:fixed;inset:0;}
     video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    /* 카메라 흑백 */
+    #video{filter: grayscale(1) contrast(1.15) brightness(1.05);}
     #ui{
       position:fixed; left:12px; right:12px; top:12px;
       display:flex; gap:10px; flex-wrap:wrap; align-items:center;
@@ -35,20 +37,20 @@
     #log{
       position:fixed; left:12px; bottom:12px;
       z-index:10;
-      font-size:12px; line-height:1.3;
+      font-size:12px; line-height:1.35;
       background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12);
       border-radius:12px; padding:8px 10px; backdrop-filter: blur(8px);
-      max-width:min(560px, calc(100vw - 24px));
+      max-width:min(620px, calc(100vw - 24px));
       white-space:pre-wrap;
     }
     #gate{
       position:fixed; inset:0; z-index:20;
       display:flex; align-items:center; justify-content:center;
-      background:rgba(0,0,0,.75);
+      background:rgba(0,0,0,.78);
       padding:20px;
     }
     #gate .box{
-      width:min(680px, 94vw);
+      width:min(720px, 94vw);
       border:1px solid rgba(255,255,255,.12);
       border-radius:16px;
       background:rgba(0,0,0,.55);
@@ -59,6 +61,7 @@
     #gate .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
   </style>
 </head>
+
 <body>
   <div id="wrap">
     <video id="video" autoplay playsinline muted></video>
@@ -67,9 +70,28 @@
 
   <div id="ui">
     <div class="pill">
-      <strong>감도</strong>
-      <input id="conf" type="range" min="0.10" max="0.90" step="0.05" value="0.35" />
-      <span id="confVal">0.35</span>
+      <strong>감도(Confidence)</strong>
+      <!-- 더 예민하게: 기본값을 낮게 -->
+      <input id="conf" type="range" min="0.05" max="0.80" step="0.05" value="0.15" />
+      <span id="confVal">0.15</span>
+    </div>
+
+    <div class="pill">
+      <strong>연결</strong>
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input id="showLinks" type="checkbox" checked />
+        선으로 연결
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input id="onlyTop" type="checkbox" checked />
+        상위 N개만
+      </label>
+    </div>
+
+    <div class="pill">
+      <strong>N</strong>
+      <input id="topN" type="range" min="3" max="30" step="1" value="14" />
+      <span id="topNVal">14</span>
     </div>
 
     <div class="pill">
@@ -78,16 +100,12 @@
         <input id="showLabel" type="checkbox" checked />
         라벨/확률
       </label>
-      <label style="display:flex;align-items:center;gap:6px;">
-        <input id="showLine" type="checkbox" />
-        센터라인
-      </label>
     </div>
 
     <div class="pill">
       <strong>카메라</strong>
-      <button id="flip">전/후면 전환</button>
-      <button id="restart">재시작</button>
+      <button id="flip">전/후면</button>
+      <button id="restart">리스타트</button>
     </div>
 
     <div class="pill">
@@ -102,15 +120,15 @@
 
   <div id="gate">
     <div class="box">
-      <h1>실시간 박스 탐지</h1>
-      <p>이 페이지는 카메라를 사용해 사람/사물을 감지하고 박스를 표시합니다.</p>
-      <p>GitHub Pages는 HTTPS라서 iPhone/Chrome/Safari에서도 카메라가 동작합니다.</p>
+      <h1>실시간 박스 탐지 (흑백 + 더 예민 + 연결)</h1>
+      <p>카메라를 켜고 COCO-SSD로 사람/사물을 감지해 박스와 라인을 표시합니다.</p>
+      <p>감도를 낮출수록(Confidence↓) 더 많이 잡지만 노이즈도 늘어납니다.</p>
       <div class="row">
         <button id="startBtn">카메라 시작</button>
         <button id="warmBtn">모델 미리 로드</button>
       </div>
       <p style="opacity:.9;margin-top:10px;font-size:12px;">
-        팁: 감도(Confidence)를 0.25~0.45 사이에서 조절하면 보통 안정적입니다.
+        팁: iPhone에서 후면이 잘 안 뜨면 "전/후면"을 눌러 전환해보세요.
       </p>
     </div>
   </div>
@@ -127,9 +145,13 @@
 
   const confEl = document.getElementById('conf');
   const confVal = document.getElementById('confVal');
-  const showLabelEl = document.getElementById('showLabel');
-  const showLineEl = document.getElementById('showLine');
 
+  const showLinksEl = document.getElementById('showLinks');
+  const onlyTopEl = document.getElementById('onlyTop');
+  const topNEl = document.getElementById('topN');
+  const topNVal = document.getElementById('topNVal');
+
+  const showLabelEl = document.getElementById('showLabel');
   const flipBtn = document.getElementById('flip');
   const restartBtn = document.getElementById('restart');
 
@@ -141,17 +163,13 @@
   let model = null;
   let stream = null;
   let running = false;
-
-  // iOS에서 후면이 environment
   let facingMode = 'environment';
 
   // FPS
   let lastT = performance.now();
   let emaFps = 0;
 
-  function log(msg){
-    logEl.textContent = "로그: " + msg;
-  }
+  function log(msg){ logEl.textContent = "로그: " + msg; }
 
   function resizeCanvas(){
     const w = video.videoWidth || window.innerWidth;
@@ -172,11 +190,9 @@
 
   async function startCamera(){
     if (!navigator.mediaDevices?.getUserMedia){
-      alert("이 브라우저는 getUserMedia를 지원하지 않습니다.");
+      alert("이 브라우저는 카메라(getUserMedia)를 지원하지 않습니다.");
       return;
     }
-
-    // 기존 스트림 정리
     if (stream){
       stream.getTracks().forEach(t => t.stop());
       stream = null;
@@ -185,58 +201,102 @@
     statusEl.textContent = "카메라 시작...";
     log("카메라 요청 중...");
 
-    // 가능한 높은 해상도 요청 (기기/브라우저가 알아서 맞춤)
     const constraints = {
       audio: false,
       video: {
         facingMode: { ideal: facingMode },
-        width: { ideal: 1280 },
-        height:{ ideal: 720 }
+        width:  { ideal: 1280 },
+        height: { ideal: 720 }
       }
     };
 
     stream = await navigator.mediaDevices.getUserMedia(constraints);
     video.srcObject = stream;
 
-    await new Promise(res => {
-      video.onloadedmetadata = () => res();
-    });
-
+    await new Promise(res => (video.onloadedmetadata = () => res()));
     resizeCanvas();
+
     gate.style.display = "none";
     statusEl.textContent = "실행 중";
     log("카메라 시작됨 (" + facingMode + ")");
   }
 
-  function drawPredictions(preds){
+  // 중심점 계산
+  function centerOf(bbox){
+    const [x,y,w,h] = bbox;
+    return { cx: x + w/2, cy: y + h/2 };
+  }
+
+  // 가장 가까운 K개 연결(노이즈 줄이기)
+  function makeLinks(points, k=3){
+    // points: [{cx,cy, idx}]
+    const links = [];
+    for (let i=0;i<points.length;i++){
+      const a = points[i];
+      // 거리 정렬
+      const ds = [];
+      for (let j=0;j<points.length;j++){
+        if (i===j) continue;
+        const b = points[j];
+        const dx = a.cx - b.cx, dy = a.cy - b.cy;
+        ds.push({j, d: dx*dx + dy*dy});
+      }
+      ds.sort((p,q)=>p.d-q.d);
+      for (let t=0;t<Math.min(k, ds.length);t++){
+        const j = ds[t].j;
+        // 중복 링크 방지(작은 인덱스->큰 인덱스만)
+        if (i < j) links.push([i, j, ds[t].d]);
+      }
+    }
+    return links;
+  }
+
+  function draw(preds){
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // 박스 스타일
-    ctx.lineWidth = Math.max(2, Math.round(canvas.width / 600));
-    ctx.font = `${Math.max(12, Math.round(canvas.width / 80))}px system-ui, -apple-system, sans-serif`;
+    // 스타일
+    ctx.lineWidth = Math.max(2, Math.round(canvas.width / 650));
+    ctx.font = `${Math.max(12, Math.round(canvas.width / 90))}px system-ui, -apple-system, sans-serif`;
     ctx.textBaseline = "top";
 
     const showLabel = showLabelEl.checked;
-    const showLine = showLineEl.checked;
+    const showLinks = showLinksEl.checked;
 
+    // 중심점 리스트
+    const pts = preds.map(p => ({...centerOf(p.bbox)}));
+
+    // 연결선: 각 점에서 가까운 3개 연결
+    if (showLinks && pts.length >= 2){
+      const links = makeLinks(pts, 3);
+      for (const [i,j,dd] of links){
+        const a = pts[i], b = pts[j];
+
+        // 거리 기반 알파 (가까울수록 진하게)
+        const dist = Math.sqrt(dd);
+        const norm = Math.min(1, dist / Math.max(canvas.width, canvas.height));
+        const alpha = 0.65 * (1 - norm) + 0.08;
+
+        ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(a.cx, a.cy);
+        ctx.lineTo(b.cx, b.cy);
+        ctx.stroke();
+      }
+    }
+
+    // 박스+라벨
     let c = 0;
     for (const p of preds){
       const [x, y, w, h] = p.bbox;
 
-      // 박스
       ctx.strokeStyle = "rgba(255,255,0,0.95)";
       ctx.strokeRect(x, y, w, h);
 
-      if (showLine){
-        const cx = x + w/2, cy = y + h/2;
-        ctx.strokeStyle = "rgba(255,255,255,0.35)";
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(canvas.width/2, canvas.height/2);
-        ctx.stroke();
-      }
+      // 센터 점(작게)
+      const {cx, cy} = centerOf(p.bbox);
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.beginPath(); ctx.arc(cx, cy, Math.max(2, ctx.lineWidth+1), 0, Math.PI*2); ctx.fill();
 
-      // 라벨
       if (showLabel){
         const label = `${p.class} ${(p.score*100).toFixed(1)}%`;
         const pad = 6;
@@ -249,9 +309,9 @@
         ctx.fillStyle = "rgba(255,255,255,0.95)";
         ctx.fillText(label, x + pad, Math.max(0, y - th) + 3);
       }
-
       c++;
     }
+
     countEl.textContent = `Boxes: ${c}`;
   }
 
@@ -259,9 +319,8 @@
     if (!running) return;
 
     if (!model) await loadModel();
-    if (video.readyState < 2) { requestAnimationFrame(loop); return; }
+    if (video.readyState < 2){ requestAnimationFrame(loop); return; }
 
-    // 캔버스가 비디오 해상도와 맞게 유지
     if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight){
       resizeCanvas();
     }
@@ -269,16 +328,25 @@
     const conf = parseFloat(confEl.value);
     confVal.textContent = conf.toFixed(2);
 
-    const t0 = performance.now();
-    // detect()는 내부적으로 프레임을 읽어서 추론함
+    topNVal.textContent = topNEl.value;
+
     let preds = await model.detect(video);
 
-    // confidence 필터
+    // 1) 더 예민하게: confidence 낮게 / 필터만 최소
     preds = preds.filter(p => p.score >= conf);
 
-    drawPredictions(preds);
+    // 2) 너무 많이 잡히면 안정성을 위해 score 순 정렬
+    preds.sort((a,b)=>b.score-a.score);
 
-    // FPS EMA
+    // 3) 상위 N개만 (기본 ON)
+    if (onlyTopEl.checked){
+      const n = parseInt(topNEl.value, 10);
+      preds = preds.slice(0, n);
+    }
+
+    draw(preds);
+
+    // FPS
     const t1 = performance.now();
     const dt = (t1 - lastT) / 1000;
     lastT = t1;
@@ -300,11 +368,11 @@
       console.error(e);
       statusEl.textContent = "오류";
       log("오류: " + (e?.message || e));
-      alert("카메라/모델 실행 중 오류가 발생했습니다:\n" + (e?.message || e));
+      alert("실행 오류:\n" + (e?.message || e));
     }
   }
 
-  // UI events
+  // Events
   warmBtn.onclick = async () => {
     try{
       await loadModel();
@@ -313,6 +381,7 @@
       alert("모델 로드 실패: " + (e?.message || e));
     }
   };
+
   startBtn.onclick = () => run();
 
   flipBtn.onclick = async () => {
@@ -326,15 +395,14 @@
   };
 
   restartBtn.onclick = async () => {
-    log("재시작...");
+    log("리스타트...");
     running = false;
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 80));
     running = true;
     lastT = performance.now();
     loop();
   };
 
-  // 화면 회전/리사이즈 대응
   window.addEventListener('resize', () => {
     if (video.videoWidth) resizeCanvas();
   });
