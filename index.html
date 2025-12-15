@@ -1,152 +1,706 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>LIMEN – Relational Micro Detection</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>BOX DETECT – Micro Fragments (Distinct 3+)</title>
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BOX DETECT">
 <meta name="theme-color" content="#000000">
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 
 <style>
-html,body{margin:0;height:100%;background:#000;overflow:hidden;}
-video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
-video{filter:grayscale(1) contrast(1.2);}
-#ui{position:fixed;top:12px;left:12px;color:#fff;font-size:12px;z-index:10}
+  html,body{margin:0;height:100%;background:#000;color:#ddd;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;}
+  #wrap{position:fixed;inset:0; pointer-events:none;}
+  video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover; pointer-events:none;}
+  #srcVideo{filter: grayscale(1) contrast(1.15) brightness(1.05);}
+
+  #ui{
+    position:fixed; top:12px; left:12px; right:12px;
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    z-index:10;
+    background:rgba(0,0,0,.45);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:14px;
+    padding:10px 12px;
+    backdrop-filter: blur(8px);
+    transition:.2s;
+    pointer-events:auto;
+  }
+  #ui.hidden{opacity:0; pointer-events:none; transform:translateY(-10px);}
+  .pill{
+    display:flex; gap:8px; align-items:center;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:999px;
+    padding:8px 10px;
+  }
+  button{
+    appearance:none;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.08); color:#fff;
+    padding:10px 14px; border-radius:14px; font-weight:800;
+    touch-action: manipulation;
+    pointer-events:auto;
+  }
+  button:active{transform:translateY(1px);}
+  input, label{pointer-events:auto;}
+  input[type=range]{width:120px}
+
+  #toggleUI{
+    position:fixed; top:12px; right:12px;
+    z-index:11;
+    border-radius:999px;
+    background:rgba(0,0,0,.45);
+    border:1px solid rgba(255,255,255,.12);
+    padding:10px 12px;
+    backdrop-filter: blur(8px);
+    pointer-events:auto;
+  }
+
+  #gate{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.78);
+    z-index:20;
+    padding:20px;
+    pointer-events:auto;
+  }
+  #gate .box{
+    width:min(820px,94vw);
+    background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:18px;
+    padding:16px;
+    pointer-events:auto;
+  }
+  #gate h1{margin:0 0 6px; font-size:18px;}
+  #gate p{margin:6px 0; font-size:14px; color:#ccc;}
+  #gate .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+  #start{padding:14px 18px;border-radius:16px;font-size:16px;}
+
+  #log{
+    position:fixed; left:12px; bottom:12px;
+    z-index:10;
+    font-size:12px;
+    background:rgba(0,0,0,.45);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:12px;
+    padding:8px 10px;
+    backdrop-filter: blur(8px);
+    max-width:min(86vw,720px);
+    white-space:pre-wrap;
+    pointer-events:none;
+  }
 </style>
 </head>
 
 <body>
-<video id="v" autoplay playsinline muted></video>
-<canvas id="c"></canvas>
-<div id="ui">LIMEN / 관계적 프레임</div>
+<div id="wrap">
+  <video id="srcVideo" autoplay playsinline muted></video>
+  <canvas id="out"></canvas>
+</div>
+
+<button id="toggleUI">☰ 메뉴</button>
+
+<div id="ui">
+  <div class="pill">
+    <b>감도</b>
+    <input id="conf" type="range" min="0.01" max="0.80" step="0.01" value="0.08">
+    <span id="confVal">0.08</span>
+  </div>
+
+  <div class="pill">
+    <b>N(미세)</b>
+    <input id="topN" type="range" min="1" max="10" step="1" value="4">
+    <span id="topNVal">4</span>
+  </div>
+
+  <div class="pill">
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input id="links" type="checkbox" checked> 선 연결
+    </label>
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input id="fillFrag" type="checkbox" checked> 박스 파편 채우기
+    </label>
+  </div>
+
+  <div class="pill">
+    <button id="fullscreen">전체화면</button>
+    <button id="flip">전/후면</button>
+    <button id="restart">재시작</button>
+  </div>
+
+  <div class="pill">
+    <b>소스</b>
+    <button id="useCam">카메라</button>
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input id="videoFile" type="file" accept="video/*" style="max-width:220px;">
+      <span style="opacity:.9">업로드 영상</span>
+    </label>
+  </div>
+
+  <div class="pill">
+    <b>녹화</b>
+    <button id="recStart">시작</button>
+    <button id="recStop">정지</button>
+    <label style="display:flex;align-items:center;gap:6px;">
+      <span>자동정지</span>
+      <input id="recSec" type="range" min="3" max="120" step="1" value="12">
+      <span id="recSecVal">12s</span>
+    </label>
+  </div>
+
+  <div class="pill">
+    <span id="status">대기</span>
+    <span id="fps">FPS -</span>
+    <span id="count">Boxes 0</span>
+  </div>
+</div>
+
+<div id="log">ready</div>
+
+<div id="gate">
+  <div class="box">
+    <h1>MICRO FRAGMENTS (한 화면 최소 3개 라벨 분산)</h1>
+    <p>박스 더 작게 + 한 화면에서 최소 3개는 서로 다른 라벨(Mom/Hometown/…)이 되게 강제.</p>
+    <div class="row">
+      <button id="start">시작</button>
+      <button id="preloadAssets">assets 다시 로드</button>
+    </div>
+  </div>
+</div>
 
 <script>
-(async()=>{
-const v=document.getElementById("v");
-const c=document.getElementById("c");
-const x=c.getContext("2d");
+(() => {
+  const srcV = document.getElementById("srcVideo");
+  const out = document.getElementById("out");
+  const ctx = out.getContext("2d");
 
-const LIMEN=["Mom","Hometown","Son Duk-Geum","GrandFather","Ocean"];
-const COLORS={
-  "Mom":[255,120,120],
-  "Hometown":[120,255,180],
-  "Son Duk-Geum":[255,255,120],
-  "GrandFather":[180,180,255],
-  "Ocean":[120,180,255]
-};
+  const gate = document.getElementById("gate");
+  const logEl = document.getElementById("log");
 
-const assets={
-  "Mom":"assets/mom.jpg",
-  "Hometown":"assets/hometown.jpg",
-  "Son Duk-Geum":"assets/son-duk-geum.jpg",
-  "GrandFather":"assets/grandfather.jpg",
-  "Ocean":"assets/ocean.jpg"
-};
+  const confEl = document.getElementById("conf");
+  const confVal = document.getElementById("confVal");
+  const topNEl = document.getElementById("topN");
+  const topNVal = document.getElementById("topNVal");
+  const linksEl = document.getElementById("links");
+  const fillFragEl = document.getElementById("fillFrag");
 
-const imgs={};
-for(const k in assets){
-  imgs[k]=new Image();
-  imgs[k].src=assets[k];
-}
+  const toggleUIBtn = document.getElementById("toggleUI");
+  const ui = document.getElementById("ui");
 
-const stream=await navigator.mediaDevices.getUserMedia({
-  video:{facingMode:"environment",width:1280,height:720},audio:false
-});
-v.srcObject=stream;
-await v.play();
+  const startBtn = document.getElementById("start");
+  const preloadAssetsBtn = document.getElementById("preloadAssets");
+  const fullscreenBtn = document.getElementById("fullscreen");
+  const flipBtn = document.getElementById("flip");
+  const restartBtn = document.getElementById("restart");
 
-const model=await cocoSsd.load({base:"lite_mobilenet_v2"});
+  const useCamBtn = document.getElementById("useCam");
+  const videoFileEl = document.getElementById("videoFile");
 
-function resize(){
-  c.width=v.videoWidth;
-  c.height=v.videoHeight;
-}
-window.onresize=resize;
+  const recStartBtn = document.getElementById("recStart");
+  const recStopBtn = document.getElementById("recStop");
+  const recSecEl = document.getElementById("recSec");
+  const recSecVal = document.getElementById("recSecVal");
 
-function shuffle(a){
-  return a.slice().sort(()=>Math.random()-0.5);
-}
+  const statusEl = document.getElementById("status");
+  const fpsEl = document.getElementById("fps");
+  const countEl = document.getElementById("count");
 
-function microBox(seed){
-  const s=20+Math.random()*40;
-  return {
-    x:Math.random()*(c.width-s),
-    y:Math.random()*(c.height-s),
-    w:s,h:s,
-    vx:(Math.random()-.5)*0.6,
-    vy:(Math.random()-.5)*0.6,
-    seed
+  function log(msg){ logEl.textContent = String(msg); }
+
+  const LIMEN_LABELS = ["Mom", "Hometown", "Son Duk-Geum", "GrandFather", "Ocean"];
+  const CLASS_TO_LIMEN = {
+    person: "Mom",
+    diningtable: "Hometown",
+    bottle: "Ocean",
+    cup: "Hometown",
+    fork: "Son Duk-Geum",
+    knife: "Son Duk-Geum",
+    spoon: "Son Duk-Geum",
+    chair: "GrandFather",
+    tv: "Ocean",
+    laptop: "Ocean",
+    "cell phone": "Ocean"
   };
-}
 
-let nodes=[];
+  function pickLimenLabelByClass(cocoClass, fallbackIndex){
+    return CLASS_TO_LIMEN[cocoClass] || LIMEN_LABELS[fallbackIndex % LIMEN_LABELS.length];
+  }
 
-function buildRelationalFrame(){
-  nodes=[];
-  const labels=shuffle(LIMEN).slice(0,3); // ✅ 항상 3개 이상, 서로 다름
-  labels.forEach((l,i)=>{
-    const b=microBox(i);
-    nodes.push({...b,label:l});
-  });
-}
+  // ✅ 한 화면(한 tick)에서 최소 3개는 “서로 다른 라벨”로 강제하기 위한 셔플
+  function shuffleInPlace(arr){
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
 
-function update(){
-  x.clearRect(0,0,c.width,c.height);
+  const PALETTE = [
+    [255,255,0],[0,255,255],[255,0,255],[120,255,120],
+    [255,120,120],[120,120,255],[255,200,120],[200,120,255]
+  ];
 
-  // drift
-  nodes.forEach(n=>{
-    n.x+=n.vx;n.y+=n.vy;
-    if(n.x<0||n.x+n.w>c.width) n.vx*=-1;
-    if(n.y<0||n.y+n.h>c.height) n.vy*=-1;
-  });
+  const ASSET_FILES = {
+    "Mom": "assets/mom.jpg",
+    "Hometown": "assets/hometown.jpg",
+    "Son Duk-Geum": "assets/son-duk-geum.jpg",
+    "GrandFather": "assets/grandfather.jpg",
+    "Ocean": "assets/ocean.jpg"
+  };
 
-  // links
-  for(let i=0;i<nodes.length;i++){
-    for(let j=i+1;j<nodes.length;j++){
-      const a=nodes[i],b=nodes[j];
-      x.strokeStyle="rgba(255,255,255,.35)";
-      x.beginPath();
-      x.moveTo(a.x+a.w/2,a.y+a.h/2);
-      x.lineTo(b.x+b.w/2,b.y+b.h/2);
-      x.stroke();
+  const assets = new Map();
+  function guessTypeByPath(p){
+    const low = p.toLowerCase();
+    if (low.endsWith(".mp4") || low.endsWith(".webm") || low.endsWith(".mov")) return "vid";
+    return "img";
+  }
+
+  async function loadAssets(){
+    assets.clear();
+    const entries = Object.entries(ASSET_FILES);
+    for (const [label, path] of entries){
+      const type = guessTypeByPath(path);
+      if (type === "img"){
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        const rec = { type:"img", el:img, ready:false, path };
+        assets.set(label, rec);
+        await new Promise((res) => {
+          img.onload = () => { rec.ready = true; res(); };
+          img.onerror = () => { rec.ready = false; res(); };
+          img.src = path + "?v=" + Date.now();
+        });
+      } else {
+        const vid = document.createElement("video");
+        vid.crossOrigin = "anonymous";
+        vid.muted = true; vid.loop = true; vid.playsInline = true;
+        const rec = { type:"vid", el:vid, ready:false, path };
+        assets.set(label, rec);
+        await new Promise((res) => {
+          vid.onloadeddata = async () => { try { await vid.play(); } catch(e) {} rec.ready=true; res(); };
+          vid.onerror = () => { rec.ready = false; res(); };
+          vid.src = path + "?v=" + Date.now();
+        });
+      }
+    }
+    const ok = [...assets.values()].filter(a=>a.ready).length;
+    log(`assets loaded: ${ok}/${entries.length} (없어도 동작함)`);
+  }
+
+  let stream = null;
+  let facingMode = "environment";
+  let usingUploadVideo = false;
+
+  async function startCamera(){
+    usingUploadVideo = false;
+    if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+    statusEl.textContent = "카메라 요청";
+    log("camera requesting...");
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{ facingMode:{ ideal:facingMode }, width:{ideal:1280}, height:{ideal:720} }
+    });
+    srcV.srcObject = stream;
+    await srcV.play();
+    resize();
+    log("camera started: " + facingMode);
+  }
+
+  async function useUploadedVideo(file){
+    usingUploadVideo = true;
+    if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+    const url = URL.createObjectURL(file);
+    srcV.srcObject = null;
+    srcV.src = url;
+    srcV.loop = true;
+    srcV.muted = true;
+    await srcV.play();
+    resize();
+    log("uploaded video: " + file.name);
+  }
+
+  function resize(){
+    const w = srcV.videoWidth || innerWidth;
+    const h = srcV.videoHeight || innerHeight;
+    if (out.width !== w) out.width = w;
+    if (out.height !== h) out.height = h;
+  }
+  window.addEventListener("resize", resize);
+
+  let model = null;
+  async function loadModel(){
+    if (model) return model;
+    statusEl.textContent = "모델 로딩";
+    log("model loading...");
+    model = await cocoSsd.load({ base:"lite_mobilenet_v2" });
+    log("model loaded");
+    return model;
+  }
+
+  // ====== MICRO BOX GENERATION ======
+  function rand01(seed){
+    const x = Math.sin(seed) * 43758.5453123;
+    return x - Math.floor(x);
+  }
+
+  // ✅ 박스를 더 작게: 최소 크기/비율을 더 낮춤
+  function microFrom(bbox, seed){
+    const [x,y,w,h] = bbox;
+    const r1 = rand01(seed*12.3 + performance.now()*0.0007);
+    const r2 = rand01(seed*7.7  + performance.now()*0.0005);
+    const r3 = rand01(seed*3.1  + performance.now()*0.0006);
+
+    // 기존: 12~32%
+    // 변경: 6~18% (더 미세)
+    const mw = Math.max(12, w * (0.06 + r1*0.12));
+    const mh = Math.max(12, h * (0.06 + r2*0.12));
+
+    let mx = x + (w - mw) * r2;
+    let my = y + (h - mh) * r3;
+
+    return [mx, my, mw, mh];
+  }
+
+  // ✅ “한 화면에서 최소 3개 라벨이 서로 다르게” 강제
+  // - 첫 3개는 LIMEN_LABELS 셔플해서 서로 다른 라벨을 부여
+  // - 4번째부터는 class 기반(기존 로직) 유지
+  function buildMicroTracks(preds, wantedCount){
+    const microCount = Math.max(3, wantedCount|0);  // ✅ 최소 3 강제
+    const micros = [];
+
+    const base = preds.slice(0, Math.min(preds.length, 6));
+    if (base.length === 0) return micros;
+
+    // 첫 3개 라벨은 무조건 서로 다르게
+    const distinct3 = shuffleInPlace(LIMEN_LABELS.slice()).slice(0, 3);
+
+    let seed = 1000;
+    for (let i=0;i<microCount;i++){
+      const p = base[i % base.length];
+      const mbox = microFrom(p.bbox, seed+i*19);
+
+      let limenLabel;
+      if (i < 3) limenLabel = distinct3[i];         // ✅ 강제 분산
+      else limenLabel = pickLimenLabelByClass(p.class, i); // 기존 유지
+
+      micros.push({
+        id: i+1,
+        bbox: mbox,
+        limenLabel,
+        cocoClass: p.class,
+        score: p.score,
+        colorIndex: i % PALETTE.length,
+        vx: (rand01(200+i*3)-0.5) * 0.8,
+        vy: (rand01(400+i*5)-0.5) * 0.8,
+        fragSeed: 9000 + i*77
+      });
+    }
+    return micros;
+  }
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  function driftTracks(){
+    for (const t of tracks){
+      let [x,y,w,h] = t.bbox;
+      x += t.vx; y += t.vy;
+
+      if (x < 0 || x + w > out.width) t.vx *= -1;
+      if (y < 0 || y + h > out.height) t.vy *= -1;
+
+      x = clamp(x, 0, out.width - w);
+      y = clamp(y, 0, out.height - h);
+      t.bbox = [x,y,w,h];
     }
   }
 
-  // nodes
-  nodes.forEach(n=>{
-    const col=COLORS[n.label];
-    x.save();
-    x.beginPath();
-    x.rect(n.x,n.y,n.w,n.h);
-    x.clip();
-    const img=imgs[n.label];
-    if(img.complete){
-      x.drawImage(img,n.x-10,n.y-10,n.w+20,n.h+20);
+  function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
+
+  function makeLinks(points, k=2){
+    const links=[];
+    for(let i=0;i<points.length;i++){
+      const ds=[];
+      for(let j=0;j<points.length;j++){
+        if(i===j) continue;
+        const dx=points[i].x-points[j].x, dy=points[i].y-points[j].y;
+        ds.push({j, d:dx*dx+dy*dy});
+      }
+      ds.sort((a,b)=>a.d-b.d);
+      for(let t=0;t<Math.min(k, ds.length);t++){
+        const j=ds[t].j;
+        if(i<j) links.push([i,j,ds[t].d]);
+      }
     }
-    x.restore();
-    x.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},.95)`;
-    x.strokeRect(n.x,n.y,n.w,n.h);
-  });
-}
-
-let last=0;
-async function loop(t){
-  if(t-last>900){ // 약 1초마다 프레임 의미 재해석
-    buildRelationalFrame();
-    last=t;
+    return links;
   }
-  update();
-  requestAnimationFrame(loop);
-}
 
-resize();
-buildRelationalFrame();
-loop(0);
+  function fract(x){ return x - Math.floor(x); }
+
+  function drawFragmentIntoBox(assetRec, bbox, seed){
+    if (!assetRec || !assetRec.ready) return;
+    const [x,y,w,h] = bbox;
+    if (w < 6 || h < 6) return;
+
+    const t = performance.now() * 0.001;
+    const r1 = fract(Math.sin(seed*12.9898 + t*1.3) * 43758.5453);
+    const r2 = fract(Math.sin(seed*78.233  + t*0.9) * 12345.6789);
+    const r3 = fract(Math.sin(seed*41.77   + t*1.7) * 98765.4321);
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+
+    const scale = 1.2 + r1 * 1.8;
+    const ox = (r2 - 0.5) * w * 0.9;
+    const oy = (r3 - 0.5) * h * 0.9;
+
+    const el = assetRec.el;
+    let sw=0, sh=0;
+    if (assetRec.type === "img"){ sw = el.naturalWidth||0; sh = el.naturalHeight||0; }
+    else { sw = el.videoWidth||0; sh = el.videoHeight||0; }
+    if (sw < 2 || sh < 2){ ctx.restore(); return; }
+
+    const dw = w * scale, dh = h * scale;
+    const dx = x + (w - dw)/2 + ox;
+    const dy = y + (h - dh)/2 + oy;
+
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(el, dx, dy, dw, dh);
+
+    ctx.globalAlpha = 0.45;
+    const dw2 = w * (0.7 + r2*0.8);
+    const dh2 = h * (0.7 + r3*0.8);
+    const dx2 = x + (w - dw2)/2 - ox*0.6;
+    const dy2 = y + (h - dh2)/2 - oy*0.6;
+    ctx.drawImage(el, dx2, dy2, dw2, dh2);
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawLabelBox(text, x, y, color){
+    ctx.font = `${Math.max(12, Math.round(out.width/90))}px system-ui,-apple-system,sans-serif`;
+    ctx.textBaseline = "top";
+    const pad = 6;
+    const tw = ctx.measureText(text).width;
+    const th = Math.max(16, Math.round(out.width/70));
+
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(x, Math.max(0, y - th), tw + pad*2, th);
+
+    ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.95)`;
+    ctx.fillText(text, x + pad, Math.max(0, y - th) + 2);
+  }
+
+  let tracks = [];
+
+  function render(){
+    ctx.clearRect(0,0,out.width,out.height);
+
+    const pts = tracks.map(t => center(t.bbox));
+
+    if (linksEl.checked && pts.length >= 2){
+      const links = makeLinks(pts, 2);
+      for (const [i,j,dd] of links){
+        const a=pts[i], b=pts[j];
+        const dist = Math.sqrt(dd);
+        const norm = Math.min(1, dist / Math.max(out.width, out.height));
+        const alpha = 0.75*(1-norm) + 0.08;
+        ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+        ctx.lineWidth = Math.max(1.2, out.width/1100);
+        ctx.beginPath();
+        ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+        ctx.stroke();
+      }
+    }
+
+    ctx.lineWidth = Math.max(2, out.width/900);
+
+    for (const t of tracks){
+      const [x,y,w,h] = t.bbox;
+      const color = PALETTE[t.colorIndex % PALETTE.length];
+
+      if (fillFragEl.checked){
+        const asset = assets.get(t.limenLabel);
+        drawFragmentIntoBox(asset, t.bbox, t.fragSeed);
+      }
+
+      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.95)`;
+      ctx.strokeRect(x,y,w,h);
+
+      drawLabelBox(`${t.limenLabel}`, x, y, color);
+
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.beginPath();
+      ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/700), 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    countEl.textContent = "Boxes " + tracks.length;
+  }
+
+  // ====== LOOP ======
+  let running = false;
+  let lastT = performance.now();
+  let emaFps = 0;
+
+  async function tick(){
+    if (!running) return;
+    try{
+      if (!model) await loadModel();
+      if (srcV.readyState < 2){ requestAnimationFrame(tick); return; }
+      resize();
+
+      const conf = +confEl.value;
+      confVal.textContent = conf.toFixed(2);
+
+      let wanted = +topNEl.value;
+      if (wanted < 3) wanted = 3; // ✅ 내부적으로 3 보장
+      topNVal.textContent = String(wanted);
+
+      let preds = await model.detect(srcV);
+      preds = preds
+        .filter(p => p.score >= conf)
+        .sort((a,b) => b.score - a.score);
+
+      tracks = buildMicroTracks(preds, wanted);
+
+      driftTracks();
+      render();
+
+      const now = performance.now();
+      const dt = (now - lastT) / 1000;
+      lastT = now;
+      const inst = dt>0 ? (1/dt) : 0;
+      emaFps = emaFps ? (emaFps*0.9 + inst*0.1) : inst;
+      fpsEl.textContent = "FPS " + emaFps.toFixed(1);
+
+      statusEl.textContent = usingUploadVideo ? "업로드 영상" : "카메라";
+      requestAnimationFrame(tick);
+
+    }catch(e){
+      running = false;
+      statusEl.textContent = "오류";
+      log("ERROR: " + (e?.message || e));
+      console.error(e);
+    }
+  }
+
+  // UI
+  toggleUIBtn.onclick = ()=>{
+    ui.classList.toggle("hidden");
+    toggleUIBtn.textContent = ui.classList.contains("hidden") ? "☰ 메뉴" : "✕ 닫기";
+  };
+
+  fullscreenBtn.onclick = async ()=>{
+    try{
+      const el = document.documentElement;
+      if (!document.fullscreenElement) await el.requestFullscreen?.();
+      else await document.exitFullscreen?.();
+    }catch(e){ log("fullscreen error: " + (e?.message || e)); }
+  };
+
+  useCamBtn.onclick = async ()=>{
+    try{ await startCamera(); log("source: camera"); }catch(e){ log("camera error: " + (e?.message || e)); }
+  };
+  videoFileEl.onchange = async ()=>{
+    const file = videoFileEl.files?.[0];
+    if (!file) return;
+    try{ await useUploadedVideo(file); }catch(e){ log("upload video error: " + (e?.message || e)); }
+  };
+
+  flipBtn.onclick = async ()=>{
+    try{
+      facingMode = (facingMode === "environment") ? "user" : "environment";
+      if (!usingUploadVideo) await startCamera();
+      log("flip: " + facingMode);
+    }catch(e){ log("flip error: " + (e?.message || e)); }
+  };
+
+  restartBtn.onclick = ()=>{
+    if (!model) { log("not started"); return; }
+    running = false;
+    tracks = [];
+    ctx.clearRect(0,0,out.width,out.height);
+    running = true;
+    lastT = performance.now();
+    tick();
+    log("restart");
+  };
+
+  // recording
+  let recorder=null, recChunks=[], recTimer=null;
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  }
+  recSecEl.oninput = ()=> recSecVal.textContent = recSecEl.value + "s";
+
+  recStartBtn.onclick = ()=>{
+    if (!window.MediaRecorder){ log("MediaRecorder not supported"); return; }
+    try{
+      const s = out.captureStream(30);
+      recChunks = [];
+      const mime =
+        MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" :
+        MediaRecorder.isTypeSupported("video/webm;codecs=vp8") ? "video/webm;codecs=vp8" :
+        "video/webm";
+
+      recorder = new MediaRecorder(s, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
+      recorder.ondataavailable = (e)=>{ if (e.data && e.data.size) recChunks.push(e.data); };
+      recorder.onstop = ()=>{
+        const blob = new Blob(recChunks, { type: recorder.mimeType || "video/webm" });
+        const ts = new Date().toISOString().replaceAll(":","-").replaceAll(".","-");
+        downloadBlob(blob, `BOX-DETECT-${ts}.webm`);
+        log("record saved");
+      };
+      recorder.start(250);
+
+      const sec = +recSecEl.value;
+      clearTimeout(recTimer);
+      recTimer = setTimeout(()=>{ try{ recorder?.stop(); }catch(e){} }, sec*1000);
+      log("recording...");
+    }catch(e){ log("record error: " + (e?.message || e)); }
+  };
+
+  recStopBtn.onclick = ()=>{
+    try{
+      clearTimeout(recTimer);
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+    }catch(e){ log("stop error: " + (e?.message || e)); }
+  };
+
+  preloadAssetsBtn.onclick = async ()=>{ await loadAssets(); };
+
+  async function doStart(){
+    try{
+      gate.style.display = "none";
+      statusEl.textContent = "준비";
+      await loadModel();
+      await loadAssets();
+      await startCamera();
+      running = true;
+      lastT = performance.now();
+      tick();
+      log("running");
+    }catch(e){
+      statusEl.textContent = "오류";
+      log("START ERROR: " + (e?.message || e));
+      gate.style.display = "";
+      console.error(e);
+    }
+  }
+
+  startBtn.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); doStart(); }, {passive:false});
+  startBtn.addEventListener("touchend", (e)=>{ e.preventDefault(); e.stopPropagation(); doStart(); }, {passive:false});
 
 })();
 </script>
