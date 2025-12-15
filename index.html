@@ -125,6 +125,13 @@
     <span id="holdVal">3.0s</span>
   </div>
 
+  <!-- ✅ 추가: 박스 스케일(그려지는 크기만 줄임) -->
+  <div class="pill">
+    <b>BOX</b>
+    <input id="boxScale" type="range" min="0.60" max="1.00" step="0.01" value="0.88">
+    <span id="boxScaleVal">0.88</span>
+  </div>
+
   <div class="pill">
     <label style="display:flex;align-items:center;gap:6px;">
       <input id="links" type="checkbox" checked> 선 연결
@@ -158,6 +165,7 @@
       <input id="recSec" type="range" min="3" max="120" step="1" value="12">
       <span id="recSecVal">12s</span>
     </label>
+    <span style="opacity:.85;font-size:12px">※ mp4 우선 저장(미지원 시 webm)</span>
   </div>
 
   <div class="pill">
@@ -174,7 +182,7 @@
     <h1>OBJECT BOXES + RELATION AESTHETICS</h1>
     <p>
       실제 물체를 “있는 크기 그대로” 잡고, 최소 3개 이상 포착 + 라벨 3종 이상(중복 금지) 유지.<br>
-      링크는 라벨에 따라 굵기/점선/숨쉬기/스파크 등 관계의 미학으로 다르게 표현.
+      BOX 슬라이더로 “그려지는 박스 크기만” 줄일 수 있음(탐지 자체는 유지).
     </p>
     <div class="row">
       <button id="start">시작</button>
@@ -198,6 +206,8 @@
   const topNVal = document.getElementById("topNVal");
   const holdSecEl = document.getElementById("holdSec");
   const holdValEl = document.getElementById("holdVal");
+  const boxScaleEl = document.getElementById("boxScale");
+  const boxScaleValEl = document.getElementById("boxScaleVal");
 
   const linksEl = document.getElementById("links");
   const fillFragEl = document.getElementById("fillFrag");
@@ -239,11 +249,9 @@
     laptop: "Ocean",
     "cell phone": "Ocean"
   };
-
   function pickLimenLabelByClass(cocoClass, fallbackIndex){
     return CLASS_TO_LIMEN[cocoClass] || LIMEN_LABELS[fallbackIndex % LIMEN_LABELS.length];
   }
-
   function shuffleCopy(arr){
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -253,12 +261,6 @@
     return a;
   }
 
-  const PALETTE = [
-    [255,255,0],[0,255,255],[255,0,255],[120,255,120],
-    [255,120,120],[120,120,255],[255,200,120],[200,120,255]
-  ];
-
-  // 라벨별 “대표색” (관계 미학에서 라벨 읽기 쉽게)
   const LABEL_COLOR = {
     "Mom": [255,140,140],
     "Hometown": [140,255,180],
@@ -366,7 +368,6 @@
 
   // ====== utils ======
   function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
-
   function iou(a,b){
     const ax1=a[0], ay1=a[1], ax2=a[0]+a[2], ay2=a[1]+a[3];
     const bx1=b[0], by1=b[1], bx2=b[0]+b[2], by2=b[1]+b[3];
@@ -401,36 +402,24 @@
   }
   function fract(x){ return x - Math.floor(x); }
 
-  // ====== 관계의 미학(링크 스타일) ======
+  // ✅ “그려지는 박스만” 축소
+  function scaleBox(bbox, s){
+    const [x,y,w,h]=bbox;
+    const cx = x + w/2, cy = y + h/2;
+    const nw = w * s, nh = h * s;
+    return [cx - nw/2, cy - nh/2, nw, nh];
+  }
+
+  // ====== 관계의 미학 ======
   function getLinkStyle(aLabel, bLabel, t){
     const pair = [aLabel, bLabel].sort().join("|");
+    let widthMul = 1.0, alphaMul = 1.0, jitter = 0.0, dash = null, pulse = 0.0, glow = 0.0;
 
-    let widthMul = 1.0;
-    let alphaMul = 1.0;
-    let jitter = 0.0;
-    let dash = null;
-    let pulse = 0.0;
-    let glow = 0.0;
-
-    if (aLabel==="Mom" || bLabel==="Mom"){
-      widthMul = 1.35;
-      alphaMul = 1.20;
-      pulse = 0.18;
-    }
-    if (aLabel==="Ocean" || bLabel==="Ocean"){
-      alphaMul *= 0.78;
-      jitter = 1.2;
-      dash = [6, 10];
-    }
-    if (aLabel==="GrandFather" || bLabel==="GrandFather"){
-      pulse = Math.max(pulse, 0.38);
-    }
-    if (aLabel==="Hometown" || bLabel==="Hometown"){
-      dash = dash || [10, 6];
-    }
-    if (aLabel==="Son Duk-Geum" || bLabel==="Son Duk-Geum"){
-      glow = 0.7;
-    }
+    if (aLabel==="Mom" || bLabel==="Mom"){ widthMul=1.35; alphaMul=1.20; pulse=0.18; }
+    if (aLabel==="Ocean" || bLabel==="Ocean"){ alphaMul*=0.78; jitter=1.2; dash=[6,10]; }
+    if (aLabel==="GrandFather" || bLabel==="GrandFather"){ pulse=Math.max(pulse,0.38); }
+    if (aLabel==="Hometown" || bLabel==="Hometown"){ dash = dash || [10,6]; }
+    if (aLabel==="Son Duk-Geum" || bLabel==="Son Duk-Geum"){ glow=0.7; }
 
     if (pair === "Hometown|Mom") alphaMul *= 1.10;
     if (pair === "GrandFather|Ocean") jitter *= 1.35;
@@ -453,7 +442,6 @@
     ctx.save();
     ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
 
-    // 큰 박스 안에서는 너무 요동치면 난잡 → 안정적으로
     const scale = 1.05 + r1 * 1.25;
     const ox = (r2 - 0.5) * w * 0.35;
     const oy = (r3 - 0.5) * h * 0.35;
@@ -500,25 +488,22 @@
   }
 
   // ====== object tracks ======
-  // {id, bbox, cls, score, label, labelUntil, lastSeen, seed, color}
   let objectTracks = [];
+  let renderTracks = [];
   let nextId = 1;
 
   function ensureDistinctLabelsForTopN(objs, nowMs){
     const holdMs = (+holdSecEl.value) * 1000;
 
-    // 라벨 만료
     for (const o of objs){
       if (!o.label || nowMs > o.labelUntil) o.label = null;
     }
 
-    // 먼저 class 기반 라벨 채우기
     const used = new Set(objs.filter(o=>o.label).map(o=>o.label));
     for (let i=0;i<objs.length;i++){
       const o = objs[i];
       if (!o.label){
         let candidate = pickLimenLabelByClass(o.cls, i);
-        // 이미 쓰였으면 다른 라벨로
         if (used.has(candidate)){
           const pool = shuffleCopy(LIMEN_LABELS).filter(L=>!used.has(L));
           if (pool.length) candidate = pool[0];
@@ -529,13 +514,10 @@
       }
     }
 
-    // 최소 3종 보장 (objs가 3개 이상이면)
     if (objs.length >= 3){
       let uniq = new Set(objs.map(o=>o.label));
       if (uniq.size < 3){
-        // 부족 라벨을 채우기 위해 중복 라벨 가진 객체 일부 교체
         const pool = shuffleCopy(LIMEN_LABELS).filter(L=>!uniq.has(L));
-        // 중복 라벨 목록
         const counts = {};
         objs.forEach(o=>{ counts[o.label]=(counts[o.label]||0)+1; });
         const dup = objs.slice().sort((a,b)=>(counts[b.label]||0)-(counts[a.label]||0));
@@ -551,8 +533,8 @@
     }
   }
 
-  // ====== detection loop control ======
-  const DETECT_INTERVAL_MS = 240; // 너무 흔들리지 않게
+  // ====== detection loop ======
+  const DETECT_INTERVAL_MS = 240;
   let lastDetectAt = 0;
 
   async function stepDetect(){
@@ -564,17 +546,14 @@
     topNVal.textContent = String(wantN);
 
     holdValEl.textContent = (+holdSecEl.value).toFixed(1) + "s";
+    boxScaleValEl.textContent = (+boxScaleEl.value).toFixed(2);
 
     let preds = await model.detect(srcV);
-    preds = preds
-      .filter(p => p.score >= conf)
-      .sort((a,b) => b.score - a.score);
+    preds = preds.filter(p => p.score >= conf).sort((a,b) => b.score - a.score);
 
-    // 상위 후보 조금 더
     const candidates = preds.slice(0, 10);
     const nowMs = performance.now();
 
-    // 기존 트랙 매칭
     const used = new Set();
     for (const tr of objectTracks){
       let bestJ = -1, bestI = 0;
@@ -593,7 +572,6 @@
       }
     }
 
-    // 새 트랙
     for (let j=0;j<candidates.length;j++){
       if (used.has(j)) continue;
       const p = candidates[j];
@@ -609,30 +587,18 @@
       });
     }
 
-    // 오래된 트랙 제거
     objectTracks = objectTracks.filter(tr => (nowMs - tr.lastSeen) < 1200);
-
-    // 렌더 대상 선택: wantN개
     objectTracks.sort((a,b)=>b.score-a.score);
     let active = objectTracks.slice(0, wantN);
 
-    // ✅ 핵심: 최소 3개 “실제 물체”가 없을 때, 바로 산발적으로 바꾸지 말고 HOLD 유지
-    // active가 3개 미만이면: 기존 active(이전 프레임)에서 lastSeen 최근 3개를 유지
     if (active.length < 3){
-      const fallback = objectTracks
-        .slice()
-        .sort((a,b)=>b.lastSeen-a.lastSeen)
-        .slice(0, Math.min(3, objectTracks.length));
+      const fallback = objectTracks.slice().sort((a,b)=>b.lastSeen-a.lastSeen).slice(0, Math.min(3, objectTracks.length));
       if (fallback.length >= 3) active = fallback;
     }
 
-    // active를 전역 렌더 리스트로 고정(다음 프레임까지 안정)
     renderTracks = active;
-
-    // 라벨은 “중복 금지 + 최소 3종”으로 부여/유지
     ensureDistinctLabelsForTopN(renderTracks, nowMs);
 
-    // 안내 텍스트
     if (renderTracks.length < 3) {
       statusEl.textContent = (usingUploadVideo ? "업로드" : "카메라") + " · 물체 3개 필요";
     } else {
@@ -640,14 +606,15 @@
     }
   }
 
-  let renderTracks = [];
-
   function render(){
     ctx.clearRect(0,0,out.width,out.height);
 
-    // 링크 (관계 미학)
+    const boxScale = clamp(+boxScaleEl.value, 0.60, 1.00);
+
+    // 링크(스케일된 박스 중심 기준)
     if (linksEl.checked && renderTracks.length >= 2){
-      const pts = renderTracks.map(t => center(t.bbox));
+      const scaledBoxes = renderTracks.map(t => scaleBox(t.bbox, boxScale));
+      const pts = scaledBoxes.map(b => center(b));
       const links = makeLinks(pts, 2);
       const t = performance.now()*0.001;
 
@@ -659,7 +626,6 @@
         const norm = Math.min(1, dist / Math.max(out.width, out.height));
 
         const style = getLinkStyle(A.label, B.label, t);
-
         const baseAlpha = (0.70*(1-norm) + 0.10) * style.alphaMul;
         const alpha = clamp(baseAlpha, 0.05, 0.95);
 
@@ -670,7 +636,6 @@
         const jx = style.jitter ? (Math.sin((i+1)*13.1 + t*4.0) * style.jitter) : 0;
         const jy = style.jitter ? (Math.cos((j+1)*9.7  + t*3.4) * style.jitter) : 0;
 
-        // glow는 한번 더 겹쳐 그리는 방식
         const baseW = Math.max(1.2, out.width/1100) * style.widthMul;
 
         ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
@@ -696,30 +661,27 @@
       }
     }
 
-    // 박스(실제 물체 크기 그대로) + 파편 + 라벨
+    // 박스 + 파편 + 라벨 (스케일 적용)
     ctx.lineWidth = Math.max(2, out.width/900);
 
     for (let idx=0; idx<renderTracks.length; idx++){
       const tr = renderTracks[idx];
-      const [x,y,w,h] = tr.bbox;
-
       const label = tr.label || "—";
-      const col = LABEL_COLOR[label] || PALETTE[idx % PALETTE.length];
+      const col = LABEL_COLOR[label] || [255,255,255];
 
-      // 파편
+      const b = scaleBox(tr.bbox, boxScale);
+      const [x,y,w,h] = b;
+
       if (fillFragEl.checked){
         const asset = assets.get(label);
-        drawFragmentIntoBox(asset, tr.bbox, (tr.seed + idx*77) >>> 0);
+        drawFragmentIntoBox(asset, b, (tr.seed + idx*77) >>> 0);
       }
 
-      // 박스 라인
       ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},0.98)`;
       ctx.strokeRect(x,y,w,h);
 
-      // 라벨 + coco class 같이 (맵핑 인지)
       drawLabelTag(label, tr.cls, x, y);
 
-      // 중심점
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.beginPath();
       ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/750), 0, Math.PI*2);
@@ -764,7 +726,7 @@
     }
   }
 
-  // ====== UI handlers ======
+  // ====== UI ======
   toggleUIBtn.onclick = ()=>{
     ui.classList.toggle("hidden");
     toggleUIBtn.textContent = ui.classList.contains("hidden") ? "☰ 메뉴" : "✕ 닫기";
@@ -809,9 +771,12 @@
     log("restart");
   };
 
+  boxScaleEl.oninput = ()=> boxScaleValEl.textContent = (+boxScaleEl.value).toFixed(2);
   recSecEl.oninput = ()=> recSecVal.textContent = recSecEl.value + "s";
 
-  // recording
+  preloadAssetsBtn.onclick = async ()=>{ await loadAssets(); };
+
+  // ====== recording: mp4 우선, 미지원이면 webm ======
   let recorder=null, recChunks=[], recTimer=null;
   function downloadBlob(blob, filename){
     const url = URL.createObjectURL(blob);
@@ -821,31 +786,52 @@
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
   }
 
+  function pickRecorderMime(){
+    const cand = [
+      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+      "video/mp4;codecs=avc1.42E01E",
+      "video/mp4",
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm"
+    ];
+    for (const m of cand){
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+    }
+    return "";
+  }
+
   recStartBtn.onclick = ()=>{
     if (!window.MediaRecorder){ log("MediaRecorder not supported"); return; }
     try{
       const s = out.captureStream(30);
       recChunks = [];
-      const mime =
-        MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" :
-        MediaRecorder.isTypeSupported("video/webm;codecs=vp8") ? "video/webm;codecs=vp8" :
-        "video/webm";
 
+      const mime = pickRecorderMime();
+      if (!mime){ log("no supported recorder mime"); return; }
+
+      const isMp4 = mime.startsWith("video/mp4");
       recorder = new MediaRecorder(s, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
+
       recorder.ondataavailable = (e)=>{ if (e.data && e.data.size) recChunks.push(e.data); };
       recorder.onstop = ()=>{
-        const blob = new Blob(recChunks, { type: recorder.mimeType || "video/webm" });
+        const blob = new Blob(recChunks, { type: recorder.mimeType || (isMp4 ? "video/mp4" : "video/webm") });
         const ts = new Date().toISOString().replaceAll(":","-").replaceAll(".","-");
-        downloadBlob(blob, `BOX-DETECT-${ts}.webm`);
-        log("record saved");
+        const ext = isMp4 ? "mp4" : "webm";
+        downloadBlob(blob, `BOX-DETECT-${ts}.${ext}`);
+        log("record saved (" + ext + ")");
       };
+
       recorder.start(250);
 
       const sec = +recSecEl.value;
       clearTimeout(recTimer);
       recTimer = setTimeout(()=>{ try{ recorder?.stop(); }catch(e){} }, sec*1000);
-      log("recording...");
-    }catch(e){ log("record error: " + (e?.message || e)); }
+
+      log("recording... mime=" + mime);
+    }catch(e){
+      log("record error: " + (e?.message || e));
+    }
   };
 
   recStopBtn.onclick = ()=>{
@@ -854,8 +840,6 @@
       if (recorder && recorder.state !== "inactive") recorder.stop();
     }catch(e){ log("stop error: " + (e?.message || e)); }
   };
-
-  preloadAssetsBtn.onclick = async ()=>{ await loadAssets(); };
 
   async function doStart(){
     try{
