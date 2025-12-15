@@ -3,28 +3,22 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>BOX DETECT – LIMEN Labels + Fragments + Export</title>
+<title>BOX DETECT – Micro Fragments</title>
 
-<!-- iOS 홈화면 앱처럼 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BOX DETECT">
 <meta name="theme-color" content="#000000">
 
-<!-- TFJS + COCO-SSD -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 
 <style>
   html,body{margin:0;height:100%;background:#000;color:#ddd;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;}
-  /* ✅ 중요: 영상/캔버스가 터치 먹지 않게 */
   #wrap{position:fixed;inset:0; pointer-events:none;}
   video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover; pointer-events:none;}
-
-  /* 소스 화면 흑백 */
   #srcVideo{filter: grayscale(1) contrast(1.15) brightness(1.05);}
 
-  /* UI */
   #ui{
     position:fixed; top:12px; left:12px; right:12px;
     display:flex; flex-wrap:wrap; gap:10px; align-items:center;
@@ -86,11 +80,7 @@
   #gate h1{margin:0 0 6px; font-size:18px;}
   #gate p{margin:6px 0; font-size:14px; color:#ccc;}
   #gate .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
-  #start{
-    padding:14px 18px;
-    border-radius:16px;
-    font-size:16px;
-  }
+  #start{padding:14px 18px;border-radius:16px;font-size:16px;}
 
   #log{
     position:fixed; left:12px; bottom:12px;
@@ -110,9 +100,7 @@
 
 <body>
 <div id="wrap">
-  <!-- 카메라/업로드 영상 소스 -->
   <video id="srcVideo" autoplay playsinline muted></video>
-  <!-- 최종 렌더(박스 + 라벨 + 파편 + 선) -->
   <canvas id="out"></canvas>
 </div>
 
@@ -121,14 +109,15 @@
 <div id="ui">
   <div class="pill">
     <b>감도</b>
-    <input id="conf" type="range" min="0.01" max="0.80" step="0.01" value="0.10">
-    <span id="confVal">0.10</span>
+    <input id="conf" type="range" min="0.01" max="0.80" step="0.01" value="0.08">
+    <span id="confVal">0.08</span>
   </div>
 
   <div class="pill">
-    <b>N</b>
-    <input id="topN" type="range" min="1" max="30" step="1" value="14">
-    <span id="topNVal">14</span>
+    <b>N(미세)</b>
+    <!-- ✅ 이제 “한 화면 미세 박스 개수”를 3~6 정도로 -->
+    <input id="topN" type="range" min="1" max="10" step="1" value="4">
+    <span id="topNVal">4</span>
   </div>
 
   <div class="pill">
@@ -177,15 +166,12 @@
 
 <div id="gate">
   <div class="box">
-    <h1>BOX DETECT – 커스텀 라벨 + 파편 + 내보내기</h1>
-    <p>assets 폴더에 이미지를 넣으면 박스 안이 파편으로 채워져.</p>
+    <h1>MICRO FRAGMENTS (3~4개 미세 박스)</h1>
+    <p>큰 탐지 박스를 “미세 조각 박스”로 쪼개서 흘러가게 만든 버전.</p>
     <div class="row">
       <button id="start">시작</button>
       <button id="preloadAssets">assets 다시 로드</button>
     </div>
-    <p style="font-size:12px;opacity:.8;margin-top:10px;">
-      iPhone: Safari → 공유 → 홈 화면에 추가
-    </p>
   </div>
 </div>
 
@@ -265,13 +251,11 @@
     if (low.endsWith(".mp4") || low.endsWith(".webm") || low.endsWith(".mov")) return "vid";
     return "img";
   }
-
   async function loadAssets(){
     assets.clear();
     const entries = Object.entries(ASSET_FILES);
     for (const [label, path] of entries){
       const type = guessTypeByPath(path);
-
       if (type === "img"){
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -282,19 +266,14 @@
           img.onerror = () => { rec.ready = false; res(); };
           img.src = path + "?v=" + Date.now();
         });
-
       } else {
         const vid = document.createElement("video");
         vid.crossOrigin = "anonymous";
         vid.muted = true; vid.loop = true; vid.playsInline = true;
         const rec = { type:"vid", el:vid, ready:false, path };
         assets.set(label, rec);
-
         await new Promise((res) => {
-          vid.onloadeddata = async () => {
-            try { await vid.play(); } catch(e) {}
-            rec.ready = true; res();
-          };
+          vid.onloadeddata = async () => { try { await vid.play(); } catch(e) {} rec.ready=true; res(); };
           vid.onerror = () => { rec.ready = false; res(); };
           vid.src = path + "?v=" + Date.now();
         });
@@ -310,10 +289,7 @@
 
   async function startCamera(){
     usingUploadVideo = false;
-    if (stream){
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-    }
+    if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
     statusEl.textContent = "카메라 요청";
     log("camera requesting...");
     stream = await navigator.mediaDevices.getUserMedia({
@@ -328,10 +304,7 @@
 
   async function useUploadedVideo(file){
     usingUploadVideo = true;
-    if (stream){
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-    }
+    if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
     const url = URL.createObjectURL(file);
     srcV.srcObject = null;
     srcV.src = url;
@@ -339,7 +312,7 @@
     srcV.muted = true;
     await srcV.play();
     resize();
-    log("uploaded video playing: " + file.name);
+    log("uploaded video: " + file.name);
   }
 
   function resize(){
@@ -360,50 +333,76 @@
     return model;
   }
 
-  let tracks = [];
-  let nextId = 1;
-
-  function iou(a, b){
-    const ax1=a[0], ay1=a[1], ax2=a[0]+a[2], ay2=a[1]+a[3];
-    const bx1=b[0], by1=b[1], bx2=b[0]+b[2], by2=b[1]+b[3];
-    const x1=Math.max(ax1,bx1), y1=Math.max(ay1,by1);
-    const x2=Math.min(ax2,bx2), y2=Math.min(ay2,by2);
-    const iw=Math.max(0,x2-x1), ih=Math.max(0,y2-y1);
-    const inter=iw*ih;
-    const ua=(a[2]*a[3])+(b[2]*b[3])-inter;
-    return ua>0 ? inter/ua : 0;
+  // ====== MICRO BOX GENERATION ======
+  function rand01(seed){
+    // deterministic-ish random
+    const x = Math.sin(seed) * 43758.5453123;
+    return x - Math.floor(x);
   }
 
-  function updateTracks(preds){
-    const used = new Set();
-    const newTracks = [];
+  // 큰 박스 하나를 “미세 박스” 1개로 변환 (작은 물질처럼 보이게)
+  // - 큰 bbox 안에서 랜덤한 작은 sub-bbox 생성
+  function microFrom(bbox, seed){
+    const [x,y,w,h] = bbox;
+    const r1 = rand01(seed*12.3 + performance.now()*0.0006);
+    const r2 = rand01(seed*7.7  + performance.now()*0.0004);
+    const r3 = rand01(seed*3.1  + performance.now()*0.0005);
 
+    // “작은 물질” 크기: 원 박스 대비 12%~32% 정도
+    const mw = Math.max(18, w * (0.12 + r1*0.20));
+    const mh = Math.max(18, h * (0.12 + r2*0.20));
+
+    // 박스 내부 랜덤 위치
+    let mx = x + (w - mw) * r2;
+    let my = y + (h - mh) * r3;
+
+    return [mx, my, mw, mh];
+  }
+
+  // 화면에서 “미세 박스 N개만” 만들기:
+  // 1) coco-ssd preds 중 score 상위 몇 개 선택
+  // 2) 각 pred에서 micro box 생성
+  function buildMicroTracks(preds, microCount){
+    const micros = [];
+    // score 높은 큰 박스 몇 개만 기반으로 사용
+    const base = preds.slice(0, Math.min(preds.length, 6));
+    let seed = 1000;
+    for (let i=0;i<microCount;i++){
+      const p = base[i % base.length];
+      if (!p) break;
+      const mbox = microFrom(p.bbox, seed+i*19);
+      micros.push({
+        id: i+1,
+        bbox: mbox,
+        limenLabel: pickLimenLabel(p.class, i),
+        cocoClass: p.class,
+        score: p.score,
+        colorIndex: i % PALETTE.length,
+        // drift(흘러가게)
+        vx: (rand01(200+i*3)-0.5) * 0.8,
+        vy: (rand01(400+i*5)-0.5) * 0.8,
+        fragSeed: 9000 + i*77
+      });
+    }
+    return micros;
+  }
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  function driftTracks(ts){
+    // 미세 박스가 살짝 “흘러가며” 화면에 떠있게
     for (const t of tracks){
-      let best=-1, bestI=-1;
-      for (let i=0;i<preds.length;i++){
-        if (used.has(i)) continue;
-        const v = iou(t.bbox, preds[i].bbox);
-        if (v > best){ best=v; bestI=i; }
-      }
-      if (bestI >= 0 && best >= 0.25){
-        used.add(bestI);
-        t.bbox = preds[bestI].bbox;
-        t.score = preds[bestI].score;
-        t.cocoClass = preds[bestI].class;
-        newTracks.push(t);
-      }
-    }
+      let [x,y,w,h] = t.bbox;
+      x += t.vx; y += t.vy;
 
-    for (let i=0;i<preds.length;i++){
-      if (used.has(i)) continue;
-      const p = preds[i];
-      const id = nextId++;
-      const limen = pickLimenLabel(p.class, id);
-      const colorIndex = id % PALETTE.length;
-      const fragSeed = (id * 9973) % 100000;
-      newTracks.push({ id, bbox:p.bbox, limenLabel:limen, cocoClass:p.class, score:p.score, colorIndex, fragSeed });
+      // 경계에서 반사
+      if (x < 0 || x + w > out.width) t.vx *= -1;
+      if (y < 0 || y + h > out.height) t.vy *= -1;
+
+      x = clamp(x, 0, out.width - w);
+      y = clamp(y, 0, out.height - h);
+      t.bbox = [x,y,w,h];
     }
-    tracks = newTracks;
   }
 
   function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
@@ -481,6 +480,8 @@
     ctx.fillText(text, x + pad, Math.max(0, y - th) + 2);
   }
 
+  let tracks = [];
+
   function render(){
     ctx.clearRect(0,0,out.width,out.height);
 
@@ -494,14 +495,14 @@
         const norm = Math.min(1, dist / Math.max(out.width, out.height));
         const alpha = 0.75*(1-norm) + 0.08;
         ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
-        ctx.lineWidth = Math.max(1.5, out.width/900);
+        ctx.lineWidth = Math.max(1.2, out.width/1100);
         ctx.beginPath();
         ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
         ctx.stroke();
       }
     }
 
-    ctx.lineWidth = Math.max(2, out.width/700);
+    ctx.lineWidth = Math.max(2, out.width/900);
 
     for (const t of tracks){
       const [x,y,w,h] = t.bbox;
@@ -515,17 +516,19 @@
       ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.95)`;
       ctx.strokeRect(x,y,w,h);
 
-      const conf = (t.score*100).toFixed(0) + "%";
-      drawLabelBox(`${t.limenLabel} · ${conf}`, x, y, color);
+      // 미세 박스는 % 표시를 줄여서 더 “물질” 같게
+      drawLabelBox(`${t.limenLabel}`, x, y, color);
 
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.beginPath();
-      ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/500), 0, Math.PI*2);
+      ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/700), 0, Math.PI*2);
       ctx.fill();
     }
+
     countEl.textContent = "Boxes " + tracks.length;
   }
 
+  // ====== LOOP ======
   let running = false;
   let lastT = performance.now();
   let emaFps = 0;
@@ -539,17 +542,27 @@
 
       const conf = +confEl.value;
       confVal.textContent = conf.toFixed(2);
-      topNVal.textContent = String(topNEl.value);
+
+      const microCount = +topNEl.value;
+      topNVal.textContent = String(microCount);
 
       let preds = await model.detect(srcV);
+
+      // “예민하게”: conf만 통과하면 됨
       preds = preds
         .filter(p => p.score >= conf)
-        .sort((a,b) => b.score - a.score)
-        .slice(0, +topNEl.value);
+        .sort((a,b) => b.score - a.score);
 
-      updateTracks(preds);
+      // ✅ 여기서 “큰 박스들”을 “미세 박스들”로 변환
+      tracks = buildMicroTracks(preds, microCount);
+
+      // drift
+      driftTracks();
+
+      // draw
       render();
 
+      // fps
       const now = performance.now();
       const dt = (now - lastT) / 1000;
       lastT = now;
@@ -568,13 +581,12 @@
     }
   }
 
-  // UI 토글
+  // UI
   toggleUIBtn.onclick = ()=>{
     ui.classList.toggle("hidden");
     toggleUIBtn.textContent = ui.classList.contains("hidden") ? "☰ 메뉴" : "✕ 닫기";
   };
 
-  // 전체화면
   fullscreenBtn.onclick = async ()=>{
     try{
       const el = document.documentElement;
@@ -583,7 +595,6 @@
     }catch(e){ log("fullscreen error: " + (e?.message || e)); }
   };
 
-  // 소스 전환
   useCamBtn.onclick = async ()=>{
     try{ await startCamera(); log("source: camera"); }catch(e){ log("camera error: " + (e?.message || e)); }
   };
@@ -612,39 +623,15 @@
     log("restart");
   };
 
-  // assets reload
-  preloadAssetsBtn.onclick = async ()=>{ await loadAssets(); };
-
-  // upload video
-  async function useUploadedVideo(file){
-    usingUploadVideo = true;
-    if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
-    const url = URL.createObjectURL(file);
-    srcV.srcObject = null;
-    srcV.src = url;
-    srcV.loop = true;
-    srcV.muted = true;
-    await srcV.play();
-    resize();
-    log("uploaded video: " + file.name);
-  }
-
-  // 녹화(export)
-  let recorder = null;
-  let recChunks = [];
-  let recTimer = null;
-
+  // recording (same as before)
+  let recorder=null, recChunks=[], recTimer=null;
   function downloadBlob(blob, filename){
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
   }
-
   recSecEl.oninput = ()=> recSecVal.textContent = recSecEl.value + "s";
 
   recStartBtn.onclick = ()=>{
@@ -670,7 +657,6 @@
       const sec = +recSecEl.value;
       clearTimeout(recTimer);
       recTimer = setTimeout(()=>{ try{ recorder?.stop(); }catch(e){} }, sec*1000);
-
       log("recording...");
     }catch(e){ log("record error: " + (e?.message || e)); }
   };
@@ -682,7 +668,8 @@
     }catch(e){ log("stop error: " + (e?.message || e)); }
   };
 
-  // ✅ 핵심: iOS에서 클릭이 안 먹을 때 대비 (click + touchend)
+  preloadAssetsBtn.onclick = async ()=>{ await loadAssets(); };
+
   async function doStart(){
     try{
       gate.style.display = "none";
