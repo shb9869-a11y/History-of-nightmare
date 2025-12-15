@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>BOX DETECT – Anchored Micro Fragments (Hold Mapping)</title>
+<title>BOX DETECT – Object Boxes + Relational Aesthetics</title>
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -70,7 +70,7 @@
     pointer-events:auto;
   }
   #gate .box{
-    width:min(820px,94vw);
+    width:min(860px,94vw);
     background:rgba(0,0,0,.55);
     border:1px solid rgba(255,255,255,.12);
     border-radius:18px;
@@ -91,7 +91,7 @@
     border-radius:12px;
     padding:8px 10px;
     backdrop-filter: blur(8px);
-    max-width:min(86vw,720px);
+    max-width:min(86vw,820px);
     white-space:pre-wrap;
     pointer-events:none;
   }
@@ -109,21 +109,20 @@
 <div id="ui">
   <div class="pill">
     <b>감도</b>
-    <input id="conf" type="range" min="0.01" max="0.80" step="0.01" value="0.10">
-    <span id="confVal">0.10</span>
+    <input id="conf" type="range" min="0.01" max="0.80" step="0.01" value="0.12">
+    <span id="confVal">0.12</span>
   </div>
 
   <div class="pill">
-    <b>N(미세)</b>
-    <input id="topN" type="range" min="1" max="10" step="1" value="4">
+    <b>N(물체)</b>
+    <input id="topN" type="range" min="3" max="8" step="1" value="4">
     <span id="topNVal">4</span>
   </div>
 
-  <!-- ✅ 추가: 맵핑 유지 시간 -->
   <div class="pill">
     <b>HOLD</b>
-    <input id="holdSec" type="range" min="1" max="8" step="0.5" value="2.5">
-    <span id="holdVal">2.5s</span>
+    <input id="holdSec" type="range" min="1" max="10" step="0.5" value="3.0">
+    <span id="holdVal">3.0s</span>
   </div>
 
   <div class="pill">
@@ -172,8 +171,11 @@
 
 <div id="gate">
   <div class="box">
-    <h1>ANCHOR + HOLD (사물 기반 + 맵핑 유지)</h1>
-    <p>사물(실제 객체) 위에 작은 박스를 앵커링하고, 라벨/이미지를 몇 초 유지해서 “지금 뭐가 맵핑됐는지” 읽을 시간을 줌.</p>
+    <h1>OBJECT BOXES + RELATION AESTHETICS</h1>
+    <p>
+      실제 물체를 “있는 크기 그대로” 잡고, 최소 3개 이상 포착 + 라벨 3종 이상(중복 금지) 유지.<br>
+      링크는 라벨에 따라 굵기/점선/숨쉬기/스파크 등 관계의 미학으로 다르게 표현.
+    </p>
     <div class="row">
       <button id="start">시작</button>
       <button id="preloadAssets">assets 다시 로드</button>
@@ -255,6 +257,15 @@
     [255,255,0],[0,255,255],[255,0,255],[120,255,120],
     [255,120,120],[120,120,255],[255,200,120],[200,120,255]
   ];
+
+  // 라벨별 “대표색” (관계 미학에서 라벨 읽기 쉽게)
+  const LABEL_COLOR = {
+    "Mom": [255,140,140],
+    "Hometown": [140,255,180],
+    "Son Duk-Geum": [255,255,140],
+    "GrandFather": [190,190,255],
+    "Ocean": [140,190,255]
+  };
 
   const ASSET_FILES = {
     "Mom": "assets/mom.jpg",
@@ -353,11 +364,10 @@
     return model;
   }
 
-  // ====== tracking helpers ======
+  // ====== utils ======
   function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
 
   function iou(a,b){
-    // a,b: [x,y,w,h]
     const ax1=a[0], ay1=a[1], ax2=a[0]+a[2], ay2=a[1]+a[3];
     const bx1=b[0], by1=b[1], bx2=b[0]+b[2], by2=b[1]+b[3];
     const ix1=Math.max(ax1,bx1), iy1=Math.max(ay1,by1);
@@ -367,156 +377,11 @@
     const ua=a[2]*a[3] + b[2]*b[3] - inter;
     return ua>0 ? inter/ua : 0;
   }
-
   function lerp(a,b,t){ return a + (b-a)*t; }
   function lerpBox(cur, target, t){
-    return [
-      lerp(cur[0], target[0], t),
-      lerp(cur[1], target[1], t),
-      lerp(cur[2], target[2], t),
-      lerp(cur[3], target[3], t),
-    ];
+    return [lerp(cur[0], target[0], t), lerp(cur[1], target[1], t), lerp(cur[2], target[2], t), lerp(cur[3], target[3], t)];
   }
-
-  // ====== “사물(객체) 트랙” ======
-  // objectTracks: 실제 coco-ssd bbox에 붙는 앵커
-  let objectTracks = []; // {id, bbox, cls, score, label, labelUntil, lastSeen}
-  let nextObjId = 1;
-
-  // ====== “미세 박스(표현 레이어)” ======
-  let microTracks = []; // {id, objId, bbox, limenLabel, vx, vy, fragSeed, colorIndex}
-
-  function rand01(seed){
-    const x = Math.sin(seed) * 43758.5453123;
-    return x - Math.floor(x);
-  }
-
-  // ✅ 미세 박스는 “사물 bbox 안에서만” 움직임 (양심)
-  function spawnMicroInside(objBBox, seed){
-    const [x,y,w,h]=objBBox;
-    // 더 작게
-    const mw = Math.max(10, w * (0.05 + rand01(seed*3.1)*0.10));
-    const mh = Math.max(10, h * (0.05 + rand01(seed*7.7)*0.10));
-    const mx = x + (w - mw) * rand01(seed*11.3);
-    const my = y + (h - mh) * rand01(seed*13.7);
-    return [mx,my,mw,mh];
-  }
-
-  function driftMicroAnchored(m, objBBox){
-    let [mx,my,mw,mh]=m.bbox;
-    mx += m.vx; my += m.vy;
-
-    const [ox,oy,ow,oh]=objBBox;
-    const minX = ox, maxX = ox + ow - mw;
-    const minY = oy, maxY = oy + oh - mh;
-
-    if (mx < minX || mx > maxX) m.vx *= -1;
-    if (my < minY || my > maxY) m.vy *= -1;
-
-    mx = clamp(mx, minX, maxX);
-    my = clamp(my, minY, maxY);
-    m.bbox = [mx,my,mw,mh];
-  }
-
-  function ensureDistinctLabelsOnScreen(objs, now){
-    // 목표: 화면에 최소 3개는 서로 다른 라벨이 존재하도록
-    // 1) 라벨 만료된 애는 새로 부여
-    // 2) 중복이 심하면 일부만 교체해서 다양화
-
-    const holdMs = (+holdSecEl.value) * 1000;
-
-    // 만료 처리
-    for (const o of objs){
-      if (!o.label || now > o.labelUntil){
-        o.label = null;
-      }
-    }
-
-    // 현재 라벨 집계
-    const used = new Map();
-    for (const o of objs){
-      if (o.label) used.set(o.label, (used.get(o.label)||0)+1);
-    }
-
-    // 먼저 class 기반으로 라벨 채우되, 너무 한쪽으로 쏠리면 분산
-    for (let i=0;i<objs.length;i++){
-      const o=objs[i];
-      if (!o.label){
-        let candidate = pickLimenLabelByClass(o.cls, i);
-        // 이미 같은 라벨이 2개 이상이면 다른 걸 우선
-        if ((used.get(candidate)||0) >= 2){
-          const pool = shuffleCopy(LIMEN_LABELS).filter(L=> (used.get(L)||0)===0);
-          if (pool.length) candidate = pool[0];
-        }
-        o.label = candidate;
-        o.labelUntil = now + holdMs;
-        used.set(candidate,(used.get(candidate)||0)+1);
-      }
-    }
-
-    // 최소 3개 서로 다르게 강제: (objs가 3개 이상 있을 때)
-    if (objs.length >= 3){
-      const uniq = new Set(objs.map(o=>o.label));
-      if (uniq.size < 3){
-        // 부족하면, 중복 라벨 가진 애 중 일부를 unused로 교체
-        const pool = shuffleCopy(LIMEN_LABELS).filter(L=> !uniq.has(L));
-        if (pool.length){
-          // 중복 많은 라벨부터 깎기
-          const counts = {};
-          objs.forEach(o=>{ counts[o.label]=(counts[o.label]||0)+1; });
-          const dupObjs = objs
-            .slice()
-            .sort((a,b)=>(counts[b.label]||0)-(counts[a.label]||0));
-          for (const o of dupObjs){
-            if (new Set(objs.map(x=>x.label)).size >= 3) break;
-            const next = pool.shift();
-            if (!next) break;
-            o.label = next;
-            o.labelUntil = now + holdMs;
-          }
-        }
-      }
-    }
-  }
-
-  function rebuildMicroTracksFromObjects(objs, wantedCount){
-    // wantedCount 만큼 “미세 박스” 만들되, 사물(객체)들에 고르게 분배
-    const microCount = Math.max(3, wantedCount|0);
-    const newMicros = [];
-    if (!objs.length) return newMicros;
-
-    // 분배: 객체마다 최소 1개씩, 남는 건 앞에서부터 추가
-    const perObj = Math.floor(microCount / objs.length);
-    let remainder = microCount % objs.length;
-
-    let idx=0;
-    for (const o of objs){
-      const take = Math.max(1, perObj) + (remainder>0 ? 1 : 0);
-      if (remainder>0) remainder--;
-
-      for (let k=0;k<take;k++){
-        if (newMicros.length >= microCount) break;
-
-        const seed = 9000 + o.id*97 + k*31;
-        const bbox = spawnMicroInside(o.bbox, seed);
-
-        newMicros.push({
-          id: ++idx,
-          objId: o.id,
-          bbox,
-          limenLabel: o.label,           // ✅ 객체 라벨을 그대로 공유(맵핑 인지)
-          colorIndex: (o.id + k) % PALETTE.length,
-          vx: (rand01(seed*2.3)-0.5) * 0.55,   // 너무 산발적이지 않게 속도 낮춤
-          vy: (rand01(seed*5.1)-0.5) * 0.55,
-          fragSeed: seed
-        });
-      }
-    }
-    return newMicros;
-  }
-
   function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
-
   function makeLinks(points, k=2){
     const links=[];
     for(let i=0;i<points.length;i++){
@@ -534,13 +399,51 @@
     }
     return links;
   }
-
   function fract(x){ return x - Math.floor(x); }
 
+  // ====== 관계의 미학(링크 스타일) ======
+  function getLinkStyle(aLabel, bLabel, t){
+    const pair = [aLabel, bLabel].sort().join("|");
+
+    let widthMul = 1.0;
+    let alphaMul = 1.0;
+    let jitter = 0.0;
+    let dash = null;
+    let pulse = 0.0;
+    let glow = 0.0;
+
+    if (aLabel==="Mom" || bLabel==="Mom"){
+      widthMul = 1.35;
+      alphaMul = 1.20;
+      pulse = 0.18;
+    }
+    if (aLabel==="Ocean" || bLabel==="Ocean"){
+      alphaMul *= 0.78;
+      jitter = 1.2;
+      dash = [6, 10];
+    }
+    if (aLabel==="GrandFather" || bLabel==="GrandFather"){
+      pulse = Math.max(pulse, 0.38);
+    }
+    if (aLabel==="Hometown" || bLabel==="Hometown"){
+      dash = dash || [10, 6];
+    }
+    if (aLabel==="Son Duk-Geum" || bLabel==="Son Duk-Geum"){
+      glow = 0.7;
+    }
+
+    if (pair === "Hometown|Mom") alphaMul *= 1.10;
+    if (pair === "GrandFather|Ocean") jitter *= 1.35;
+
+    const pulseFactor = 1 + pulse * Math.sin(t*1.6);
+    return { widthMul: widthMul*pulseFactor, alphaMul, jitter, dash, glow };
+  }
+
+  // ====== 파편 채우기 ======
   function drawFragmentIntoBox(assetRec, bbox, seed){
     if (!assetRec || !assetRec.ready) return;
     const [x,y,w,h] = bbox;
-    if (w < 6 || h < 6) return;
+    if (w < 8 || h < 8) return;
 
     const t = performance.now() * 0.001;
     const r1 = fract(Math.sin(seed*12.9898 + t*1.3) * 43758.5453);
@@ -550,9 +453,10 @@
     ctx.save();
     ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
 
-    const scale = 1.1 + r1 * 1.4; // 과도한 요동 줄임
-    const ox = (r2 - 0.5) * w * 0.6;
-    const oy = (r3 - 0.5) * h * 0.6;
+    // 큰 박스 안에서는 너무 요동치면 난잡 → 안정적으로
+    const scale = 1.05 + r1 * 1.25;
+    const ox = (r2 - 0.5) * w * 0.35;
+    const oy = (r3 - 0.5) * h * 0.35;
 
     const el = assetRec.el;
     let sw=0, sh=0;
@@ -567,165 +471,268 @@
     ctx.globalAlpha = 0.85;
     ctx.drawImage(el, dx, dy, dw, dh);
 
-    ctx.globalAlpha = 0.35;
-    const dw2 = w * (0.8 + r2*0.6);
-    const dh2 = h * (0.8 + r3*0.6);
-    const dx2 = x + (w - dw2)/2 - ox*0.4;
-    const dy2 = y + (h - dh2)/2 - oy*0.4;
+    ctx.globalAlpha = 0.32;
+    const dw2 = w * (0.85 + r2*0.5);
+    const dh2 = h * (0.85 + r3*0.5);
+    const dx2 = x + (w - dw2)/2 - ox*0.25;
+    const dy2 = y + (h - dh2)/2 - oy*0.25;
     ctx.drawImage(el, dx2, dy2, dw2, dh2);
 
     ctx.restore();
     ctx.globalAlpha = 1;
   }
 
-  function drawLabelBox(text, x, y, color){
+  function drawLabelTag(label, cocoClass, x, y){
+    const col = LABEL_COLOR[label] || [255,255,255];
+    const text = `${label} · ${cocoClass}`;
     ctx.font = `${Math.max(12, Math.round(out.width/95))}px system-ui,-apple-system,sans-serif`;
     ctx.textBaseline = "top";
-    const pad = 6;
+    const padX = 7, padY = 4;
     const tw = ctx.measureText(text).width;
-    const th = Math.max(16, Math.round(out.width/75));
+    const th = Math.max(18, Math.round(out.width/75));
 
-    ctx.fillStyle = "rgba(0,0,0,0.60)";
-    ctx.fillRect(x, Math.max(0, y - th), tw + pad*2, th);
+    const ty = Math.max(0, y - th - 2);
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillRect(x, ty, tw + padX*2, th);
 
-    ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.98)`;
-    ctx.fillText(text, x + pad, Math.max(0, y - th) + 2);
+    ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},0.98)`;
+    ctx.fillText(text, x + padX, ty + padY);
   }
 
-  function render(){
-    ctx.clearRect(0,0,out.width,out.height);
+  // ====== object tracks ======
+  // {id, bbox, cls, score, label, labelUntil, lastSeen, seed, color}
+  let objectTracks = [];
+  let nextId = 1;
 
-    const pts = microTracks.map(t => center(t.bbox));
+  function ensureDistinctLabelsForTopN(objs, nowMs){
+    const holdMs = (+holdSecEl.value) * 1000;
 
-    if (linksEl.checked && pts.length >= 2){
-      const links = makeLinks(pts, 2);
-      for (const [i,j,dd] of links){
-        const a=pts[i], b=pts[j];
-        const dist = Math.sqrt(dd);
-        const norm = Math.min(1, dist / Math.max(out.width, out.height));
-        const alpha = 0.65*(1-norm) + 0.10;
-        ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
-        ctx.lineWidth = Math.max(1.2, out.width/1100);
-        ctx.beginPath();
-        ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
-        ctx.stroke();
+    // 라벨 만료
+    for (const o of objs){
+      if (!o.label || nowMs > o.labelUntil) o.label = null;
+    }
+
+    // 먼저 class 기반 라벨 채우기
+    const used = new Set(objs.filter(o=>o.label).map(o=>o.label));
+    for (let i=0;i<objs.length;i++){
+      const o = objs[i];
+      if (!o.label){
+        let candidate = pickLimenLabelByClass(o.cls, i);
+        // 이미 쓰였으면 다른 라벨로
+        if (used.has(candidate)){
+          const pool = shuffleCopy(LIMEN_LABELS).filter(L=>!used.has(L));
+          if (pool.length) candidate = pool[0];
+        }
+        o.label = candidate;
+        o.labelUntil = nowMs + holdMs;
+        used.add(candidate);
       }
     }
 
-    ctx.lineWidth = Math.max(2, out.width/900);
-
-    for (const t of microTracks){
-      const [x,y,w,h] = t.bbox;
-      const color = PALETTE[t.colorIndex % PALETTE.length];
-
-      if (fillFragEl.checked){
-        const asset = assets.get(t.limenLabel);
-        drawFragmentIntoBox(asset, t.bbox, t.fragSeed);
+    // 최소 3종 보장 (objs가 3개 이상이면)
+    if (objs.length >= 3){
+      let uniq = new Set(objs.map(o=>o.label));
+      if (uniq.size < 3){
+        // 부족 라벨을 채우기 위해 중복 라벨 가진 객체 일부 교체
+        const pool = shuffleCopy(LIMEN_LABELS).filter(L=>!uniq.has(L));
+        // 중복 라벨 목록
+        const counts = {};
+        objs.forEach(o=>{ counts[o.label]=(counts[o.label]||0)+1; });
+        const dup = objs.slice().sort((a,b)=>(counts[b.label]||0)-(counts[a.label]||0));
+        for (const o of dup){
+          uniq = new Set(objs.map(x=>x.label));
+          if (uniq.size >= 3) break;
+          const next = pool.shift();
+          if (!next) break;
+          o.label = next;
+          o.labelUntil = nowMs + holdMs;
+        }
       }
-
-      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.98)`;
-      ctx.strokeRect(x,y,w,h);
-
-      // ✅ 라벨을 “읽을 시간”이 생겼으니, 텍스트는 유지해서 보여줌
-      drawLabelBox(`${t.limenLabel}`, x, y, color);
-
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.beginPath();
-      ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/750), 0, Math.PI*2);
-      ctx.fill();
     }
-
-    countEl.textContent = "Boxes " + microTracks.length;
   }
 
-  // ====== LOOP ======
-  let running = false;
-  let lastT = performance.now();
-  let emaFps = 0;
-
-  // ✅ 디텍션은 매 프레임 하면 요동이 심해짐 → 주기적으로만 (안정감)
-  const DETECT_INTERVAL_MS = 220;
+  // ====== detection loop control ======
+  const DETECT_INTERVAL_MS = 240; // 너무 흔들리지 않게
   let lastDetectAt = 0;
 
-  async function stepDetect(now){
+  async function stepDetect(){
     const conf = +confEl.value;
     confVal.textContent = conf.toFixed(2);
 
-    let wanted = +topNEl.value;
-    if (wanted < 3) wanted = 3;
-    topNVal.textContent = String(wanted);
+    let wantN = +topNEl.value;
+    wantN = clamp(wantN, 3, 8);
+    topNVal.textContent = String(wantN);
 
-    // coco-ssd detect
+    holdValEl.textContent = (+holdSecEl.value).toFixed(1) + "s";
+
     let preds = await model.detect(srcV);
     preds = preds
       .filter(p => p.score >= conf)
       .sort((a,b) => b.score - a.score);
 
-    // 너무 많이 쓰지 말고 상위 몇 개만
-    const selected = preds.slice(0, 6);
-
+    // 상위 후보 조금 더
+    const candidates = preds.slice(0, 10);
     const nowMs = performance.now();
-    // 1) 매칭(간단 IoU)로 objectTracks 업데이트
-    const usedPred = new Set();
+
+    // 기존 트랙 매칭
+    const used = new Set();
     for (const tr of objectTracks){
-      let bestJ = -1;
-      let bestIoU = 0;
-      for (let j=0;j<selected.length;j++){
-        if (usedPred.has(j)) continue;
-        const p = selected[j];
-        const s = iou(tr.bbox, p.bbox);
-        if (s > bestIoU){
-          bestIoU = s;
-          bestJ = j;
-        }
+      let bestJ = -1, bestI = 0;
+      for (let j=0;j<candidates.length;j++){
+        if (used.has(j)) continue;
+        const s = iou(tr.bbox, candidates[j].bbox);
+        if (s > bestI){ bestI=s; bestJ=j; }
       }
-      if (bestJ >= 0 && bestIoU > 0.18){
-        const p = selected[bestJ];
-        usedPred.add(bestJ);
-        tr.bbox = lerpBox(tr.bbox, p.bbox, 0.55); // 부드럽게 따라감(안정감)
+      if (bestJ >= 0 && bestI > 0.18){
+        const p = candidates[bestJ];
+        used.add(bestJ);
+        tr.bbox = lerpBox(tr.bbox, p.bbox, 0.55);
         tr.cls = p.class;
         tr.score = p.score;
         tr.lastSeen = nowMs;
       }
     }
 
-    // 2) 새 트랙 생성
-    for (let j=0;j<selected.length;j++){
-      if (usedPred.has(j)) continue;
-      const p = selected[j];
+    // 새 트랙
+    for (let j=0;j<candidates.length;j++){
+      if (used.has(j)) continue;
+      const p = candidates[j];
       objectTracks.push({
-        id: nextObjId++,
+        id: nextId++,
         bbox: p.bbox.slice(),
         cls: p.class,
         score: p.score,
         label: null,
         labelUntil: 0,
-        lastSeen: nowMs
+        lastSeen: nowMs,
+        seed: (nextId*971 + j*37) >>> 0
       });
     }
 
-    // 3) 오래 안 보인 트랙 제거
+    // 오래된 트랙 제거
     objectTracks = objectTracks.filter(tr => (nowMs - tr.lastSeen) < 1200);
 
-    // 4) 화면에 쓸 객체는 최대 4개 정도 (읽을 수 있게)
+    // 렌더 대상 선택: wantN개
     objectTracks.sort((a,b)=>b.score-a.score);
-    const activeObjs = objectTracks.slice(0, 4);
+    let active = objectTracks.slice(0, wantN);
 
-    // 5) 라벨 “HOLD” 기반으로 부여 + 최소 3종 다양화
-    ensureDistinctLabelsOnScreen(activeObjs, nowMs);
+    // ✅ 핵심: 최소 3개 “실제 물체”가 없을 때, 바로 산발적으로 바꾸지 말고 HOLD 유지
+    // active가 3개 미만이면: 기존 active(이전 프레임)에서 lastSeen 최근 3개를 유지
+    if (active.length < 3){
+      const fallback = objectTracks
+        .slice()
+        .sort((a,b)=>b.lastSeen-a.lastSeen)
+        .slice(0, Math.min(3, objectTracks.length));
+      if (fallback.length >= 3) active = fallback;
+    }
 
-    // 6) microTracks 재구성(객체에 앵커링)
-    microTracks = rebuildMicroTracksFromObjects(activeObjs, wanted);
-  }
+    // active를 전역 렌더 리스트로 고정(다음 프레임까지 안정)
+    renderTracks = active;
 
-  function stepAnimate(){
-    // micro 박스 움직임은 각 객체 bbox 안에서만
-    const objMap = new Map(objectTracks.map(o=>[o.id,o]));
-    for (const m of microTracks){
-      const o = objMap.get(m.objId);
-      if (o) driftMicroAnchored(m, o.bbox);
+    // 라벨은 “중복 금지 + 최소 3종”으로 부여/유지
+    ensureDistinctLabelsForTopN(renderTracks, nowMs);
+
+    // 안내 텍스트
+    if (renderTracks.length < 3) {
+      statusEl.textContent = (usingUploadVideo ? "업로드" : "카메라") + " · 물체 3개 필요";
+    } else {
+      statusEl.textContent = usingUploadVideo ? "업로드 영상" : "카메라";
     }
   }
+
+  let renderTracks = [];
+
+  function render(){
+    ctx.clearRect(0,0,out.width,out.height);
+
+    // 링크 (관계 미학)
+    if (linksEl.checked && renderTracks.length >= 2){
+      const pts = renderTracks.map(t => center(t.bbox));
+      const links = makeLinks(pts, 2);
+      const t = performance.now()*0.001;
+
+      for (const [i,j,dd] of links){
+        const A = renderTracks[i], B = renderTracks[j];
+        const a = pts[i], b = pts[j];
+
+        const dist = Math.sqrt(dd);
+        const norm = Math.min(1, dist / Math.max(out.width, out.height));
+
+        const style = getLinkStyle(A.label, B.label, t);
+
+        const baseAlpha = (0.70*(1-norm) + 0.10) * style.alphaMul;
+        const alpha = clamp(baseAlpha, 0.05, 0.95);
+
+        ctx.save();
+        if (style.dash) ctx.setLineDash(style.dash);
+        else ctx.setLineDash([]);
+
+        const jx = style.jitter ? (Math.sin((i+1)*13.1 + t*4.0) * style.jitter) : 0;
+        const jy = style.jitter ? (Math.cos((j+1)*9.7  + t*3.4) * style.jitter) : 0;
+
+        // glow는 한번 더 겹쳐 그리는 방식
+        const baseW = Math.max(1.2, out.width/1100) * style.widthMul;
+
+        ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+        ctx.lineWidth = baseW;
+
+        ctx.beginPath();
+        ctx.moveTo(a.x + jx, a.y + jy);
+        ctx.lineTo(b.x - jx, b.y - jy);
+        ctx.stroke();
+
+        if (style.glow > 0){
+          const glowA = clamp(alpha + (0.12 + 0.18*Math.sin(t*6.0 + i))*style.glow, 0.08, 0.95);
+          ctx.setLineDash([]);
+          ctx.strokeStyle = `rgba(255,255,255,${glowA.toFixed(3)})`;
+          ctx.lineWidth = baseW * 1.6;
+          ctx.beginPath();
+          ctx.moveTo(a.x - jx*0.6, a.y - jy*0.6);
+          ctx.lineTo(b.x + jx*0.6, b.y + jy*0.6);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+    }
+
+    // 박스(실제 물체 크기 그대로) + 파편 + 라벨
+    ctx.lineWidth = Math.max(2, out.width/900);
+
+    for (let idx=0; idx<renderTracks.length; idx++){
+      const tr = renderTracks[idx];
+      const [x,y,w,h] = tr.bbox;
+
+      const label = tr.label || "—";
+      const col = LABEL_COLOR[label] || PALETTE[idx % PALETTE.length];
+
+      // 파편
+      if (fillFragEl.checked){
+        const asset = assets.get(label);
+        drawFragmentIntoBox(asset, tr.bbox, (tr.seed + idx*77) >>> 0);
+      }
+
+      // 박스 라인
+      ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},0.98)`;
+      ctx.strokeRect(x,y,w,h);
+
+      // 라벨 + coco class 같이 (맵핑 인지)
+      drawLabelTag(label, tr.cls, x, y);
+
+      // 중심점
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.beginPath();
+      ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/750), 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    countEl.textContent = "Boxes " + renderTracks.length;
+  }
+
+  // ====== main loop ======
+  let running = false;
+  let lastT = performance.now();
+  let emaFps = 0;
 
   async function tick(){
     if (!running) return;
@@ -734,15 +741,12 @@
       if (srcV.readyState < 2){ requestAnimationFrame(tick); return; }
       resize();
 
-      holdValEl.textContent = (+holdSecEl.value).toFixed(1) + "s";
-
       const now = performance.now();
       if ((now - lastDetectAt) > DETECT_INTERVAL_MS){
         lastDetectAt = now;
-        await stepDetect(now);
+        await stepDetect();
       }
 
-      stepAnimate();
       render();
 
       const dt = (now - lastT) / 1000;
@@ -751,9 +755,7 @@
       emaFps = emaFps ? (emaFps*0.9 + inst*0.1) : inst;
       fpsEl.textContent = "FPS " + emaFps.toFixed(1);
 
-      statusEl.textContent = usingUploadVideo ? "업로드 영상" : "카메라";
       requestAnimationFrame(tick);
-
     }catch(e){
       running = false;
       statusEl.textContent = "오류";
@@ -762,7 +764,7 @@
     }
   }
 
-  // UI
+  // ====== UI handlers ======
   toggleUIBtn.onclick = ()=>{
     ui.classList.toggle("hidden");
     toggleUIBtn.textContent = ui.classList.contains("hidden") ? "☰ 메뉴" : "✕ 닫기";
@@ -779,6 +781,7 @@
   useCamBtn.onclick = async ()=>{
     try{ await startCamera(); log("source: camera"); }catch(e){ log("camera error: " + (e?.message || e)); }
   };
+
   videoFileEl.onchange = async ()=>{
     const file = videoFileEl.files?.[0];
     if (!file) return;
@@ -797,7 +800,7 @@
     if (!model) { log("not started"); return; }
     running = false;
     objectTracks = [];
-    microTracks = [];
+    renderTracks = [];
     ctx.clearRect(0,0,out.width,out.height);
     running = true;
     lastT = performance.now();
@@ -805,6 +808,8 @@
     tick();
     log("restart");
   };
+
+  recSecEl.oninput = ()=> recSecVal.textContent = recSecEl.value + "s";
 
   // recording
   let recorder=null, recChunks=[], recTimer=null;
@@ -815,7 +820,6 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
   }
-  recSecEl.oninput = ()=> recSecVal.textContent = recSecEl.value + "s";
 
   recStartBtn.onclick = ()=>{
     if (!window.MediaRecorder){ log("MediaRecorder not supported"); return; }
@@ -875,7 +879,6 @@
 
   startBtn.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); doStart(); }, {passive:false});
   startBtn.addEventListener("touchend", (e)=>{ e.preventDefault(); e.stopPropagation(); doStart(); }, {passive:false});
-
 })();
 </script>
 </body>
