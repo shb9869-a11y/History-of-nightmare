@@ -1,815 +1,344 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>LIMEN – iPhone Camera Boxes + Audio Lines (FIXED)</title>
-<style>
-  html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;}
-  /* ✅ 카메라를 확실히 “보이게” + 밝기/대비 슬라이더로 조절 */
-  #camVideo{
-    position:fixed; inset:0;
-    width:100vw; height:100vh;
-    object-fit:cover;
-    pointer-events:none;
-    z-index:1;
-    /* 기본값: 너무 어두우면 여기서도 살릴 수 있음 */
-    filter: brightness(1.15) contrast(1.05) saturate(1.05);
-  }
-  canvas{
-    position:fixed; inset:0;
-    width:100vw; height:100vh;
-    z-index:2;
-  }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Real-time Box Detection (GitHub Pages Ready)</title>
 
-  /* Entry */
-  #hint{
-    position:fixed; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.72);
-    color:#ddd; font-family:system-ui, -apple-system, sans-serif;
-    padding:20px;
-    z-index:50;
-  }
-  #hint .box{
-    width:min(820px, 94vw);
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:14px;
-    padding:18px 16px;
-    background:rgba(0,0,0,.55);
-    text-align:left;
-  }
-  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0;}
-  .label{font-size:12px; color:#aaa; width:120px;}
-  .grow{flex:1; min-width:220px;}
-  .small{font-size:11px; color:#9aa; line-height:1.45;}
+  <!-- TFJS + COCO-SSD (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 
-  button, select, input[type="range"], input[type="file"]{
-    background:#0f0f0f; color:#eee;
-    border:1px solid rgba(255,255,255,.16);
-    border-radius:10px;
-    padding:10px 12px;
-    font-weight:650;
-    outline:none;
-  }
-  button:hover, select:hover{border-color:rgba(255,255,255,.32)}
-  button:disabled, select:disabled{opacity:.5; cursor:not-allowed}
-
-  #top{
-    position:fixed; left:12px; top:12px;
-    display:flex; gap:8px; flex-wrap:wrap;
-    z-index:40;
-  }
-  .pill{
-    font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size:11px; color:#bbb;
-    padding:8px 10px;
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:999px;
-    background:rgba(0,0,0,.28);
-    backdrop-filter: blur(10px);
-    max-width:min(92vw, 780px);
-    white-space:pre-wrap;
-  }
-  .btn{
-    height:38px;
-    display:inline-flex; align-items:center; gap:8px;
-    background:rgba(0,0,0,.38);
-    color:#eee;
-    border:1px solid rgba(255,255,255,.14);
-    border-radius:12px;
-    backdrop-filter: blur(10px);
-    cursor:pointer;
-    user-select:none;
-    padding:0 12px;
-    font-size:13px;
-  }
-  .btn:active{transform:translateY(1px)}
-
-  #hud{
-    position:fixed; left:12px; bottom:12px;
-    z-index:40;
-    color:#ddd;
-    font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size:11px;
-    background:rgba(0,0,0,.28);
-    border:1px solid rgba(255,255,255,.10);
-    border-radius:12px;
-    padding:8px 10px;
-    backdrop-filter: blur(10px);
-    pointer-events:none;
-    max-width:min(92vw, 760px);
-    white-space:pre-wrap;
-  }
-</style>
+  <style>
+    html,body{margin:0;height:100%;background:#000;color:#ddd;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;}
+    #wrap{position:fixed;inset:0;display:grid;place-items:center;}
+    video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    #ui{
+      position:fixed; left:12px; right:12px; top:12px;
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      z-index:10;
+      background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12);
+      border-radius:14px; padding:10px 12px; backdrop-filter: blur(8px);
+    }
+    #ui .pill{
+      display:flex; gap:8px; align-items:center;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+      border-radius:999px; padding:8px 10px;
+    }
+    button{
+      appearance:none; border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.08); color:#fff;
+      padding:8px 10px; border-radius:12px; font-weight:600;
+    }
+    button:active{transform:translateY(1px);}
+    input[type="range"]{width:140px;}
+    #log{
+      position:fixed; left:12px; bottom:12px;
+      z-index:10;
+      font-size:12px; line-height:1.3;
+      background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12);
+      border-radius:12px; padding:8px 10px; backdrop-filter: blur(8px);
+      max-width:min(560px, calc(100vw - 24px));
+      white-space:pre-wrap;
+    }
+    #gate{
+      position:fixed; inset:0; z-index:20;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.75);
+      padding:20px;
+    }
+    #gate .box{
+      width:min(680px, 94vw);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:16px;
+      background:rgba(0,0,0,.55);
+      padding:16px;
+    }
+    #gate h1{margin:0 0 8px 0; font-size:18px;}
+    #gate p{margin:6px 0; color:#cfcfcf; font-size:14px;}
+    #gate .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+  </style>
 </head>
 <body>
-
-<video id="camVideo" playsinline autoplay muted></video>
-<canvas id="c"></canvas>
-
-<div id="hint">
-  <div class="box">
-    <div style="font-weight:900;font-size:16px;margin-bottom:10px;">LIMEN – iPhone FIXED (Camera + Boxes + Lines)</div>
-    <div class="small" style="margin-bottom:12px;">
-      ✅ 반드시 <b>HTTPS</b>에서 열기 (GitHub Pages OK)<br/>
-      ✅ 순서: <b>Start Audio</b> → <b>Start Camera</b> → <b>Live Detect ON</b><br/>
-      ✅ iPhone에서 박스 안 뜨면: <b>DetectW 240</b> + <b>Score 0.25</b>로 낮추기
-    </div>
-
-    <div class="row">
-      <button id="btnStartAudio">Start Audio</button>
-      <button id="btnStartCam" disabled>Start Camera</button>
-      <button id="btnEnter" disabled>Enter (Hide Entry)</button>
-      <button id="btnFS">Fullscreen</button>
-    </div>
-
-    <div class="row">
-      <div class="label">Audio input</div>
-      <select id="selAudioSrc" class="grow">
-        <option value="mic" selected>Mic (Live)</option>
-        <option value="file">File (MP3/WAV)</option>
-      </select>
-    </div>
-
-    <div class="row" id="rowMic">
-      <div class="label">Mic device</div>
-      <select id="selMic" class="grow" disabled><option>Start Audio 후 로드</option></select>
-    </div>
-
-    <div class="row" id="rowFile" style="display:none;">
-      <div class="label">Audio file</div>
-      <input id="fileAudio" class="grow" type="file" accept="audio/*">
-    </div>
-
-    <div class="row">
-      <div class="label">Live detect</div>
-      <button id="btnLive" disabled>Live Detect: OFF</button>
-      <button id="btnCapture" disabled>📸 Capture+Detect</button>
-      <button id="btnClear" disabled>Clear Boxes</button>
-    </div>
-
-    <div class="row">
-      <div class="label">DetectW</div>
-      <div class="grow">
-        <input id="rngDetectW" type="range" min="200" max="420" step="10" value="240" style="width:100%;">
-        <div class="small" id="txtDetectW">detect width: 240px (아이폰 추천)</div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="label">Score Th</div>
-      <div class="grow">
-        <input id="rngScore" type="range" min="0.10" max="0.70" step="0.01" value="0.25" style="width:100%;">
-        <div class="small" id="txtScore">score threshold: 0.25</div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="label">Cam Bright</div>
-      <div class="grow">
-        <input id="rngBright" type="range" min="0.70" max="2.20" step="0.01" value="1.15" style="width:100%;">
-        <div class="small" id="txtBright">brightness: 1.15</div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="label">Cam Contrast</div>
-      <div class="grow">
-        <input id="rngContrast" type="range" min="0.70" max="1.80" step="0.01" value="1.05" style="width:100%;">
-        <div class="small" id="txtContrast">contrast: 1.05</div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="label">Line Sens</div>
-      <div class="grow">
-        <input id="rngLineSens" type="range" min="0.6" max="3.0" step="0.01" value="1.55" style="width:100%;">
-        <div class="small" id="txtLineSens">line sens: 1.55×</div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="label">Amp Sens</div>
-      <div class="grow">
-        <input id="rngAmpSens" type="range" min="1" max="12" step="0.1" value="7.0" style="width:100%;">
-        <div class="small" id="txtAmpSens">amp sens: 7.0×</div>
-      </div>
-    </div>
-
-    <div class="small" id="status">대기 중…</div>
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
   </div>
-</div>
 
-<div id="top">
-  <div class="btn" id="btnMute">🔈 Mute</div>
-  <div class="btn" id="btnReset">⟲ RESET</div>
-  <div class="pill" id="pill">audio:off | cam:off | model:loading | boxes:0 | amp:0.000</div>
-</div>
+  <div id="ui">
+    <div class="pill">
+      <strong>감도</strong>
+      <input id="conf" type="range" min="0.10" max="0.90" step="0.05" value="0.35" />
+      <span id="confVal">0.35</span>
+    </div>
 
-<div id="hud">hud…</div>
+    <div class="pill">
+      <strong>표시</strong>
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input id="showLabel" type="checkbox" checked />
+        라벨/확률
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input id="showLine" type="checkbox" />
+        센터라인
+      </label>
+    </div>
 
-<!-- TFJS + COCO-SSD -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+    <div class="pill">
+      <strong>카메라</strong>
+      <button id="flip">전/후면 전환</button>
+      <button id="restart">재시작</button>
+    </div>
+
+    <div class="pill">
+      <strong>상태</strong>
+      <span id="status">대기</span>
+      <span id="fps">FPS: -</span>
+      <span id="count">Boxes: 0</span>
+    </div>
+  </div>
+
+  <div id="log">로그: -</div>
+
+  <div id="gate">
+    <div class="box">
+      <h1>실시간 박스 탐지</h1>
+      <p>이 페이지는 카메라를 사용해 사람/사물을 감지하고 박스를 표시합니다.</p>
+      <p>GitHub Pages는 HTTPS라서 iPhone/Chrome/Safari에서도 카메라가 동작합니다.</p>
+      <div class="row">
+        <button id="startBtn">카메라 시작</button>
+        <button id="warmBtn">모델 미리 로드</button>
+      </div>
+      <p style="opacity:.9;margin-top:10px;font-size:12px;">
+        팁: 감도(Confidence)를 0.25~0.45 사이에서 조절하면 보통 안정적입니다.
+      </p>
+    </div>
+  </div>
 
 <script>
-/* ==========================================================
-   CANVAS / DPR
-========================================================== */
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d', { alpha:true });
+(() => {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('overlay');
+  const ctx = canvas.getContext('2d');
 
-let W=0,H=0,DPR=1;
-function resize(){
-  DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
-  W = innerWidth|0; H = innerHeight|0;
-  canvas.width  = (W*DPR)|0;
-  canvas.height = (H*DPR)|0;
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-}
-addEventListener('resize', resize);
-resize();
+  const gate = document.getElementById('gate');
+  const startBtn = document.getElementById('startBtn');
+  const warmBtn = document.getElementById('warmBtn');
 
-/* ==========================================================
-   UI
-========================================================== */
-const statusEl = document.getElementById('status');
-const pillEl = document.getElementById('pill');
-const hudEl = document.getElementById('hud');
+  const confEl = document.getElementById('conf');
+  const confVal = document.getElementById('confVal');
+  const showLabelEl = document.getElementById('showLabel');
+  const showLineEl = document.getElementById('showLine');
 
-const btnStartAudio = document.getElementById('btnStartAudio');
-const btnStartCam   = document.getElementById('btnStartCam');
-const btnEnter      = document.getElementById('btnEnter');
-const btnFS         = document.getElementById('btnFS');
+  const flipBtn = document.getElementById('flip');
+  const restartBtn = document.getElementById('restart');
 
-const selAudioSrc = document.getElementById('selAudioSrc');
-const rowMic = document.getElementById('rowMic');
-const rowFile = document.getElementById('rowFile');
-const selMic = document.getElementById('selMic');
-const fileAudioInp = document.getElementById('fileAudio');
+  const statusEl = document.getElementById('status');
+  const fpsEl = document.getElementById('fps');
+  const countEl = document.getElementById('count');
+  const logEl = document.getElementById('log');
 
-const btnLive = document.getElementById('btnLive');
-const btnCapture = document.getElementById('btnCapture');
-const btnClear = document.getElementById('btnClear');
-const btnMute = document.getElementById('btnMute');
-const btnReset = document.getElementById('btnReset');
+  let model = null;
+  let stream = null;
+  let running = false;
 
-const camVideo = document.getElementById('camVideo');
+  // iOS에서 후면이 environment
+  let facingMode = 'environment';
 
-const rngDetectW = document.getElementById('rngDetectW');
-const txtDetectW = document.getElementById('txtDetectW');
+  // FPS
+  let lastT = performance.now();
+  let emaFps = 0;
 
-const rngScore = document.getElementById('rngScore');
-const txtScore = document.getElementById('txtScore');
-
-const rngBright = document.getElementById('rngBright');
-const txtBright = document.getElementById('txtBright');
-const rngContrast = document.getElementById('rngContrast');
-const txtContrast = document.getElementById('txtContrast');
-
-const rngLineSens = document.getElementById('rngLineSens');
-const txtLineSens = document.getElementById('txtLineSens');
-
-const rngAmpSens = document.getElementById('rngAmpSens');
-const txtAmpSens = document.getElementById('txtAmpSens');
-
-function setStatus(t){ statusEl.textContent = t; }
-
-function toggleFullscreen(){
-  const el = document.documentElement;
-  if(!document.fullscreenElement) el.requestFullscreen?.();
-  else document.exitFullscreen?.();
-}
-btnFS.addEventListener('click', toggleFullscreen);
-
-function applyAudioUI(){
-  const v = selAudioSrc.value;
-  rowMic.style.display = (v==="mic") ? "" : "none";
-  rowFile.style.display = (v==="file") ? "" : "none";
-}
-selAudioSrc.addEventListener('change', applyAudioUI);
-applyAudioUI();
-
-function getDetectW(){ return Math.max(200, Math.min(420, parseInt(rngDetectW.value,10)||240)); }
-function getScoreTh(){ return Math.max(0.10, Math.min(0.70, parseFloat(rngScore.value)||0.25)); }
-function getLineSens(){ return Math.max(0.6, Math.min(3.0, parseFloat(rngLineSens.value)||1.55)); }
-function getAmpSens(){ return Math.max(1, Math.min(12, parseFloat(rngAmpSens.value)||7)); }
-
-function updateCamFilter(){
-  const b = Math.max(0.7, Math.min(2.2, parseFloat(rngBright.value)||1.15));
-  const c = Math.max(0.7, Math.min(1.8, parseFloat(rngContrast.value)||1.05));
-  camVideo.style.filter = `brightness(${b}) contrast(${c}) saturate(1.05)`;
-  txtBright.textContent = `brightness: ${b.toFixed(2)}`;
-  txtContrast.textContent = `contrast: ${c.toFixed(2)}`;
-}
-rngBright.addEventListener('input', updateCamFilter);
-rngContrast.addEventListener('input', updateCamFilter);
-updateCamFilter();
-
-rngDetectW.addEventListener('input', ()=>{ txtDetectW.textContent = `detect width: ${getDetectW()}px (아이폰 추천)`; });
-rngScore.addEventListener('input', ()=>{ txtScore.textContent = `score threshold: ${getScoreTh().toFixed(2)}`; });
-rngLineSens.addEventListener('input', ()=>{ txtLineSens.textContent = `line sens: ${getLineSens().toFixed(2)}×`; });
-rngAmpSens.addEventListener('input', ()=>{ txtAmpSens.textContent = `amp sens: ${getAmpSens().toFixed(1)}×`; });
-
-/* ==========================================================
-   AUDIO → amp
-========================================================== */
-let audioCtx=null, analyser=null, timeData=null;
-let masterGain=null, preGain=null;
-let micStream=null, micNode=null;
-let fileEl=null, fileNode=null;
-let isMuted=false;
-
-let amp=0, ampSmooth=0;
-
-function ensureAudio(){
-  if(audioCtx) return;
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 1024;
-  timeData = new Uint8Array(analyser.fftSize);
-
-  masterGain = audioCtx.createGain();
-  masterGain.gain.value = 0.9;
-
-  preGain = audioCtx.createGain();
-  preGain.gain.value = 1.0;
-
-  preGain.connect(analyser);
-  analyser.connect(masterGain);
-  masterGain.connect(audioCtx.destination);
-}
-
-function updateAmp(){
-  if(!analyser) { amp=0; return; }
-  analyser.getByteTimeDomainData(timeData);
-  let sum=0;
-  for(let i=0;i<timeData.length;i++){
-    const v=(timeData[i]-128)/128;
-    sum+=v*v;
-  }
-  const rms=Math.sqrt(sum/timeData.length);
-  const boosted = Math.min(1, Math.pow(Math.max(0, rms * getAmpSens()), 0.85));
-  ampSmooth += (boosted - ampSmooth) * 0.15;
-  amp = ampSmooth;
-}
-
-async function listMics(){
-  let devices=[];
-  try{ devices = await navigator.mediaDevices.enumerateDevices(); }catch(e){}
-  const mics = devices.filter(d=>d.kind==="audioinput");
-  selMic.innerHTML="";
-  if(!mics.length){
-    selMic.disabled=true;
-    selMic.innerHTML = "<option>마이크 없음</option>";
-    return;
-  }
-  selMic.disabled=false;
-  for(const d of mics){
-    const opt=document.createElement('option');
-    opt.value=d.deviceId;
-    opt.textContent=d.label || `Mic (${d.deviceId.slice(0,6)}…)`;
-    selMic.appendChild(opt);
-  }
-}
-
-function stopMic(){
-  if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
-  if(micNode){ try{ micNode.disconnect(); }catch(e){} micNode=null; }
-}
-function stopFile(){
-  if(fileEl){ try{ fileEl.pause(); }catch(e){} }
-  if(fileNode){ try{ fileNode.disconnect(); }catch(e){} fileNode=null; }
-}
-
-async function startMic(deviceId){
-  ensureAudio();
-  await audioCtx.resume();
-  stopFile();
-  stopMic();
-  micStream = await navigator.mediaDevices.getUserMedia({
-    audio:{
-      deviceId: deviceId ? { exact: deviceId } : undefined,
-      echoCancellation:false,
-      noiseSuppression:false,
-      autoGainControl:false
-    }
-  });
-  micNode = audioCtx.createMediaStreamSource(micStream);
-  micNode.connect(preGain);
-}
-
-function ensureFileEl(){
-  if(fileEl) return;
-  fileEl = new Audio();
-  fileEl.loop = true;
-  fileEl.playsInline = true;
-  fileEl.crossOrigin = "anonymous";
-}
-async function loadFile(file){
-  ensureAudio();
-  await audioCtx.resume();
-  stopMic();
-  ensureFileEl();
-  const url = URL.createObjectURL(file);
-  fileEl.src = url;
-
-  if(fileNode){ try{ fileNode.disconnect(); }catch(e){} fileNode=null; }
-  fileNode = audioCtx.createMediaElementSource(fileEl);
-  fileNode.connect(preGain);
-
-  try{ await fileEl.play(); }catch(e){
-    setStatus("파일 재생이 막힘: 화면 한번 터치 후 다시");
-  }
-}
-
-/* ==========================================================
-   CAMERA
-========================================================== */
-let camOn=false;
-async function startCamera(){
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video:{
-      facingMode:{ ideal:"environment" },
-      width:{ ideal:1280 },
-      height:{ ideal:720 }
-    },
-    audio:false
-  });
-  camVideo.srcObject = stream;
-  await camVideo.play();
-  camOn=true;
-}
-
-/* ==========================================================
-   DETECTION (COCO-SSD)
-========================================================== */
-let model=null;
-let modelReady=false;
-
-const capCanvas = document.createElement('canvas');
-const capCtx = capCanvas.getContext('2d', { willReadFrequently:true });
-
-let liveOn=false;
-let liveTimer=null;
-
-let nodes=[]; // {bx,by,bw,bh,x,y,vx,vy,cls,score,seed}
-
-async function loadModel(){
-  try{
-    // iPhone 안정: CPU backend
-    await tf.setBackend('cpu');
-    await tf.ready();
-    model = await cocoSsd.load({ base:'lite_mobilenet_v2' });
-    modelReady=true;
-    setStatus("모델 로드 완료. Start Camera → Live Detect ON");
-  }catch(e){
-    console.error(e);
-    setStatus("모델 로드 실패. HTTPS/네트워크 확인");
-  }
-}
-
-async function captureFrame(){
-  if(!camOn || !camVideo.videoWidth) return false;
-
-  const dw = getDetectW();
-  const vw = camVideo.videoWidth;
-  const vh = camVideo.videoHeight;
-  const dh = Math.round(dw * (vh/vw));
-
-  capCanvas.width = dw;
-  capCanvas.height = dh;
-  capCtx.drawImage(camVideo, 0, 0, dw, dh);
-  return true;
-}
-
-function detectionsToNodes(dets){
-  const dw = capCanvas.width, dh = capCanvas.height;
-  const sx = W / dw, sy = H / dh;
-  const th = getScoreTh();
-
-  const filtered = dets
-    .filter(d => (d.score ?? 0) >= th)
-    .slice(0, 18);
-
-  const newNodes = [];
-  for(const d of filtered){
-    const [x,y,w,h] = d.bbox;
-    const bx = x*sx, by = y*sy, bw = w*sx, bh = h*sy;
-    const cx = bx + bw*0.5;
-    const cy = by + bh*0.5;
-    newNodes.push({
-      cls:d.class, score:d.score,
-      bx,by,bw,bh,
-      x:cx, y:cy,
-      vx:0, vy:0,
-      seed: Math.random()*9999
-    });
+  function log(msg){
+    logEl.textContent = "로그: " + msg;
   }
 
-  // 간단 트래킹: class 같고 가까우면 속도/seed 유지
-  for(const nn of newNodes){
-    let best=null, bestD=1e9;
-    for(const on of nodes){
-      if(on.cls !== nn.cls) continue;
-      const dx=on.x-nn.x, dy=on.y-nn.y;
-      const d=dx*dx+dy*dy;
-      if(d<bestD){ bestD=d; best=on; }
-    }
-    if(best && bestD < (140*140)){
-      nn.x = best.x*0.65 + nn.x*0.35;
-      nn.y = best.y*0.65 + nn.y*0.35;
-      nn.vx = best.vx*0.7;
-      nn.vy = best.vy*0.7;
-      nn.seed = best.seed;
-    }
+  function resizeCanvas(){
+    const w = video.videoWidth || window.innerWidth;
+    const h = video.videoHeight || window.innerHeight;
+    canvas.width = w;
+    canvas.height = h;
   }
-  nodes = newNodes;
-}
 
-async function runDetect(){
-  if(!modelReady || !model) return;
-  const dets = await model.detect(capCanvas);
-  detectionsToNodes(dets);
-}
-
-async function captureAndDetect(){
-  if(!camOn){ setStatus("카메라 OFF"); return; }
-  if(!modelReady){ setStatus("모델 로딩 중…"); return; }
-  const ok = await captureFrame();
-  if(!ok){ setStatus("캡처 실패(비디오 준비 안됨)"); return; }
-  await runDetect();
-}
-
-function setLive(on){
-  liveOn = on;
-  btnLive.textContent = `Live Detect: ${on ? "ON" : "OFF"}`;
-  if(liveTimer){ clearInterval(liveTimer); liveTimer=null; }
-  if(on){
-    // iPhone 안전: 900ms
-    liveTimer = setInterval(async ()=>{
-      if(!camOn || !modelReady) return;
-      try{
-        const ok = await captureFrame();
-        if(!ok) return;
-        await runDetect();
-      }catch(e){ console.warn(e); }
-    }, 900);
+  async function loadModel(){
+    if (model) return model;
+    statusEl.textContent = "모델 로딩...";
+    log("모델 로딩 중 (coco-ssd) ...");
+    model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+    statusEl.textContent = "모델 준비 완료";
+    log("모델 로드 완료");
+    return model;
   }
-}
 
-/* ==========================================================
-   BUTTON WIRING
-========================================================== */
-btnMute.addEventListener('click', ()=>{
-  if(!audioCtx) return;
-  isMuted = !isMuted;
-  masterGain.gain.setTargetAtTime(isMuted?0:0.9, audioCtx.currentTime, 0.02);
-  btnMute.textContent = isMuted ? "🔇 Mute" : "🔈 Mute";
-});
-
-btnReset.addEventListener('click', ()=>{
-  setLive(false);
-  nodes = [];
-  amp=ampSmooth=0;
-  setStatus("RESET 완료. 다시 Live Detect 켜거나 📸 하세요.");
-});
-
-btnEnter.addEventListener('click', ()=>{
-  document.getElementById('hint').style.display='none';
-});
-
-btnStartAudio.addEventListener('click', async ()=>{
-  try{
-    ensureAudio();
-    await audioCtx.resume();
-    await listMics();
-
-    if(selAudioSrc.value==="mic"){
-      const dev = selMic.disabled ? null : selMic.value;
-      await startMic(dev);
-      setStatus("Audio OK (mic). Start Camera → Live Detect ON");
-    }else{
-      setStatus("Audio OK. 파일을 선택하세요.");
+  async function startCamera(){
+    if (!navigator.mediaDevices?.getUserMedia){
+      alert("이 브라우저는 getUserMedia를 지원하지 않습니다.");
+      return;
     }
 
-    btnStartCam.disabled = false;
-    btnEnter.disabled = false;
-    btnCapture.disabled = false;
-    btnClear.disabled = false;
-    btnLive.disabled = false;
-  }catch(e){
-    console.error(e);
-    setStatus("Start Audio 실패. HTTPS/권한 확인");
-  }
-});
+    // 기존 스트림 정리
+    if (stream){
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
 
-selMic.addEventListener('change', async ()=>{
-  if(!audioCtx) return;
-  if(selAudioSrc.value!=="mic") return;
-  try{ await startMic(selMic.value); }catch(e){ console.warn(e); }
-});
+    statusEl.textContent = "카메라 시작...";
+    log("카메라 요청 중...");
 
-fileAudioInp.addEventListener('change', async ()=>{
-  if(!audioCtx) { setStatus("Start Audio 먼저!"); return; }
-  if(selAudioSrc.value!=="file") return;
-  const f = fileAudioInp.files && fileAudioInp.files[0];
-  if(!f) return;
-  await loadFile(f);
-  setStatus(`파일 로드됨: ${f.name}. Start Camera → Live Detect ON`);
-});
-
-btnStartCam.addEventListener('click', async ()=>{
-  try{
-    await startCamera();
-    setStatus("카메라 ON. Live Detect ON 또는 📸 버튼");
-    // ✅ 카메라 켜자마자 한번 캡처로 워밍업(아이폰 첫 프레임 검출 안정)
-    setTimeout(()=>{ captureAndDetect(); }, 350);
-  }catch(e){
-    console.error(e);
-    setStatus("카메라 ON 실패. HTTPS/권한 확인");
-  }
-});
-
-btnCapture.addEventListener('click', captureAndDetect);
-
-btnClear.addEventListener('click', ()=>{
-  nodes = [];
-  setStatus("박스/노드 초기화");
-});
-
-btnLive.addEventListener('click', ()=> setLive(!liveOn));
-
-/* iOS 오디오 잠금 해제 */
-addEventListener('pointerdown', async ()=>{
-  try{ if(audioCtx && audioCtx.state==='suspended') await audioCtx.resume(); }catch(e){}
-},{passive:true});
-
-/* ==========================================================
-   DRAW (✅ 카메라 위를 “검게 덮지 않음”: 밝기 문제 해결)
-   - 박스/라벨/점/라인을 캔버스에서 그림
-   - nodes가 0이면 디버그용 더미 노드 1개로 라인/점이 “무조건” 보이게
-========================================================== */
-function draw(){
-  requestAnimationFrame(draw);
-
-  // ✅ 잔상/페이드 최소 (카메라가 어두워지는 문제 방지)
-  ctx.clearRect(0,0,W,H);
-
-  if(audioCtx) updateAmp(); else amp = 0;
-
-  const t = performance.now()*0.001;
-  const a = amp;
-  const lineSens = getLineSens();
-
-  // ✅ 디버그: 박스가 0이어도 “점/라인이 보이도록” (파이프라인 체크)
-  // (원하면 아래 블록 지워도 됨)
-  if(nodes.length === 0){
-    const x = W*0.5 + Math.sin(t*0.7)*140;
-    const y = H*0.5 + Math.cos(t*0.9)*140;
-    // 박스가 없을 때는 아주 약하게만 표시
-    ctx.save();
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = "#fff";
-    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillText("boxes:0 (debug node active) → Live Detect ON / 📸", 14, 64);
-    ctx.restore();
-
-    // 더미 노드 1개
-    // (라인은 2개 이상이 필요하니, 2개를 만들어줌)
-    const x2 = W*0.5 + Math.sin(t*0.7+1.3)*180;
-    const y2 = H*0.5 + Math.cos(t*0.9+1.1)*180;
-    nodes = [
-      {bx:x-40, by:y-60, bw:80, bh:120, x, y, vx:0, vy:0, cls:"debug", score:1, seed:1234},
-      {bx:x2-40, by:y2-60, bw:80, bh:120, x:x2, y:y2, vx:0, vy:0, cls:"debug", score:1, seed:5678},
-    ];
-  }
-
-  // node physics (꿀렁)
-  for(const n of nodes){
-    const wob = (Math.sin(t*1.7 + n.seed)*0.5 + 0.5);
-    const wob2 = (Math.cos(t*1.2 + n.seed*1.7)*0.5 + 0.5);
-    const push = (0.6 + a*3.2) * 22;
-
-    const fx = (wob-0.5) * push;
-    const fy = (wob2-0.5) * push;
-
-    const cx = n.bx + n.bw*0.5;
-    const cy = n.by + n.bh*0.5;
-    const pull = 0.014 + a*0.034;
-
-    n.vx += fx;
-    n.vy += fy;
-    n.vx += (cx - n.x) * pull;
-    n.vy += (cy - n.y) * pull;
-
-    n.vx *= 0.82 - a*0.08;
-    n.vy *= 0.82 - a*0.08;
-
-    n.x += n.vx;
-    n.y += n.vy;
-
-    n.x = Math.max(8, Math.min(W-8, n.x));
-    n.y = Math.max(8, Math.min(H-8, n.y));
-  }
-
-  // lines
-  const maxDist = (120 + a*520*lineSens);
-  const maxDist2 = maxDist*maxDist;
-  let lines=0;
-  const maxLines = Math.floor(80 + a*320*lineSens);
-
-  for(let i=0;i<nodes.length;i++){
-    for(let j=i+1;j<nodes.length;j++){
-      if(lines>=maxLines) break;
-      const A = nodes[i], B = nodes[j];
-      const dx=A.x-B.x, dy=A.y-B.y;
-      const d2=dx*dx+dy*dy;
-      if(d2<maxDist2){
-        const d = Math.sqrt(d2);
-        const k = 1 - d/maxDist;
-        const alpha = Math.min(1, (0.12 + a*0.95) * k);
-
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = "rgba(255,255,255,0.95)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(A.x, A.y);
-        ctx.lineTo(B.x, B.y);
-        ctx.stroke();
-        ctx.restore();
-        lines++;
+    // 가능한 높은 해상도 요청 (기기/브라우저가 알아서 맞춤)
+    const constraints = {
+      audio: false,
+      video: {
+        facingMode: { ideal: facingMode },
+        width: { ideal: 1280 },
+        height:{ ideal: 720 }
       }
+    };
+
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+
+    await new Promise(res => {
+      video.onloadedmetadata = () => res();
+    });
+
+    resizeCanvas();
+    gate.style.display = "none";
+    statusEl.textContent = "실행 중";
+    log("카메라 시작됨 (" + facingMode + ")");
+  }
+
+  function drawPredictions(preds){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // 박스 스타일
+    ctx.lineWidth = Math.max(2, Math.round(canvas.width / 600));
+    ctx.font = `${Math.max(12, Math.round(canvas.width / 80))}px system-ui, -apple-system, sans-serif`;
+    ctx.textBaseline = "top";
+
+    const showLabel = showLabelEl.checked;
+    const showLine = showLineEl.checked;
+
+    let c = 0;
+    for (const p of preds){
+      const [x, y, w, h] = p.bbox;
+
+      // 박스
+      ctx.strokeStyle = "rgba(255,255,0,0.95)";
+      ctx.strokeRect(x, y, w, h);
+
+      if (showLine){
+        const cx = x + w/2, cy = y + h/2;
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(canvas.width/2, canvas.height/2);
+        ctx.stroke();
+      }
+
+      // 라벨
+      if (showLabel){
+        const label = `${p.class} ${(p.score*100).toFixed(1)}%`;
+        const pad = 6;
+        const tw = ctx.measureText(label).width;
+        const th = parseInt(ctx.font,10) + 6;
+
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(x, Math.max(0, y - th), tw + pad*2, th);
+
+        ctx.fillStyle = "rgba(255,255,255,0.95)";
+        ctx.fillText(label, x + pad, Math.max(0, y - th) + 3);
+      }
+
+      c++;
+    }
+    countEl.textContent = `Boxes: ${c}`;
+  }
+
+  async function loop(){
+    if (!running) return;
+
+    if (!model) await loadModel();
+    if (video.readyState < 2) { requestAnimationFrame(loop); return; }
+
+    // 캔버스가 비디오 해상도와 맞게 유지
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight){
+      resizeCanvas();
+    }
+
+    const conf = parseFloat(confEl.value);
+    confVal.textContent = conf.toFixed(2);
+
+    const t0 = performance.now();
+    // detect()는 내부적으로 프레임을 읽어서 추론함
+    let preds = await model.detect(video);
+
+    // confidence 필터
+    preds = preds.filter(p => p.score >= conf);
+
+    drawPredictions(preds);
+
+    // FPS EMA
+    const t1 = performance.now();
+    const dt = (t1 - lastT) / 1000;
+    lastT = t1;
+    const instFps = dt > 0 ? (1/dt) : 0;
+    emaFps = emaFps ? (emaFps*0.9 + instFps*0.1) : instFps;
+    fpsEl.textContent = `FPS: ${emaFps.toFixed(1)}`;
+
+    requestAnimationFrame(loop);
+  }
+
+  async function run(){
+    try{
+      await loadModel();
+      await startCamera();
+      running = true;
+      lastT = performance.now();
+      loop();
+    }catch(e){
+      console.error(e);
+      statusEl.textContent = "오류";
+      log("오류: " + (e?.message || e));
+      alert("카메라/모델 실행 중 오류가 발생했습니다:\n" + (e?.message || e));
     }
   }
 
-  // boxes + labels + node dots
-  for(const n of nodes){
-    // ✅ 박스가 확실히 보이도록 라임
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, 0.25 + a*0.95);
-    ctx.strokeStyle = "rgba(0,255,120,0.95)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(n.bx, n.by, n.bw, n.bh);
+  // UI events
+  warmBtn.onclick = async () => {
+    try{
+      await loadModel();
+      alert("모델 로드 완료!");
+    }catch(e){
+      alert("모델 로드 실패: " + (e?.message || e));
+    }
+  };
+  startBtn.onclick = () => run();
 
-    // dot (red)
-    ctx.globalAlpha = Math.min(1, 0.35 + a*0.95);
-    ctx.fillStyle = "#ff3b3b";
-    const r = 3 + a*10;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, r, 0, Math.PI*2);
-    ctx.fill();
+  flipBtn.onclick = async () => {
+    facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+    log("카메라 전환: " + facingMode);
+    try{
+      await startCamera();
+    }catch(e){
+      alert("전환 실패: " + (e?.message || e));
+    }
+  };
 
-    // label
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = "#fff";
-    ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
-    const txt = `${n.cls} ${(n.score*100).toFixed(0)}%`;
-    ctx.fillText(txt, n.bx+4, Math.max(12, n.by-6));
-    ctx.restore();
-  }
+  restartBtn.onclick = async () => {
+    log("재시작...");
+    running = false;
+    await new Promise(r => setTimeout(r, 50));
+    running = true;
+    lastT = performance.now();
+    loop();
+  };
 
-  const aud = audioCtx ? audioCtx.state : "off";
-  const cam = camOn ? "on" : "off";
-  const mdl = modelReady ? "ready" : "loading";
-  pillEl.textContent = `audio:${aud} | cam:${cam} | model:${mdl} | boxes:${nodes.length} | amp:${amp.toFixed(3)} | th:${getScoreTh().toFixed(2)} | w:${getDetectW()}`;
-
-  hudEl.textContent =
-`amp:${amp.toFixed(3)}  lineSens:${getLineSens().toFixed(2)}  detectW:${getDetectW()}  scoreTh:${getScoreTh().toFixed(2)}
-liveDetect:${liveOn?"ON":"OFF"}  nodes:${nodes.length}
-TIP: 아이폰은 detectW=240, scoreTh=0.20~0.30 권장. Live ON이 느리면 OFF 후 📸 간헐 캡처`;
-}
-
-/* ==========================================================
-   STARTUP
-========================================================== */
-setStatus("모델 로딩 중…");
-loadModel();
-draw();
-
-/* ✅ 초기값: 아이폰에서 박스가 안 잡히는 경우가 많아서,
-   - detectW=240
-   - scoreTh=0.25
-   - (원하면 여기서 Live Detect를 자동 ON으로 강제할 수도 있음) */
-(function initLabels(){
-  txtDetectW.textContent = `detect width: ${getDetectW()}px (아이폰 추천)`;
-  txtScore.textContent = `score threshold: ${getScoreTh().toFixed(2)}`;
-  txtLineSens.textContent = `line sens: ${getLineSens().toFixed(2)}×`;
-  txtAmpSens.textContent = `amp sens: ${getAmpSens().toFixed(1)}×`;
+  // 화면 회전/리사이즈 대응
+  window.addEventListener('resize', () => {
+    if (video.videoWidth) resizeCanvas();
+  });
 })();
-
-window.addEventListener('pagehide', ()=>{
-  try{ setLive(false); }catch(e){}
-  try{
-    if(camVideo.srcObject){
-      camVideo.srcObject.getTracks().forEach(t=>t.stop());
-    }
-  }catch(e){}
-  try{ stopMic(); }catch(e){}
-  try{ stopFile(); }catch(e){}
-});
 </script>
 </body>
 </html>
