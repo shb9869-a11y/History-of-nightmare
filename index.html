@@ -7,9 +7,10 @@
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="EMPTINESS→TOGETHERNESS">
+<meta name="apple-mobile-web-app-title" content="LIMEN">
 <meta name="theme-color" content="#000000">
 
+<!-- ✅ BOX DETECT libs -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 
@@ -19,638 +20,1502 @@
   --ui-gap: 8px;
   --fs-strong: clamp(14px, 2.8vmin, 18px);
   --fs-small: clamp(11px, 1.8vmin, 13px);
+  --pad-btn-y: clamp(8px, 1.1vmin, 12px);
+  --pad-btn-x: clamp(12px, 1.8vmin, 20px);
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
 
-  --ink: #c9cfab;
-  --ink-dim: rgba(201,207,171,.78);
-  --red: #b3342b;
-  --white: #f5f5f5;
+  /* ✅ palette */
+  --ink: #0a0a0a;
+  --paper: #e7e2c9;
+  --paper-dim: rgba(231,226,201,.72);
+  --line: rgba(231,226,201,.62);
+  --line-2: rgba(231,226,201,.26);
+  --accent-red: rgba(180,60,50,.75);
+
+  --fade: 2500ms; /* ✅ 요청: 2.5초 */
 }
 
 html,body{
   margin:0; padding:0; width:100%; height:100%;
   background:#000; overflow:hidden;
-  touch-action: manipulation;
+  touch-action:manipulation;
 }
 body{
-  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", Times, serif;
+  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino,
+               "Times New Roman", Times, serif;
   -webkit-user-select:none; user-select:none;
   -webkit-touch-callout:none;
-  color:var(--ink);
+  color:var(--paper);
 }
-*{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+*{
+  box-sizing:border-box;
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color: transparent;
+}
 
-.fade{opacity:0; transition:opacity 900ms ease}
-.fade.show{opacity:1}
-
-/* ✅ 모자이크 배경 */
 #bg{
   position:fixed; inset:0;
   width:100vw; height:100vh;
-  z-index:0;
   display:block;
+  z-index:0;
   background:#000;
 }
 
-/* 카메라/트래킹 캔버스 */
 #view{
   position:fixed; inset:0;
   width:100vw; height:100vh;
-  z-index:1;
-  display:block;
+  display:block; z-index:2;
   filter:grayscale(1);
-  opacity:0;
-  pointer-events:none;
-  transition:opacity 900ms ease;
 }
-#view.show{opacity:1;}
 
+#freezeLayer{
+  position:fixed; inset:0;
+  z-index:500;
+  display:none;
+}
+
+/* frame */
 .frameBox{
   position:fixed;
   left:calc(var(--frame) + var(--safe-l));
   top:calc(var(--frame) + var(--safe-t));
   right:calc(var(--frame) + var(--safe-r));
   bottom:calc(var(--frame) + var(--safe-b));
-  border:2px solid rgba(245,245,245,.65);
+  border:1.5px solid rgba(231,226,201,.68);
   pointer-events:none;
   z-index:50;
 }
 
-/* ======= HELP ======= */
-#helpBtn{
+/* capture / status */
+.uiBtn{
+  background:transparent;
+  color:var(--paper);
+  border:none;
+  font-size:var(--fs-strong);
+  padding:var(--pad-btn-y) var(--pad-btn-x);
+  font-family: inherit;
+  letter-spacing: .10em;
+  white-space:nowrap;
+  cursor:pointer;
+  opacity:.92;
+}
+.uiBtn.small{
+  font-size:var(--fs-small);
+  padding:calc(var(--pad-btn-y)*0.75) calc(var(--pad-btn-x)*0.75);
+}
+.uiBtn:active{opacity:.75; transform:translateY(1px);}
+.uiBtn[disabled]{ opacity:.35; pointer-events:none; filter:grayscale(1); }
+
+.controls{
+  position:fixed;
+  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
+  bottom:calc(var(--frame) + var(--ui-gap) + var(--safe-b));
+  z-index:400;
+  display:flex;
+  gap:6px;
+  align-items:center;
+  opacity:0;
+  transition:opacity var(--fade) ease;
+}
+.controls.show{opacity:1}
+.readout{
+  min-width:64px;
+  text-align:center;
+  opacity:.85;
+  font-size:var(--fs-small);
+  color:var(--paper);
+  font-family: inherit;
+}
+
+.btn-capture{
   position:fixed;
   left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
-  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
-  z-index:930;
-  border:1px solid rgba(255,255,255,.14);
-  border-radius:14px;
-  background:rgba(0,0,0,.22);
-  backdrop-filter: blur(10px);
-  color:rgba(245,245,245,.92);
-  padding:8px 12px;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  letter-spacing:.18em;
-  font-size:12px;
-  opacity:.9;
+  bottom:calc(var(--frame) + var(--ui-gap) + var(--safe-b));
+  z-index:450;
+  opacity:0;
+  transition:opacity var(--fade) ease;
 }
-#helpPanel{
+.btn-capture.show{opacity:1}
+
+.sleep-status-text{
+  position:fixed;
+  left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
+  bottom:calc(var(--frame) + var(--ui-gap) + var(--safe-b) + 34px);
+  z-index:451;
+  font-size:var(--fs-small);
+  color:var(--paper-dim);
+  text-shadow:0 0 6px rgba(0,0,0,0.7);
+  max-width:min(76vw, 720px);
+  letter-spacing:.08em;
+}
+
+/* =========================
+   ✅ Overlays
+   ========================= */
+#overlayStack{
   position:fixed; inset:0;
-  z-index:940;
-  display:none;
-  background:rgba(0,0,0,.72);
-  backdrop-filter: blur(12px);
+  z-index:300;
+  display:block;
+  pointer-events:auto;
+  background:#000;
 }
-#helpPanel.show{display:block;}
-#helpPanel .box{
+
+.scene{
+  position:absolute; inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  background:#000;
+}
+.scene.hidden{display:none;}
+
+#scenePerm{
+  cursor:pointer;
+}
+#matrix{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  display:block;
+}
+
+/* scene 2: typing only */
+#sceneTitle{
+  cursor:pointer;
+}
+#typeLineWrap{
   position:absolute;
   left:calc(var(--frame) + var(--safe-l));
   right:calc(var(--frame) + var(--safe-r));
-  top:calc(var(--frame) + 56px + var(--safe-t));
-  max-width:920px;
-  margin:0 auto;
-  border:1px solid rgba(255,255,255,.14);
-  border-radius:18px;
-  background:rgba(0,0,0,.55);
-  padding:16px 16px 18px 16px;
-  color:var(--ink);
-  line-height:1.55;
-}
-#helpPanel .close{
-  position:absolute;
-  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
-  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
-  z-index:941;
-  border:none;
-  background:transparent;
-  color:#fff;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  letter-spacing:.18em;
-  font-size:12px;
-  opacity:.9;
-  padding:10px 12px;
-}
-
-/* ======= 인트로/안내 스테이지 ======= */
-#stage{
-  position:fixed; inset:0;
-  z-index:300;
-  background: radial-gradient(1200px 700px at 50% 55%, rgba(255,255,255,.06), rgba(0,0,0,.92) 65%, rgba(0,0,0,.98));
-}
-#stage.hidden{ opacity:0; pointer-events:none; transition:opacity 900ms ease; }
-
-/* ✅ 탭 레이어를 최상단으로 + 텍스트는 클릭을 먹지 않게 */
-#stageTap{
-  position:absolute; inset:0;
-  z-index:999;
-  cursor:pointer;
-}
-.stageBlock{
-  position:absolute;
-  max-width:min(88vw, 980px);
-  line-height:1.55;
-  letter-spacing:.01em;
-  text-shadow:0 0 10px rgba(0,0,0,.35);
-  pointer-events:none; /* ✅ 이게 핵심 */
+  bottom:calc(var(--frame) + var(--safe-b));
+  padding:0;
   z-index:10;
+  pointer-events:none;
 }
-.stageTitle{
-  font-size:clamp(22px, 4.4vmin, 54px);
-  margin:0 0 10px 0;
-  color:var(--ink);
-}
-.stageSub{
-  font-size:clamp(14px, 2.2vmin, 20px);
-  color:var(--ink-dim);
-  margin:0;
-}
-.pos-top-right{
-  top:calc(var(--frame) + 10px + var(--safe-t));
-  right:calc(var(--frame) + 10px + var(--safe-r));
-  text-align:left;
-}
-.pos-bottom-left{
-  left:calc(var(--frame) + 10px + var(--safe-l));
-  bottom:calc(var(--frame) + 62px + var(--safe-b));
-  text-align:left;
-}
-.pos-center{
-  left:50%;
-  top:50%;
-  transform:translate(-50%,-50%);
-  text-align:center;
-}
-.stageLines{
-  font-size:clamp(16px, 2.8vmin, 28px);
-  color:var(--ink);
+#typeLine{
+  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", Times, serif;
+  font-size:clamp(15px, 2.8vmin, 22px);
+  letter-spacing:.08em;
+  color:rgba(231,226,201,.92);
+  text-shadow:0 0 14px rgba(0,0,0,.75);
+  min-height:1.4em;
   white-space:pre-wrap;
 }
-.stageLines.small{ font-size:clamp(14px, 2.2vmin, 20px); }
 
-.line{
+/* fade helper */
+.overlayFadeOut{
   opacity:0;
-  transform: translateY(6px);
-  transition: opacity 700ms ease, transform 700ms ease;
+  transition:opacity var(--fade) ease;
 }
-.line.show{ opacity:1; transform: translateY(0px); }
 
-.tapHint{
-  position:absolute;
-  left:50%;
-  bottom:calc(var(--frame) + 14px + var(--safe-b));
-  transform:translateX(-50%);
-  font-size:clamp(12px, 2.0vmin, 16px);
-  letter-spacing:.08em;
-  color:rgba(179,52,43,.92);
-  text-shadow:0 0 12px rgba(0,0,0,.55);
-  opacity:.95;
+/* =========================
+   ✅ BOX DETECT UI - right vertical panel
+   ========================= */
+#toggleUI{
+  position:fixed;
+  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
+  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
+  z-index:920;
+  background:transparent;
+  border:none;
+  padding:0;
+  color:var(--paper);
+  letter-spacing:.16em;
+  font-family: inherit;
+  opacity:.85;
+  cursor:pointer;
+}
+#toggleUI:active{opacity:.62; transform:translateY(1px);}
+
+#ui{
+  position:fixed;
+  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
+  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t) + 34px);
+  z-index:910;
+
+  width:min(300px, calc(100vw - (var(--frame)*2) - 24px));
+  max-height:calc(100vh - (var(--frame)*2) - 120px);
+  overflow:auto;
+
+  background:rgba(0,0,0,.38);
+  border:1px solid rgba(231,226,201,.12);
+  border-radius:18px;
+  padding:12px;
+  backdrop-filter: blur(10px);
+
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  pointer-events:auto;
+  transition:.2s;
+
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+#ui.hidden{opacity:0; pointer-events:none; transform:translateY(-10px);}
+
+.pill{
+  display:grid;
+  grid-template-columns: 92px 1fr auto;
+  gap:10px;
+  align-items:center;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(231,226,201,.10);
+  border-radius:16px;
+  padding:10px 12px;
+  color:#ddd;
+}
+.pill b{color:#fff; font-weight:800; letter-spacing:.12em;}
+.pill input[type=range]{width:100%;}
+.pill label{
+  grid-column: 1 / -1;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+#ui button{
+  appearance:none;
+  border:1px solid rgba(231,226,201,.14);
+  background:rgba(255,255,255,.06);
+  color:#fff;
+  padding:10px 12px;
+  border-radius:14px;
+  font-weight:800;
+  pointer-events:auto;
+}
+#ui button:active{transform:translateY(1px);}
+
+/* ✅ 시스템 상태: 좌측 상단 작게(항상) */
+#log{
+  position:fixed;
+  left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
+  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
+  z-index:905;
+  font-size:10px;
+  background:rgba(0,0,0,.12);
+  border:1px solid rgba(231,226,201,.08);
+  border-radius:12px;
+  padding:6px 10px;
+  backdrop-filter: blur(10px);
+  max-width:min(86vw,820px);
+  white-space:pre-wrap;
   pointer-events:none;
-  z-index:20;
+  color:rgba(231,226,201,.60);
+  opacity:.35;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
-#countdown{
-  position:absolute;
-  left:50%; top:50%;
-  transform:translate(-50%,-50%);
-  font-size:clamp(42px, 9vmin, 92px);
-  color:var(--ink);
-  letter-spacing:.02em;
-  opacity:0;
-  transition:opacity 400ms ease;
-  pointer-events:none;
-  z-index:20;
-}
-#countdown.show{opacity:1}
-
-/* 아래 버튼/메뉴는 일단 유지(너가 이미 쓰던 기능 때문에) */
-#toggleUI{ display:none; } /* ✅ PPT 톤 유지하려면 우선 숨김 */
-#ui{ display:none; }
-.controls{ display:none; }
-.btn-capture{ display:none; }
-.sleep-status-text{ display:none; }
-
 </style>
 </head>
 
 <body>
+  <!-- dreamy background -->
   <canvas id="bg"></canvas>
+
+  <!-- main output -->
   <canvas id="view"></canvas>
+  <canvas id="freezeLayer"></canvas>
+
   <div class="frameBox" aria-hidden="true"></div>
 
-  <button id="helpBtn" aria-label="help">HELP</button>
-  <div id="helpPanel" aria-hidden="true">
-    <button class="close" id="helpClose" aria-label="close help">CLOSE</button>
-    <div class="box">
-      <div style="font-size:clamp(18px,2.8vmin,26px); margin-bottom:10px; color:var(--ink);">
-        HELP
+  <div class="controls" id="controls">
+    <button class="uiBtn small" id="zoomOut">–</button>
+    <div class="readout"><span id="zoomVal">1.0×</span></div>
+    <button class="uiBtn small" id="zoomIn">+</button>
+  </div>
+
+  <button id="captureBtn" class="uiBtn small btn-capture">Capture</button>
+  <div id="sleepPhotoStatus" class="sleep-status-text"></div>
+
+  <!-- ✅ BOX DETECT UI -->
+  <button id="toggleUI">MENU</button>
+  <div id="ui" class="hidden">
+    <div class="pill">
+      <b>COARSE</b>
+      <input id="conf" type="range" min="0.01" max="0.95" step="0.01" value="0.12">
+      <span id="confVal">0.12</span>
+    </div>
+
+    <div class="pill">
+      <b>FINE</b>
+      <input id="fine" type="range" min="0.00" max="1.00" step="0.01" value="0.40">
+      <span id="fineVal">0.40</span>
+    </div>
+
+    <div class="pill">
+      <b>N</b>
+      <input id="topN" type="range" min="3" max="8" step="1" value="4">
+      <span id="topNVal">4</span>
+    </div>
+
+    <div class="pill">
+      <b>HOLD</b>
+      <input id="holdSec" type="range" min="1" max="10" step="0.5" value="3.0">
+      <span id="holdVal">3.0s</span>
+    </div>
+
+    <div class="pill">
+      <b>BOX</b>
+      <input id="boxScale" type="range" min="0.35" max="1.20" step="0.01" value="0.40">
+      <span id="boxScaleVal">0.40</span>
+    </div>
+
+    <div class="pill">
+      <label><input id="links" type="checkbox" checked> Links</label>
+      <label><input id="fillFrag" type="checkbox" checked> Fragments</label>
+    </div>
+
+    <div class="pill" style="grid-template-columns: 1fr 1fr; gap:10px;">
+      <button id="flip">Flip</button>
+      <button id="restart">Restart</button>
+    </div>
+
+    <div class="pill" style="grid-template-columns: 92px 1fr; gap:10px;">
+      <b>Source</b>
+      <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end;">
+        <label style="display:flex; align-items:center; gap:8px;">
+          <input id="videoFile" type="file" accept="video/*" style="max-width:160px;">
+          <span style="opacity:.9">Upload</span>
+        </label>
+        <button id="useCam">Camera</button>
       </div>
-      <div style="color:var(--ink); font-size:clamp(13px,2.1vmin,18px); white-space:pre-wrap;">
-This program unfolds through taking photos.
-Each performance has its own interpretation and participation method.
-Press HELP anytime.
-      </div>
+    </div>
+
+    <div class="pill" style="grid-template-columns: 1fr; gap:6px;">
+      <span id="status"> </span>
+      <span id="fps"> </span>
+      <span id="count"> </span>
     </div>
   </div>
 
-  <div id="stage" class="fade show">
-    <div id="stageTap" aria-label="tap to continue"></div>
+  <div id="log"> </div>
 
-    <div id="blkTitle" class="stageBlock pos-center" style="display:none;">
-      <h1 class="stageTitle">From Emptiness (空) to Togetherness (共)</h1>
-      <p class="stageSub">A Cooking–Memory–Spatial Experiment in Reconstructing Empathy</p>
+  <!-- ✅ overlay stack -->
+  <div id="overlayStack">
+    <!-- scene 1: matrix only -->
+    <div id="scenePerm" class="scene">
+      <canvas id="matrix"></canvas>
     </div>
 
-    <div id="blkTR" class="stageBlock pos-top-right" style="display:none;">
-      <div id="linesTR" class="stageLines small"></div>
+    <!-- scene 2: typing line only -->
+    <div id="sceneTitle" class="scene hidden">
+      <div id="typeLineWrap">
+        <div id="typeLine"></div>
+      </div>
     </div>
-
-    <div id="blkBL" class="stageBlock pos-bottom-left" style="display:none;">
-      <div id="linesBL" class="stageLines small"></div>
-    </div>
-
-    <div id="blkCenter" class="stageBlock pos-center" style="display:none;">
-      <div id="linesCenter" class="stageLines"></div>
-    </div>
-
-    <div id="countdown">10</div>
-    <div id="tapHint" class="tapHint">TAP ANYWHERE TO CONTINUE</div>
   </div>
 
 <script>
 (() => {
+  /* =========================
+     ✅ 업로드 서버 설정
+     ========================= */
+  const SLEEP_UPLOAD_SERVER = 'https://172.16.14.60:4443';
+  const UPLOAD_TIMEOUT_MS = 12000;
+  const UPLOAD_RETRY = 1;
+
+  const FADE_MS = 2500; // ✅ 요청: 2.5초
+  const TYPE_LINE = "탭하면 카메라가 시작되고, 박스가 화면에 떠오릅니다."; // ✅ 여기만 문구 바꾸면 됨
+  const TYPE_SPEED_MS = 48; // 타이핑 속도
+
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const qs = s => document.querySelector(s);
-  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const lerpBox=(cur,target,t)=>[lerp(cur[0],target[0],t),lerp(cur[1],target[1],t),lerp(cur[2],target[2],t),lerp(cur[3],target[3],t)];
+
+  document.addEventListener('contextmenu', e=>e.preventDefault());
+  document.addEventListener('selectstart', e=>e.preventDefault());
 
   /* =========================
-     ✅ PPT 레퍼런스: 모자이크 배경
-     - mosaic/ 폴더에 이미지 넣으면 그걸로 구성
+     subtle click sfx
      ========================= */
+  let audioCtx = null;
+  function ensureAudio(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  async function ensureResumed(){
+    ensureAudio();
+    if(audioCtx.state === 'suspended'){
+      try{ await audioCtx.resume(); }catch(e){}
+    }
+  }
+  const MASTER_SFX_GAIN = 0.18;
+  async function playClick(){
+    try{
+      await ensureResumed();
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type='sine';
+      o.frequency.setValueAtTime(190, now);
+      o.frequency.exponentialRampToValueAtTime(140, now+0.12);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(MASTER_SFX_GAIN, now+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now+0.18);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(now);
+      o.stop(now+0.2);
+    }catch(e){}
+  }
+
+  /* =========================
+     DOM
+     ========================= */
+  const scenePerm = qs('#scenePerm');
+  const sceneTitle = qs('#sceneTitle');
+  const overlayStack = qs('#overlayStack');
+
+  const typeLineEl = qs('#typeLine');
+
+  const controls = qs('#controls');
+  const zoomIn = qs('#zoomIn');
+  const zoomOut = qs('#zoomOut');
+  const zoomVal = qs('#zoomVal');
+  const captureBtn = qs('#captureBtn');
+
   const bg = qs('#bg');
+  const view = qs('#view');
+  const freezeLayer = qs('#freezeLayer');
+
+  const sleepPhotoStatus = qs('#sleepPhotoStatus');
+  function setSleepPhotoStatus(msg){ sleepPhotoStatus.textContent = msg || ''; }
+
+  const toggleUIBtn = qs('#toggleUI');
+  const ui = qs('#ui');
+  const logEl = qs('#log');
+
+  const confEl = qs('#conf');
+  const confVal = qs('#confVal');
+  const fineEl = qs('#fine');
+  const fineVal = qs('#fineVal');
+  const topNEl = qs('#topN');
+  const topNVal = qs('#topNVal');
+  const holdSecEl = qs('#holdSec');
+  const holdValEl = qs('#holdVal');
+  const boxScaleEl = qs('#boxScale');
+  const boxScaleValEl = qs('#boxScaleVal');
+
+  const linksEl = qs('#links');
+  const fillFragEl = qs('#fillFrag');
+
+  const flipBtn = qs('#flip');
+  const restartBtn = qs('#restart');
+  const useCamBtn = qs('#useCam');
+  const videoFileEl = qs('#videoFile');
+
+  const statusEl = qs('#status');
+  const fpsEl = qs('#fps');
+  const countEl = qs('#count');
+
+  function log(msg){
+    logEl.textContent = String(msg ?? '');
+  }
+
+  /* =========================
+     ✅ MENU
+     ========================= */
+  toggleUIBtn.addEventListener('click', ()=>{
+    const hidden = ui.classList.toggle('hidden');
+    toggleUIBtn.textContent = hidden ? 'MENU' : 'CLOSE';
+    playClick();
+  }, {passive:true});
+
+  /* =========================
+     ✅ Background: points & lines (dream)
+     ========================= */
   const bctx = bg.getContext('2d', { alpha:false });
 
-  const MOSAIC_IMAGES = [
-    // ✅ 여기 파일명만 맞춰서 넣으면 됨 (원하면 개수 늘려도 OK)
-    "mosaic/01.jpg","mosaic/02.jpg","mosaic/03.jpg","mosaic/04.jpg","mosaic/05.jpg","mosaic/06.jpg",
-    "mosaic/07.jpg","mosaic/08.jpg","mosaic/09.jpg","mosaic/10.jpg","mosaic/11.jpg","mosaic/12.jpg",
-    "mosaic/13.jpg","mosaic/14.jpg","mosaic/15.jpg","mosaic/16.jpg","mosaic/17.jpg","mosaic/18.jpg",
-    "mosaic/19.jpg","mosaic/20.jpg","mosaic/21.jpg","mosaic/22.jpg","mosaic/23.jpg","mosaic/24.jpg",
-    "mosaic/25.jpg","mosaic/26.jpg","mosaic/27.jpg","mosaic/28.jpg","mosaic/29.jpg","mosaic/30.jpg",
-  ];
+  const bgState = { pts: [], t0: performance.now(), swirl: 0, pulse: 0 };
 
-  let BW = 0, BH = 0, DPR = 1;
-
-  function resizeBG(){
-    DPR = window.devicePixelRatio || 1;
-    BW = innerWidth; BH = innerHeight;
-    bg.width = Math.round(BW * DPR);
-    bg.height = Math.round(BH * DPR);
-    bctx.setTransform(DPR,0,0,DPR,0,0);
+  function resizeCanvas(c){
+    const dpr = window.devicePixelRatio || 1;
+    const w = innerWidth, h = innerHeight;
+    c.width = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+    const ctx = c.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
   }
-  addEventListener('resize', resizeBG, {passive:true});
-  addEventListener('orientationchange', resizeBG, {passive:true});
-  resizeBG();
+  function resizeAll(){
+    resizeCanvas(bg);
+    const dpr=window.devicePixelRatio||1;
+    const w=window.innerWidth;
+    const h=window.innerHeight;
+    view.width=w*dpr;
+    view.height=h*dpr;
+    const vctx = view.getContext('2d', { alpha:false });
+    vctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resizeAll, {passive:true});
+  window.addEventListener('orientationchange', resizeAll, {passive:true});
+  resizeAll();
 
-  // 이미지 프리로드
-  const mosaicPool = [];
-  async function loadMosaic(){
-    mosaicPool.length = 0;
-    for(const src of MOSAIC_IMAGES){
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      const ok = await new Promise(res=>{
-        img.onload = ()=>res(true);
-        img.onerror = ()=>res(false);
-        img.src = src + "?v=" + Date.now();
+  function initBgPoints(){
+    const W = innerWidth, H = innerHeight;
+    const n = Math.round(clamp((W*H)/11000, 60, 140));
+    bgState.pts = [];
+    for(let i=0;i<n;i++){
+      bgState.pts.push({
+        x: Math.random()*W,
+        y: Math.random()*H,
+        vx: (Math.random()-0.5)*0.20,
+        vy: (Math.random()-0.5)*0.20,
+        r: 0.6 + Math.random()*1.4,
+        k: Math.random()*6.28
       });
-      if(ok) mosaicPool.push(img);
     }
   }
-  loadMosaic(); // 실패해도 아래 더미 타일로 동작
+  initBgPoints();
 
-  // 타일 월 구성
-  let tiles = [];
-  function rebuildTiles(){
-    tiles = [];
-    const cols = Math.max(10, Math.round(BW / 110));    // PPT처럼 촘촘한 느낌
-    const rows = Math.max(6, Math.round(BH / 90));
-    const tw = BW / cols;
-    const th = BH / rows;
+  function bgLoop(){
+    const W = innerWidth, H = innerHeight;
+    const t = (performance.now() - bgState.t0) * 0.001;
 
-    let idx = 0;
-    for(let r=0;r<rows;r++){
-      for(let c=0;c<cols;c++){
-        // 일부는 빈칸(검정)로 두는 느낌
-        const empty = Math.random() < 0.18;
+    bgState.pulse = 0.5 + 0.5*Math.sin(t*0.65);
+    bgState.swirl = 0.35*Math.sin(t*0.23);
 
-        tiles.push({
-          r,c,
-          x: c*tw,
-          y: r*th,
-          w: tw,
-          h: th,
-          imgIndex: idx++ % Math.max(1, mosaicPool.length),
-          empty,
-          jitterSeed: Math.random()*1000,
-          swapAt: performance.now() + 1500 + Math.random()*6000,
-          alpha: 1
-        });
-      }
-    }
-  }
-  rebuildTiles();
-  addEventListener('resize', rebuildTiles, {passive:true});
+    bctx.fillStyle = '#000';
+    bctx.fillRect(0,0,W,H);
 
-  function drawTileImage(img, x,y,w,h){
-    // cover draw
-    const iw = img.naturalWidth, ih = img.naturalHeight;
-    if(!iw || !ih) return false;
-    const ir = iw/ih;
-    const tr = w/h;
-    let sx=0, sy=0, sw=iw, sh=ih;
-    if(ir > tr){
-      sh = ih;
-      sw = ih*tr;
-      sx = (iw - sw)/2;
-    }else{
-      sw = iw;
-      sh = iw/tr;
-      sy = (ih - sh)/2;
-    }
-    bctx.drawImage(img, sx,sy,sw,sh, x,y,w,h);
-    return true;
-  }
+    const cx = W*0.52, cy = H*0.46;
+    for(const p of bgState.pts){
+      const dx = p.x - cx, dy = p.y - cy;
+      const ang = Math.atan2(dy, dx) + bgState.swirl*0.35;
+      const pull = 0.0006 * (0.6 + bgState.pulse);
 
-  function bgLoop(tms){
-    const t = tms*0.001;
+      p.vx += -Math.cos(ang+Math.PI/2) * pull * (Math.abs(dx)+120);
+      p.vy += -Math.sin(ang+Math.PI/2) * pull * (Math.abs(dy)+120);
 
-    bctx.fillStyle = "#000";
-    bctx.fillRect(0,0,BW,BH);
+      p.vx += 0.03*Math.sin(t*0.9 + p.k) * 0.02;
+      p.vy += 0.03*Math.cos(t*0.8 + p.k) * 0.02;
 
-    // 전체 월이 천천히 “흐르는” 느낌(별자리X)
-    const driftX = Math.sin(t*0.07)*18 + t*6;   // 아주 느린 가로 이동
-    const driftY = Math.cos(t*0.05)*10;
+      p.vx *= 0.985;
+      p.vy *= 0.985;
 
-    // vignette
-    const g = bctx.createRadialGradient(BW*0.5,BH*0.55, 10, BW*0.5,BH*0.55, Math.max(BW,BH)*0.85);
-    g.addColorStop(0, 'rgba(255,255,255,0.04)');
-    g.addColorStop(0.55,'rgba(0,0,0,0.72)');
-    g.addColorStop(1, 'rgba(0,0,0,0.96)');
-    bctx.fillStyle = g;
-    bctx.fillRect(0,0,BW,BH);
+      p.x += p.vx;
+      p.y += p.vy;
 
-    // 타일 그리기
-    const hasImgs = mosaicPool.length > 0;
-    for(const tile of tiles){
-      // swap 타이밍에 이미지 교체 + 페이드
-      if(hasImgs && tms > tile.swapAt){
-        tile.swapAt = tms + 2500 + Math.random()*7000;
-        tile.imgIndex = (tile.imgIndex + 1 + (Math.random()*7|0)) % mosaicPool.length;
-        tile.alpha = 0;
-        tile.empty = (Math.random() < 0.18);
-      }
-      tile.alpha = Math.min(1, tile.alpha + 0.02);
-
-      const jx = Math.sin(t*0.8 + tile.jitterSeed) * 1.6;
-      const jy = Math.cos(t*0.7 + tile.jitterSeed) * 1.2;
-
-      const x = tile.x + ((driftX % tile.w) - tile.w) + jx;
-      const y = tile.y + driftY + jy;
-      const w = tile.w+0.5, h = tile.h+0.5;
-
-      // wrap
-      let xx = x;
-      while(xx < -tile.w) xx += BW + tile.w;
-      while(xx > BW) xx -= BW + tile.w;
-
-      bctx.save();
-      bctx.globalAlpha = 0.92 * tile.alpha;
-
-      if(tile.empty || !hasImgs){
-        // 더미 타일(이미지 없을 때도 “영상 조각”처럼)
-        const lum = 18 + (Math.sin(t*0.9 + tile.jitterSeed)*0.5+0.5)*42;
-        bctx.fillStyle = `rgb(${lum|0},${lum|0},${lum|0})`;
-        bctx.fillRect(xx,y,w,h);
-      }else{
-        const img = mosaicPool[tile.imgIndex];
-        if(img) drawTileImage(img, xx,y,w,h);
-        // 흑백 + 약간의 컨트라스트 느낌(캔버스에서 간단히)
-        bctx.fillStyle = "rgba(0,0,0,0.18)";
-        bctx.fillRect(xx,y,w,h);
-      }
-
-      // 타일 사이 약간의 간격/라인
-      bctx.globalAlpha = 0.18;
-      bctx.strokeStyle = "rgba(0,0,0,0.7)";
-      bctx.lineWidth = 1;
-      bctx.strokeRect(xx+0.5,y+0.5,w-1,h-1);
-
-      bctx.restore();
+      if(p.x < -20) p.x = W+20;
+      if(p.x > W+20) p.x = -20;
+      if(p.y < -20) p.y = H+20;
+      if(p.y > H+20) p.y = -20;
     }
 
+    const maxDist = Math.min(W,H) * (0.18 + 0.07*bgState.pulse);
+    const maxD2 = maxDist*maxDist;
+
+    bctx.save();
+    bctx.globalCompositeOperation = 'lighter';
+
+    for(let i=0;i<bgState.pts.length;i++){
+      const a = bgState.pts[i];
+      for(let j=i+1;j<bgState.pts.length;j++){
+        const b = bgState.pts[j];
+        const dx = a.x-b.x, dy = a.y-b.y;
+        const d2 = dx*dx+dy*dy;
+        if(d2 > maxD2) continue;
+
+        const d = Math.sqrt(d2);
+        const alpha = clamp(1 - (d/maxDist), 0, 1);
+        const w = 0.6 + alpha*0.9;
+
+        bctx.lineWidth = w;
+        bctx.strokeStyle = `rgba(231,226,201,${(0.05 + 0.18*alpha).toFixed(3)})`;
+        bctx.beginPath();
+        bctx.moveTo(a.x, a.y);
+        bctx.lineTo(b.x, b.y);
+        bctx.stroke();
+      }
+    }
+
+    for(const p of bgState.pts){
+      const glow = 0.22 + 0.55*bgState.pulse;
+      bctx.fillStyle = `rgba(231,226,201,${(0.18*glow).toFixed(3)})`;
+      bctx.beginPath();
+      bctx.arc(p.x, p.y, p.r*(0.9+0.35*bgState.pulse), 0, Math.PI*2);
+      bctx.fill();
+    }
+
+    bctx.restore();
     requestAnimationFrame(bgLoop);
   }
   requestAnimationFrame(bgLoop);
 
   /* =========================
-     ✅ 인트로 탭 동작
+     ✅ Matrix 0/1 rain
      ========================= */
-  const stage = qs('#stage');
-  const stageTap = qs('#stageTap');
-  const tapHint = qs('#tapHint');
-  const blkTitle = qs('#blkTitle');
-  const blkTR = qs('#blkTR');
-  const blkBL = qs('#blkBL');
-  const blkCenter = qs('#blkCenter');
-  const linesTR = qs('#linesTR');
-  const linesBL = qs('#linesBL');
-  const linesCenter = qs('#linesCenter');
-  const countdownEl = qs('#countdown');
+  const matrixCanvas = qs('#matrix');
+  const mctx = matrixCanvas.getContext('2d', { alpha:false });
 
-  function mountLines(el, lines){
-    el.innerHTML = "";
-    const nodes = [];
-    for(const s of lines){
-      const div = document.createElement("div");
-      div.className = "line";
-      div.textContent = s === "" ? " " : s;
-      el.appendChild(div);
-      nodes.push(div);
-    }
-    return nodes;
-  }
-  function showLine(nodes, i){ if(nodes[i]) nodes[i].classList.add("show"); }
+  const mState = {
+    cols: [],
+    fontSize: 16,
+    dpr: window.devicePixelRatio || 1,
+    last: performance.now()
+  };
 
-  function clearBlocks(){
-    blkTitle.style.display="none";
-    blkTR.style.display="none";
-    blkBL.style.display="none";
-    blkCenter.style.display="none";
-    linesTR.innerHTML=""; linesBL.innerHTML=""; linesCenter.innerHTML="";
-    countdownEl.classList.remove("show");
-    countdownEl.textContent="10";
-  }
+  function resizeMatrix(){
+    const dpr = window.devicePixelRatio || 1;
+    mState.dpr = dpr;
+    matrixCanvas.width = Math.round(innerWidth * dpr);
+    matrixCanvas.height = Math.round(innerHeight * dpr);
+    mctx.setTransform(dpr,0,0,dpr,0,0);
 
-  const PAGES = [
-    { kind:"TITLE", hint:"TAP ANYWHERE TO BEGIN" },
-    { kind:"TR", lines:[
-`Empathy originally refers to the ability to feel with others (共感).
-In contemporary relational structures, however, this sense of togetherness has weakened,
-shifting toward emptiness, disconnection, and absence (空).`,
-"",
-`This project begins at that point of rupture and explores whether emotions emptied of togetherness
-can be reconstructed through cooking—the oldest bodily gesture of care.`,
-"",
-`Can the oldest gesture of care—cooking—restore emotions that have become empty of togetherness?`
-    ], hint:"TAP ANYWHERE TO READ NEXT" },
-
-    { kind:"BL", lines:[
-`In contemporary society, empathy is often reduced to superficial reactions within accelerated communication.`,
-"",
-`Emotional connection weakens, leaving growing gaps between individuals.`,
-"",
-`This project treats that gap not as failure,
-but as a starting point for reconstruction.`
-    ], hint:"TAP ANYWHERE TO READ NEXT" },
-
-    { kind:"TR", lines:[
-`This performance-installation involves two artists who build an archive through remote workshops—recipes, memories, writing, and cooking videos—then translate it on-site into a miniature world (cooking table) and a live performance that shares shifting states of empathy (共感) with the audience.`,
-"",
-`The focus is not cooking itself, but the gesture—the subtle bodily vibration that emerges while following unfamiliar recipes, moving from estrangement to understanding and empathy.`
-    ], hint:"TAP ANYWHERE TO READ NEXT" },
-
-    { kind:"CENTER", lines:[
-`WHY COOKING / WHY RECIPE`,
-"",
-`Cooking is both survival and a time-intensive gesture of care.
-Recipes inherited from parents often embed personal emotional memory—nostalgia, longing, loss, attachment.
-This project treats recipes as both an emotional document and a performance score,`,
-"",
-`testing how empathy can be reconstructed through exchanging, transforming, performing, and archiving them.`
-    ], hint:"TAP ANYWHERE TO CONTINUE" },
-
-    { kind:"CENTER", lines:[
-`Now all explanations about the work are complete.`,
-`Please freely walk through the exhibition space and watch the performance.`,
-"",
-`This program unfolds through taking photos.`,
-`For explanations and participation methods for each performance,`,
-`please press the HELP button at the top-left of the screen.`
-    ], hint:"TAP ANYWHERE TO START COUNTDOWN" },
-
-    { kind:"COUNTDOWN", lines:[`Enjoy the exhibition.`], hint:"STARTING IN 10" },
-  ];
-
-  let pageIndex = 0;
-  let nodes = [];
-  let lineIndex = 0;
-  let locked = false;
-
-  async function fadeSwap(renderFn){
-    stage.classList.remove("show");
-    await sleep(380);
-    renderFn();
-    await sleep(20);
-    stage.classList.add("show");
-  }
-
-  function renderPage(){
-    clearBlocks();
-    const p = PAGES[pageIndex];
-    tapHint.textContent = p.hint || "TAP ANYWHERE";
-
-    if(p.kind==="TITLE"){
-      blkTitle.style.display="block";
-      nodes = [];
-      lineIndex = 0;
-      return;
-    }
-
-    if(p.kind==="TR"){
-      blkTR.style.display="block";
-      nodes = mountLines(linesTR, p.lines);
-      lineIndex = 0;
-      showLine(nodes, 0);
-      return;
-    }
-
-    if(p.kind==="BL"){
-      blkBL.style.display="block";
-      nodes = mountLines(linesBL, p.lines);
-      lineIndex = 0;
-      showLine(nodes, 0);
-      return;
-    }
-
-    if(p.kind==="CENTER"){
-      blkCenter.style.display="block";
-      nodes = mountLines(linesCenter, p.lines);
-      lineIndex = 0;
-      showLine(nodes, 0);
-      return;
-    }
-
-    if(p.kind==="COUNTDOWN"){
-      blkCenter.style.display="block";
-      nodes = mountLines(linesCenter, p.lines);
-      lineIndex = 0;
-      showLine(nodes, 0);
-      return;
+    mState.fontSize = clamp(Math.round(innerWidth/52), 14, 22);
+    const cols = Math.ceil(innerWidth / (mState.fontSize * 0.78));
+    mState.cols = [];
+    for(let i=0;i<cols;i++){
+      mState.cols.push({
+        x: i * (mState.fontSize * 0.78),
+        y: Math.random() * innerHeight,
+        v: 40 + Math.random()*140,
+        phase: Math.random()*999
+      });
     }
   }
+  resizeMatrix();
+  window.addEventListener('resize', resizeMatrix, {passive:true});
+  window.addEventListener('orientationchange', resizeMatrix, {passive:true});
 
-  renderPage();
+  function matrixLoop(){
+    const W = innerWidth, H = innerHeight;
+    const now = performance.now();
+    const dt = (now - mState.last) / 1000;
+    mState.last = now;
 
-  async function onTap(){
-    if(locked) return;
-    locked = true;
+    // fade trail
+    mctx.fillStyle = 'rgba(0,0,0,0.20)';
+    mctx.fillRect(0,0,W,H);
 
-    const p = PAGES[pageIndex];
+    mctx.font = `${mState.fontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+    mctx.textBaseline = 'top';
 
-    if(p.kind !== "TITLE" && p.kind !== "COUNTDOWN"){
-      const next = lineIndex + 1;
-      if(next < nodes.length){
-        lineIndex = next;
-        showLine(nodes, lineIndex);
-        locked = false;
-        return;
+    for(const c of mState.cols){
+      c.y += c.v * dt;
+      if(c.y > H + 40) c.y = -Math.random()*200;
+
+      // draw a short vertical stack
+      const stack = 10;
+      for(let k=0;k<stack;k++){
+        const yy = c.y - k*(mState.fontSize*1.15);
+        if(yy < -40 || yy > H+40) continue;
+        const bit = ((Math.sin((c.phase + yy*0.02) * 2.1) > 0) ? '1' : '0');
+
+        // warm paper-ish matrix (not green), but still "matrix" feel
+        const a = clamp(0.08 + (k===0 ? 0.35 : 0.18) - k*0.012, 0.03, 0.38);
+        mctx.fillStyle = `rgba(231,226,201,${a.toFixed(3)})`;
+        mctx.fillText(bit, c.x, yy);
       }
     }
 
-    if(p.kind === "COUNTDOWN"){
-      countdownEl.classList.add("show");
-      let n = 10;
-      countdownEl.textContent = String(n);
-      for(let i=0;i<10;i++){
-        await sleep(1000);
-        n--;
-        countdownEl.textContent = String(n);
-      }
-      // 여기서 본편(카메라/트래킹)로 넘어가는 로직을 다시 붙이면 됨
-      stage.classList.add("hidden");
-      locked = false;
-      return;
+    requestAnimationFrame(matrixLoop);
+  }
+  requestAnimationFrame(matrixLoop);
+
+  /* =========================
+     캔버스/카메라
+     ========================= */
+  const vctx = view.getContext('2d', { alpha:false });
+
+  let camStream=null;
+  let camVideo=null;
+  let facingMode='environment';
+  let usingUploadVideo=false;
+
+  let ZOOM=1.0;
+  let showCamera=false;
+  let camFadeAlpha=0;
+
+  function updateZoomLabel(){ zoomVal.textContent = ZOOM.toFixed(1)+'×'; }
+  updateZoomLabel();
+
+  zoomIn.addEventListener('click', async ()=>{
+    await ensureResumed();
+    ZOOM=Math.min(3.0, ZOOM+0.1);
+    updateZoomLabel();
+    playClick();
+  }, {passive:true});
+
+  zoomOut.addEventListener('click', async ()=>{
+    await ensureResumed();
+    ZOOM=Math.max(1.0, ZOOM-0.1);
+    updateZoomLabel();
+    playClick();
+  }, {passive:true});
+
+  async function startCameraFresh(){
+    usingUploadVideo=false;
+    if (camStream){
+      camStream.getTracks().forEach(t=>t.stop());
+      camStream=null;
+    }
+    const s = await navigator.mediaDevices.getUserMedia({
+      video:{
+        facingMode:{ideal:facingMode},
+        width:{min:1280,ideal:1920},
+        height:{min:720,ideal:1080},
+        aspectRatio:{ideal:16/9}
+      },
+      audio:false
+    });
+    camStream = s;
+
+    if(!camVideo){
+      camVideo=document.createElement('video');
+      camVideo.setAttribute('playsinline','');
+      camVideo.autoplay=true;
+      camVideo.playsInline=true;
+      camVideo.muted=true;
+    }
+    camVideo.srcObject=camStream;
+    camVideo.src = '';
+    await camVideo.play().catch(()=>{});
+    if (camVideo.readyState < 1){
+      await new Promise(res=>camVideo.addEventListener('loadedmetadata', res, {once:true}));
+    }
+  }
+
+  async function useUploadedVideo(file){
+    usingUploadVideo=true;
+    if (camStream){
+      camStream.getTracks().forEach(t=>t.stop());
+      camStream=null;
+    }
+    if(!camVideo){
+      camVideo=document.createElement('video');
+      camVideo.setAttribute('playsinline','');
+      camVideo.autoplay=true;
+      camVideo.playsInline=true;
+      camVideo.muted=true;
+    }
+    camVideo.srcObject=null;
+    camVideo.loop=true;
+    camVideo.muted=true;
+    camVideo.src = URL.createObjectURL(file);
+    await camVideo.play().catch(()=>{});
+    if (camVideo.readyState < 1){
+      await new Promise(res=>camVideo.addEventListener('loadedmetadata', res, {once:true}));
+    }
+  }
+
+  function fadeInCamera(dur=FADE_MS){
+    showCamera = true;
+    const start = performance.now();
+    camFadeAlpha = 0;
+    function step(){
+      const t = (performance.now() - start) / dur;
+      camFadeAlpha = clamp(t, 0, 1);
+      if(t < 1 && showCamera) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function getCameraDrawTransform(){
+    const w = view.clientWidth || innerWidth;
+    const h = view.clientHeight || innerHeight;
+
+    if(!camVideo || camVideo.readyState < 2) return null;
+    const vw = camVideo.videoWidth, vh = camVideo.videoHeight;
+    if(!vw || !vh) return null;
+
+    const fw = w, fh = h;
+    const videoRatio = vw / vh;
+    const frameRatio = fw / fh;
+
+    let dw, dh;
+    if(videoRatio > frameRatio){ dh = fh; dw = dh * videoRatio; }
+    else { dw = fw; dh = dw / videoRatio; }
+
+    dw *= ZOOM; dh *= ZOOM;
+    const dx = (fw - dw)/2;
+    const dy = (fh - dh)/2;
+
+    return { vw, vh, dx, dy, dw, dh, fw, fh };
+  }
+
+  /* =========================
+     ✅ 업로드
+     ========================= */
+  function humanErr(e){
+    const msg = (e && e.message) ? e.message : String(e);
+    if (/aborted/i.test(msg)) return "timeout";
+    return msg;
+  }
+
+  async function canvasToJpegBlobResized(srcCanvas, maxLongSide=1600, quality=0.85){
+    const w = srcCanvas.width;
+    const h = srcCanvas.height;
+    if (!w || !h) return null;
+
+    const longSide = Math.max(w,h);
+    const scale = Math.min(1, maxLongSide / longSide);
+
+    const tw = Math.max(1, Math.round(w * scale));
+    const th = Math.max(1, Math.round(h * scale));
+
+    let target = srcCanvas;
+    if (scale < 0.999){
+      const c = document.createElement("canvas");
+      c.width = tw;
+      c.height = th;
+      const cctx = c.getContext("2d");
+      cctx.imageSmoothingEnabled = true;
+      cctx.imageSmoothingQuality = "high";
+      cctx.drawImage(srcCanvas, 0,0,w,h, 0,0,tw,th);
+      target = c;
     }
 
-    await fadeSwap(()=>{
-      pageIndex = Math.min(PAGES.length-1, pageIndex+1);
-      renderPage();
+    const blob = await new Promise((resolve) => {
+      target.toBlob((b)=>resolve(b), "image/jpeg", quality);
     });
 
-    locked = false;
+    return blob;
   }
 
-  // ✅ iOS/Safari에서도 확실하게 먹도록 pointerdown + touchstart 둘 다
-  stageTap.addEventListener('pointerdown', (e)=>{ e.preventDefault(); onTap(); }, {passive:false});
-  stageTap.addEventListener('touchstart', (e)=>{ e.preventDefault(); onTap(); }, {passive:false});
+  async function fetchWithTimeout(url, options={}, timeoutMs=UPLOAD_TIMEOUT_MS){
+    const controller = new AbortController();
+    const id = setTimeout(()=>controller.abort(new Error("aborted")), timeoutMs);
+    try{
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(id);
+    }
+  }
 
-  /* HELP panel */
-  const helpBtn = qs('#helpBtn');
-  const helpPanel = qs('#helpPanel');
-  const helpClose = qs('#helpClose');
-  helpBtn.addEventListener('click', ()=> helpPanel.classList.add('show'), {passive:true});
-  helpClose.addEventListener('click', ()=> helpPanel.classList.remove('show'), {passive:true});
-  helpPanel.addEventListener('click', (e)=>{ if(e.target===helpPanel) helpPanel.classList.remove('show'); }, {passive:true});
+  async function uploadBlob(blob){
+    const formData = new FormData();
+    formData.append("image", blob, `sleep_capture_${Date.now()}.jpg`);
+    const base = (SLEEP_UPLOAD_SERVER && SLEEP_UPLOAD_SERVER.trim()) ? SLEEP_UPLOAD_SERVER.trim() : '';
+    const url = base + "/upload";
+
+    let res = await fetchWithTimeout(url, { method:"POST", body: formData }, UPLOAD_TIMEOUT_MS);
+    if ((!res.ok && res.status >= 500) && UPLOAD_RETRY > 0){
+      await new Promise(r=>setTimeout(r, 400));
+      res = await fetchWithTimeout(url, { method:"POST", body: formData }, UPLOAD_TIMEOUT_MS);
+    }
+    return res;
+  }
+
+  async function uploadSnapshotCanvas(canvas){
+    try{
+      setSleepPhotoStatus('Uploading...');
+      const blob = await canvasToJpegBlobResized(canvas, 1600, 0.85);
+      if(!blob){
+        setSleepPhotoStatus('Upload error');
+        return;
+      }
+
+      const res = await uploadBlob(blob);
+
+      if(!res.ok){
+        const txt = await res.text().catch(()=> "");
+        setSleepPhotoStatus(`Upload failed: ${res.status}${txt ? " / " + txt.slice(0,80) : ""}`);
+        return;
+      }
+
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")){
+        await res.json().catch(()=>({}));
+      } else {
+        await res.text().catch(()=> "");
+      }
+
+      setSleepPhotoStatus('Uploaded');
+      setTimeout(()=>setSleepPhotoStatus(''), 2600);
+    }catch(err){
+      console.error("UPLOAD ERROR RAW:", err);
+      setSleepPhotoStatus('Upload error: ' + humanErr(err));
+      setTimeout(()=>setSleepPhotoStatus(''), 5200);
+    }
+  }
+
+  /* =========================
+     ✅ BOX DETECT assets
+     ========================= */
+  const LIMEN_LABELS = ["Mom","Hometown","Son Duk-Geum","GrandFather","Ocean"];
+  const CLASS_TO_LIMEN = {
+    person: "Mom",
+    diningtable: "Hometown",
+    bottle: "Ocean",
+    cup: "Hometown",
+    fork: "Son Duk-Geum",
+    knife: "Son Duk-Geum",
+    spoon: "Son Duk-Geum",
+    chair: "GrandFather",
+    tv: "Ocean",
+    laptop: "Ocean",
+    "cell phone": "Ocean"
+  };
+  function pickLimenLabelByClass(cocoClass, fallbackIndex){
+    return CLASS_TO_LIMEN[cocoClass] || LIMEN_LABELS[fallbackIndex % LIMEN_LABELS.length];
+  }
+  function shuffleCopy(arr){
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  const ASSET_FILES = {
+    "Mom": "assets/mom.jpg",
+    "Hometown": "assets/hometown.jpg",
+    "Son Duk-Geum": "assets/son-duk-geum.jpg",
+    "GrandFather": "assets/grandfather.jpg",
+    "Ocean": "assets/ocean.jpg"
+  };
+
+  const assets = new Map();
+  async function loadAssets(){
+    assets.clear();
+    const entries = Object.entries(ASSET_FILES);
+    for (const [label, path] of entries){
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      const rec = { el:img, ready:false, path };
+      assets.set(label, rec);
+      await new Promise((res) => {
+        img.onload = () => { rec.ready = true; res(); };
+        img.onerror = () => { rec.ready = false; res(); };
+        img.src = path + "?v=" + Date.now();
+      });
+    }
+  }
+
+  /* =========================
+     ✅ coco-ssd model
+     ========================= */
+  let model=null;
+  async function loadModel(){
+    if(model) return model;
+    model = await cocoSsd.load({ base:"lite_mobilenet_v2" });
+    return model;
+  }
+
+  function iou(a,b){
+    const ax1=a[0], ay1=a[1], ax2=a[0]+a[2], ay2=a[1]+a[3];
+    const bx1=b[0], by1=b[1], bx2=b[0]+b[2], by2=b[1]+b[3];
+    const ix1=Math.max(ax1,bx1), iy1=Math.max(ay1,by1);
+    const ix2=Math.min(ax2,bx2), iy2=Math.min(ay2,by2);
+    const iw=Math.max(0, ix2-ix1), ih=Math.max(0, iy2-iy1);
+    const inter=iw*ih;
+    const ua=a[2]*a[3] + b[2]*b[3] - inter;
+    return ua>0 ? inter/ua : 0;
+  }
+  function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
+  function makeLinks(points, k=2){
+    const links=[];
+    for(let i=0;i<points.length;i++){
+      const ds=[];
+      for(let j=0;j<points.length;j++){
+        if(i===j) continue;
+        const dx=points[i].x-points[j].x, dy=points[i].y-points[j].y;
+        ds.push({j, d:dx*dx+dy*dy});
+      }
+      ds.sort((a,b)=>a.d-b.d);
+      for(let t=0;t<Math.min(k, ds.length);t++){
+        const j=ds[t].j;
+        if(i<j) links.push([i,j,ds[t].d]);
+      }
+    }
+    return links;
+  }
+  function fract(x){ return x - Math.floor(x); }
+  function scaleBox(bbox, s){
+    const [x,y,w,h]=bbox;
+    const cx = x + w/2, cy = y + h/2;
+    const nw = w * s, nh = h * s;
+    return [cx - nw/2, cy - nh/2, nw, nh];
+  }
+
+  function drawFragmentIntoBox(assetRec, bbox, seed, alphaMul=1){
+    if (!assetRec || !assetRec.ready) return;
+    const [x,y,w,h] = bbox;
+    if (w < 8 || h < 8) return;
+
+    const t = performance.now() * 0.001;
+    const r1 = fract(Math.sin(seed*12.9898 + t*1.3) * 43758.5453);
+    const r2 = fract(Math.sin(seed*78.233  + t*0.9) * 12345.6789);
+    const r3 = fract(Math.sin(seed*41.77   + t*1.7) * 98765.4321);
+
+    vctx.save();
+    vctx.beginPath(); vctx.rect(x,y,w,h); vctx.clip();
+
+    const scale = 1.05 + r1 * 1.25;
+    const ox = (r2 - 0.5) * w * 0.35;
+    const oy = (r3 - 0.5) * h * 0.35;
+
+    const el = assetRec.el;
+    const sw = el.naturalWidth||0;
+    const sh = el.naturalHeight||0;
+    if (sw < 2 || sh < 2){ vctx.restore(); return; }
+
+    const dw = w * scale, dh = h * scale;
+    const dx = x + (w - dw)/2 + ox;
+    const dy = y + (h - dh)/2 + oy;
+
+    vctx.globalAlpha = 0.85 * alphaMul;
+    vctx.drawImage(el, dx, dy, dw, dh);
+
+    vctx.globalAlpha = 0.32 * alphaMul;
+    const dw2 = w * (0.85 + r2*0.5);
+    const dh2 = h * (0.85 + r3*0.5);
+    const dx2 = x + (w - dw2)/2 - ox*0.25;
+    const dy2 = y + (h - dh2)/2 - oy*0.25;
+    vctx.drawImage(el, dx2, dy2, dw2, dh2);
+
+    vctx.restore();
+    vctx.globalAlpha = 1;
+  }
+
+  function drawLabelTag(label, cocoClass, x, y, alphaMul=1){
+    const text = `${label} · ${cocoClass}`;
+    vctx.font = `${Math.max(12, Math.round((view.clientWidth||innerWidth)/95))}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
+    vctx.textBaseline = "top";
+    const padX = 7, padY = 4;
+    const tw = vctx.measureText(text).width;
+    const th = Math.max(18, Math.round((view.clientWidth||innerWidth)/75));
+
+    const ty = Math.max(0, y - th - 2);
+    vctx.fillStyle = `rgba(0,0,0,${(0.60*alphaMul).toFixed(3)})`;
+    vctx.fillRect(x, ty, tw + padX*2, th);
+
+    vctx.fillStyle = `rgba(231,226,201,${(0.95*alphaMul).toFixed(3)})`;
+    vctx.fillText(text, x + padX, ty + padY);
+  }
+
+  function computeMinAreaFromFine(fine, vw, vh){
+    const base = vw * vh;
+    const minRatio = 0.0015;
+    const maxRatio = 0.12;
+    const r = minRatio + (1 - fine) * (maxRatio - minRatio);
+    return base * r;
+  }
+
+  let objectTracks = [];
+  let renderTracks = [];
+  let nextId = 1;
+
+  function ensureDistinctLabelsForTopN(objs, nowMs){
+    const holdMs = (+holdSecEl.value) * 1000;
+
+    for (const o of objs){
+      if (!o.label || nowMs > o.labelUntil) o.label = null;
+    }
+
+    const used = new Set(objs.filter(o=>o.label).map(o=>o.label));
+    for (let i=0;i<objs.length;i++){
+      const o = objs[i];
+      if (!o.label){
+        let candidate = pickLimenLabelByClass(o.cls, i);
+        if (used.has(candidate)){
+          const pool = shuffleCopy(LIMEN_LABELS).filter(L=>!used.has(L));
+          if (pool.length) candidate = pool[0];
+        }
+        o.label = candidate;
+        o.labelUntil = nowMs + holdMs;
+        used.add(candidate);
+      }
+    }
+  }
+
+  const DETECT_INTERVAL_MS = 240;
+  let lastDetectAt = 0;
+  let runningDetect = false;
+
+  async function stepDetect(){
+    if(!model) await loadModel();
+    if(!camVideo || camVideo.readyState < 2) return;
+
+    const coarse = +confEl.value;
+    const fine = +fineEl.value;
+    confVal.textContent = coarse.toFixed(2);
+    fineVal.textContent = fine.toFixed(2);
+
+    let wantN = +topNEl.value;
+    wantN = clamp(wantN, 3, 8);
+    topNVal.textContent = String(wantN);
+
+    holdValEl.textContent = (+holdSecEl.value).toFixed(1) + "s";
+
+    // ✅ boxScale 시작값 0.40 유지
+    const bs = clamp(+boxScaleEl.value, 0.35, 1.20);
+    boxScaleValEl.textContent = bs.toFixed(2);
+
+    const vw = camVideo.videoWidth || 0;
+    const vh = camVideo.videoHeight || 0;
+    const minArea = computeMinAreaFromFine(fine, vw||1280, vh||720);
+
+    let preds = await model.detect(camVideo);
+
+    preds = preds
+      .filter(p => (p.score >= coarse) && ((p.bbox[2]*p.bbox[3]) >= minArea))
+      .sort((a,b) => b.score - a.score);
+
+    const candidates = preds.slice(0, 12);
+    const nowMs = performance.now();
+
+    const used = new Set();
+    for (const tr of objectTracks){
+      let bestJ = -1, bestI = 0;
+      for (let j=0;j<candidates.length;j++){
+        if (used.has(j)) continue;
+        const s = iou(tr.bbox, candidates[j].bbox);
+        if (s > bestI){ bestI=s; bestJ=j; }
+      }
+      if (bestJ >= 0 && bestI > 0.18){
+        const p = candidates[bestJ];
+        used.add(bestJ);
+        tr.bbox = lerpBox(tr.bbox, p.bbox, 0.55);
+        tr.cls = p.class;
+        tr.score = p.score;
+        tr.lastSeen = nowMs;
+      }
+    }
+
+    for (let j=0;j<candidates.length;j++){
+      if (used.has(j)) continue;
+      const p = candidates[j];
+      objectTracks.push({
+        id: nextId++,
+        bbox: p.bbox.slice(),
+        cls: p.class,
+        score: p.score,
+        label: null,
+        labelUntil: 0,
+        lastSeen: nowMs,
+        seed: (nextId*971 + j*37) >>> 0
+      });
+    }
+
+    objectTracks = objectTracks.filter(tr => (nowMs - tr.lastSeen) < 1200);
+    objectTracks.sort((a,b)=>b.score-a.score);
+    renderTracks = objectTracks.slice(0, wantN);
+    ensureDistinctLabelsForTopN(renderTracks, nowMs);
+
+    // ✅ 큰 안내 문구는 안 띄움(필요 시 log에만)
+    if(usingUploadVideo){
+      // no-op
+    }
+  }
+
+  function mapVideoBoxToScreen(bbox, T){
+    const [x,y,w,h] = bbox;
+    const sx = T.dx + (x / T.vw) * T.dw;
+    const sy = T.dy + (y / T.vh) * T.dh;
+    const sw = (w / T.vw) * T.dw;
+    const sh = (h / T.vh) * T.dh;
+    return [sx, sy, sw, sh];
+  }
+
+  function drawCameraAndDetect(){
+    const W = view.clientWidth || innerWidth;
+    const H = view.clientHeight || innerHeight;
+
+    vctx.save();
+    vctx.fillStyle = '#000';
+    vctx.fillRect(0,0,W,H);
+    vctx.restore();
+
+    const T = getCameraDrawTransform();
+    if(showCamera && T){
+      // camera
+      vctx.save();
+      vctx.globalAlpha = camFadeAlpha;
+      vctx.drawImage(camVideo, T.dx, T.dy, T.dw, T.dh);
+      vctx.restore();
+
+      const alphaMul = camFadeAlpha; // ✅ 박스/라인/라벨도 같이 페이드인
+      const boxScale = clamp(+boxScaleEl.value, 0.35, 1.20);
+
+      if (linksEl.checked && renderTracks.length >= 2){
+        const screenBoxes = renderTracks.map(tr => mapVideoBoxToScreen(tr.bbox, T));
+        const scaledBoxes = screenBoxes.map(b => scaleBox(b, boxScale));
+        const pts = scaledBoxes.map(b => center(b));
+        const links = makeLinks(pts, 2);
+
+        for (const [i,j,dd] of links){
+          const a = pts[i], b = pts[j];
+          const dist = Math.sqrt(dd);
+          const norm = Math.min(1, dist / Math.max(W, H));
+          const alpha = clamp((0.62*(1-norm) + 0.10), 0.05, 0.85) * alphaMul;
+
+          vctx.save();
+          vctx.setLineDash([]);
+          vctx.strokeStyle = `rgba(231,226,201,${alpha.toFixed(3)})`;
+          vctx.lineWidth = Math.max(1.1, W/1150);
+          vctx.beginPath();
+          vctx.moveTo(a.x, a.y);
+          vctx.lineTo(b.x, b.y);
+          vctx.stroke();
+          vctx.restore();
+        }
+      }
+
+      vctx.lineWidth = Math.max(2, W/980);
+
+      for (let idx=0; idx<renderTracks.length; idx++){
+        const tr = renderTracks[idx];
+        const label = tr.label || "—";
+
+        const screenBox = mapVideoBoxToScreen(tr.bbox, T);
+        const b = scaleBox(screenBox, boxScale);
+        const [x,y,w,h] = b;
+
+        if (fillFragEl.checked){
+          const asset = assets.get(label);
+          drawFragmentIntoBox(asset, b, (tr.seed + idx*77) >>> 0, alphaMul);
+        }
+
+        vctx.save();
+        vctx.globalAlpha = alphaMul;
+        vctx.strokeStyle = `rgba(231,226,201,0.92)`;
+        vctx.strokeRect(x,y,w,h);
+        vctx.restore();
+
+        drawLabelTag(label, tr.cls, x, y, alphaMul);
+      }
+
+      countEl.textContent = "Boxes " + renderTracks.length;
+    }
+  }
+
+  let lastT = performance.now();
+  let emaFps = 0;
+
+  async function tick(){
+    if(!runningDetect) return;
+
+    const now = performance.now();
+    if ((now - lastDetectAt) > DETECT_INTERVAL_MS){
+      lastDetectAt = now;
+      try{ await stepDetect(); }
+      catch(e){ log("DETECT ERROR: " + (e?.message || e)); }
+    }
+
+    const dt = (now - lastT) / 1000;
+    lastT = now;
+    const inst = dt>0 ? (1/dt) : 0;
+    emaFps = emaFps ? (emaFps*0.9 + inst*0.1) : inst;
+
+    // ✅ log에만 아주 작게 상태 표시
+    log(`FPS ${emaFps.toFixed(1)}   |   Boxes ${renderTracks.length}`);
+
+    requestAnimationFrame(tick);
+  }
+
+  function renderLoop(){
+    drawCameraAndDetect();
+    requestAnimationFrame(renderLoop);
+  }
+  requestAnimationFrame(renderLoop);
+
+  /* =========================
+     CAPTURE → 업로드
+     ========================= */
+  let capturing=false;
+  async function captureCurrentView(){
+    if(capturing) return;
+    capturing = true;
+    try{
+      setSleepPhotoStatus('Capturing...');
+      const w = view.width;
+      const h = view.height;
+
+      freezeLayer.width = w;
+      freezeLayer.height = h;
+
+      const ctx = freezeLayer.getContext('2d');
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(view, 0,0, w, h);
+
+      await uploadSnapshotCanvas(freezeLayer);
+    }catch(e){
+      setSleepPhotoStatus('Capture error');
+      setTimeout(()=>setSleepPhotoStatus(''), 5000);
+    }finally{
+      freezeLayer.style.display = 'none';
+      capturing = false;
+    }
+  }
+
+  captureBtn.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    await ensureResumed();
+    playClick();
+    captureCurrentView();
+  }, {passive:false});
+
+  /* =========================
+     UI 동작
+     ========================= */
+  flipBtn.addEventListener('click', async ()=>{
+    try{
+      facingMode = (facingMode === "environment") ? "user" : "environment";
+      if(!usingUploadVideo){
+        await startCameraFresh();
+        fadeInCamera(FADE_MS);
+      }
+      playClick();
+    }catch(e){
+      log("flip error");
+    }
+  }, {passive:true});
+
+  restartBtn.addEventListener('click', ()=>{
+    objectTracks = [];
+    renderTracks = [];
+    lastDetectAt = 0;
+    playClick();
+  }, {passive:true});
+
+  useCamBtn.addEventListener('click', async ()=>{
+    try{
+      await startCameraFresh();
+      fadeInCamera(FADE_MS);
+      objectTracks = [];
+      renderTracks = [];
+      playClick();
+    }catch(e){
+      log("camera error");
+    }
+  }, {passive:true});
+
+  videoFileEl.addEventListener('change', async ()=>{
+    const file = videoFileEl.files?.[0];
+    if(!file) return;
+    try{
+      await useUploadedVideo(file);
+      fadeInCamera(FADE_MS);
+      objectTracks = [];
+      renderTracks = [];
+      playClick();
+    }catch(e){
+      log("upload error");
+    }
+  }, {passive:true});
+
+  /* =========================
+     ✅ New flow
+     1) Scene1(매트릭스) 탭 → (권한요청+워밍업) + 오버레이 페이드아웃(2.5s) → Scene2로 전환
+     2) Scene2(타이핑) 시작 → 아래 글자 타이핑
+     3) Scene2 탭 → 오버레이 페이드아웃(2.5s) + 카메라/박스 페이드인(2.5s) + 디텍트 시작
+     ========================= */
+  let warmed = false;
+  let typing = false;
+
+  // ✅ 시작 박스 스케일 0.40 고정 스타트
+  boxScaleEl.value = "0.40";
+  boxScaleValEl.textContent = "0.40";
+
+  async function warmUp(){
+    if (warmed) return;
+    warmed = true;
+    try{
+      // 조용히 로드(큰 안내 없음)
+      await loadModel();
+      await loadAssets();
+    }catch(e){
+      log("warmup error");
+    }
+  }
+
+  async function requestCameraPermission(){
+    try{
+      const s = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:{ideal:facingMode} },
+        audio:false
+      });
+      s.getTracks().forEach(t=>t.stop());
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+
+  function fadeToTitle(){
+    // Scene1 -> Scene2 전환 자체는 즉시, 대신 overlayStack 자체를 2.5초로 한번 숨겼다가 다시 보이게
+    overlayStack.classList.add('overlayFadeOut');
+    setTimeout(()=>{
+      scenePerm.classList.add('hidden');
+      sceneTitle.classList.remove('hidden');
+      overlayStack.classList.remove('overlayFadeOut');
+      startTypingLine();
+    }, Math.round(FADE_MS));
+  }
+
+  function startTypingLine(){
+    if(typing) return;
+    typing = true;
+    typeLineEl.textContent = "";
+    let i = 0;
+    const s = TYPE_LINE;
+    const timer = setInterval(()=>{
+      i++;
+      typeLineEl.textContent = s.slice(0,i);
+      if(i >= s.length){
+        clearInterval(timer);
+      }
+    }, TYPE_SPEED_MS);
+  }
+
+  async function onPermTap(e){
+    if(e && e.preventDefault) e.preventDefault();
+    await ensureResumed();
+    playClick();
+
+    // 권한 요청 + 워밍업 (권한 거절해도 다음 씬은 진행)
+    await requestCameraPermission();
+    await warmUp();
+
+    fadeToTitle();
+  }
+
+  function fadeOutOverlay(){
+    overlayStack.classList.add('overlayFadeOut');
+    setTimeout(()=>{
+      overlayStack.style.display = "none";
+    }, Math.round(FADE_MS));
+  }
+
+  async function enterProgram(e){
+    if(e && e.preventDefault) e.preventDefault();
+    await ensureResumed();
+    playClick();
+
+    // 오버레이 페이드아웃(2.5s) + 카메라 페이드인(2.5s)
+    fadeOutOverlay();
+
+    try{
+      await startCameraFresh();
+      fadeInCamera(FADE_MS);
+    }catch(err){
+      log("camera start failed");
+    }
+
+    controls.classList.add('show');
+    captureBtn.classList.add('show');
+
+    runningDetect = true;
+    lastT = performance.now();
+    lastDetectAt = 0;
+    tick();
+  }
+
+  // Scene 1 tap
+  ['click','touchstart','pointerdown'].forEach(type=>{
+    scenePerm.addEventListener(type, onPermTap, {passive:false});
+  });
+
+  // Scene 2 tap
+  ['click','touchstart','pointerdown'].forEach(type=>{
+    sceneTitle.addEventListener(type, enterProgram, {passive:false});
+  });
+
 })();
 </script>
 </body>
