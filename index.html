@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="EMPTINESS→TOGETHERNESS">
 <meta name="theme-color" content="#000000">
 
+<!-- ✅ BOX DETECT libs -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 
@@ -26,9 +27,10 @@
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
 
-  --ink: #c9cfab;
+  /* ✅ 레퍼런스 톤 */
+  --ink: #c9cfab;      /* 연녹빛 세리프 */
   --ink-dim: rgba(201,207,171,.78);
-  --red: #b3342b;
+  --red: #b3342b;      /* 안내 레드 */
   --white: #f5f5f5;
 }
 
@@ -71,6 +73,12 @@ body{
 }
 #view.show{ opacity:1; }
 
+#freezeLayer{
+  position:fixed; inset:0;
+  z-index:500;
+  display:none;
+}
+
 .frameBox{
   position:fixed;
   left:calc(var(--frame) + var(--safe-l));
@@ -98,62 +106,6 @@ body{
   padding:calc(var(--pad-btn-y)*0.75) calc(var(--pad-btn-x)*0.75);
 }
 .uiBtn[disabled]{ opacity:.35; pointer-events:none; filter:grayscale(1); }
-
-/* 좌측 상단 HELP */
-#helpBtn{
-  position:fixed;
-  left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
-  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
-  z-index:930;
-  border:1px solid rgba(255,255,255,.14);
-  border-radius:14px;
-  background:rgba(0,0,0,.22);
-  backdrop-filter: blur(10px);
-  color:rgba(245,245,245,.92);
-  padding:8px 12px;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  letter-spacing:.18em;
-  font-size:12px;
-  opacity:.9;
-}
-#helpBtn:active{transform:translateY(1px);}
-#helpPanel{
-  position:fixed; inset:0;
-  z-index:940;
-  display:none;
-  background:rgba(0,0,0,.72);
-  backdrop-filter: blur(12px);
-}
-#helpPanel.show{display:block;}
-#helpPanel .box{
-  position:absolute;
-  left:calc(var(--frame) + var(--safe-l));
-  right:calc(var(--frame) + var(--safe-r));
-  top:calc(var(--frame) + 56px + var(--safe-t));
-  max-width:920px;
-  margin:0 auto;
-  border:1px solid rgba(255,255,255,.14);
-  border-radius:18px;
-  background:rgba(0,0,0,.55);
-  padding:16px 16px 18px 16px;
-  color:var(--ink);
-  line-height:1.55;
-}
-#helpPanel .close{
-  position:absolute;
-  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
-  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
-  z-index:941;
-  border:none;
-  background:transparent;
-  color:#fff;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  letter-spacing:.18em;
-  font-size:12px;
-  opacity:.9;
-  padding:10px 12px;
-}
-#helpPanel .close:active{transform:translateY(1px);}
 
 .controls{
   position:fixed;
@@ -197,14 +149,124 @@ body{
   max-width:min(76vw, 720px);
 }
 
-/* 메뉴 버튼(흰 라운드 틀 X) */
+/* =========================
+   ✅ 전체 인트로/안내 오버레이
+   ========================= */
+#stage{
+  position:fixed; inset:0;
+  z-index:300;
+  display:flex;
+  align-items:stretch;
+  justify-content:stretch;
+  background: radial-gradient(1200px 700px at 50% 55%, rgba(255,255,255,.06), rgba(0,0,0,.92) 65%, rgba(0,0,0,.98));
+  backdrop-filter: blur(0px);
+}
+#stage.hidden{
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 900ms ease;
+}
+#stageTap{
+  position:absolute; inset:0;
+  cursor:pointer;
+}
+
+/* 텍스트 블록들 */
+.stageBlock{
+  position:absolute;
+  max-width:min(88vw, 980px);
+  line-height:1.55;
+  letter-spacing:.01em;
+  text-shadow:0 0 10px rgba(0,0,0,.35);
+}
+.stageTitle{
+  font-size:clamp(22px, 4.4vmin, 54px);
+  letter-spacing:.01em;
+  margin:0 0 10px 0;
+  color:var(--ink);
+}
+.stageSub{
+  font-size:clamp(14px, 2.2vmin, 20px);
+  color:var(--ink-dim);
+  margin:0;
+}
+
+/* 페이지별 배치 */
+.pos-top-right{
+  top:calc(var(--frame) + 10px + var(--safe-t));
+  right:calc(var(--frame) + 10px + var(--safe-r));
+  text-align:left;
+}
+.pos-bottom-left{
+  left:calc(var(--frame) + 10px + var(--safe-l));
+  bottom:calc(var(--frame) + 62px + var(--safe-b));
+  text-align:left;
+}
+.pos-center{
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  text-align:center;
+}
+
+.stageLines{
+  font-size:clamp(16px, 2.8vmin, 28px);
+  color:var(--ink);
+  white-space:pre-wrap;
+}
+.stageLines.small{
+  font-size:clamp(14px, 2.2vmin, 20px);
+  color:var(--ink);
+}
+
+/* 한 줄씩 나타나는 느낌 */
+.line{
+  opacity:0;
+  transform: translateY(6px);
+  transition: opacity 700ms ease, transform 700ms ease;
+}
+.line.show{
+  opacity:1;
+  transform: translateY(0px);
+}
+
+/* 빨간 안내 문구 */
+.tapHint{
+  position:absolute;
+  left:50%;
+  bottom:calc(var(--frame) + 14px + var(--safe-b));
+  transform:translateX(-50%);
+  font-size:clamp(12px, 2.0vmin, 16px);
+  letter-spacing:.08em;
+  color:rgba(179,52,43,.92);
+  text-shadow:0 0 12px rgba(0,0,0,.55);
+  opacity:.95;
+  user-select:none;
+}
+
+/* 카운트다운 */
+#countdown{
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  font-size:clamp(42px, 9vmin, 92px);
+  color:var(--ink);
+  letter-spacing:.02em;
+  opacity:0;
+  transition:opacity 400ms ease;
+}
+#countdown.show{opacity:1}
+
+/* =========================
+   ✅ BOX DETECT UI - 메뉴만 (라운드 흰 테두리 제거)
+   ========================= */
 #toggleUI{
   position:fixed;
   right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
   top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
   z-index:920;
   background:transparent;
-  border:none;
+  border:none;              /* ✅ 흰 라운드 틀 제거 */
   padding:8px 10px;
   pointer-events:auto;
   color:rgba(245,245,245,.92);
@@ -272,126 +334,38 @@ body{
 }
 #ui button:active{transform:translateY(1px);}
 
-/* (기존 log) — “ready 버튼”로 보이는 거면 아예 숨김 */
-#log{display:none;}
-
-/* =========================
-   인트로/안내 스테이지
-   ========================= */
-#stage{
-  position:fixed; inset:0;
-  z-index:300;
-  display:flex;
-  align-items:stretch;
-  justify-content:stretch;
-  background: radial-gradient(1200px 700px at 50% 55%, rgba(255,255,255,.06), rgba(0,0,0,.92) 65%, rgba(0,0,0,.98));
-}
-#stage.hidden{
-  opacity:0;
-  pointer-events:none;
-  transition:opacity 900ms ease;
-}
-#stageTap{ position:absolute; inset:0; cursor:pointer; }
-
-.stageBlock{
-  position:absolute;
-  max-width:min(88vw, 980px);
-  line-height:1.55;
-  letter-spacing:.01em;
-  text-shadow:0 0 10px rgba(0,0,0,.35);
-}
-.stageTitle{
-  font-size:clamp(22px, 4.4vmin, 54px);
-  letter-spacing:.01em;
-  margin:0 0 10px 0;
-  color:var(--ink);
-}
-.stageSub{
-  font-size:clamp(14px, 2.2vmin, 20px);
-  color:var(--ink-dim);
-  margin:0;
-}
-.pos-top-right{
-  top:calc(var(--frame) + 10px + var(--safe-t));
-  right:calc(var(--frame) + 10px + var(--safe-r));
-  text-align:left;
-}
-.pos-bottom-left{
-  left:calc(var(--frame) + 10px + var(--safe-l));
-  bottom:calc(var(--frame) + 62px + var(--safe-b));
-  text-align:left;
-}
-.pos-center{
-  left:50%;
-  top:50%;
-  transform:translate(-50%,-50%);
-  text-align:center;
-}
-.stageLines{
-  font-size:clamp(16px, 2.8vmin, 28px);
-  color:var(--ink);
+#log{
+  position:fixed;
+  left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
+  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
+  z-index:905;
+  font-size:12px;
+  background:rgba(0,0,0,.28);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:12px;
+  padding:6px 10px;
+  backdrop-filter: blur(10px);
+  max-width:min(86vw,820px);
   white-space:pre-wrap;
-}
-.stageLines.small{
-  font-size:clamp(14px, 2.2vmin, 20px);
-  color:var(--ink);
-}
-.line{
+  pointer-events:none;
+  color:#ddd;
   opacity:0;
-  transform: translateY(6px);
-  transition: opacity 700ms ease, transform 700ms ease;
+  transition:opacity 900ms ease;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
-.line.show{
-  opacity:1;
-  transform: translateY(0px);
-}
-.tapHint{
-  position:absolute;
-  left:50%;
-  bottom:calc(var(--frame) + 14px + var(--safe-b));
-  transform:translateX(-50%);
-  font-size:clamp(12px, 2.0vmin, 16px);
-  letter-spacing:.08em;
-  color:rgba(179,52,43,.92);
-  text-shadow:0 0 12px rgba(0,0,0,.55);
-  opacity:.95;
-}
-#countdown{
-  position:absolute;
-  left:50%; top:50%;
-  transform:translate(-50%,-50%);
-  font-size:clamp(42px, 9vmin, 92px);
-  color:var(--ink);
-  letter-spacing:.02em;
-  opacity:0;
-  transition:opacity 400ms ease;
-}
-#countdown.show{opacity:1}
+#log.show{opacity:1;}
 </style>
 </head>
 
 <body>
+  <!-- ✅ 배경(인트로/안내에서 꿈틀거리는 점/선) -->
   <canvas id="bg"></canvas>
+
+  <!-- ✅ 본편(카메라+박스) -->
   <canvas id="view"></canvas>
+  <canvas id="freezeLayer"></canvas>
 
   <div class="frameBox" aria-hidden="true"></div>
-
-  <button id="helpBtn" aria-label="help">HELP</button>
-  <div id="helpPanel" aria-hidden="true">
-    <button class="close" id="helpClose" aria-label="close help">CLOSE</button>
-    <div class="box">
-      <div style="font-size:clamp(18px,2.8vmin,26px); margin-bottom:10px; color:var(--ink);">
-        HELP
-      </div>
-      <div style="color:var(--ink); font-size:clamp(13px,2.1vmin,18px); white-space:pre-wrap;">
-This program unfolds through taking photos.
-Tap “Capture” to record your view.
-
-Each performance has its own interpretation and participation method.
-Please check them by pressing the HELP button (top-left) anytime.
-      </div>
-    </div>
-  </div>
 
   <div class="controls" id="controls">
     <button class="uiBtn small" id="zoomOut">–</button>
@@ -402,6 +376,7 @@ Please check them by pressing the HELP button (top-left) anytime.
   <button id="captureBtn" class="uiBtn small btn-capture">Capture</button>
   <div id="sleepPhotoStatus" class="sleep-status-text"></div>
 
+  <!-- ✅ BOX DETECT UI -->
   <button id="toggleUI" aria-label="menu">MENU</button>
   <div id="ui" class="hidden">
     <div class="pill">
@@ -430,9 +405,8 @@ Please check them by pressing the HELP button (top-left) anytime.
 
     <div class="pill">
       <b>BOX</b>
-      <!-- ✅ 기본 시작 0.40 -->
-      <input id="boxScale" type="range" min="0.35" max="1.20" step="0.01" value="0.40">
-      <span id="boxScaleVal">0.40</span>
+      <input id="boxScale" type="range" min="0.35" max="1.20" step="0.01" value="0.88">
+      <span id="boxScaleVal">0.88</span>
     </div>
 
     <div class="pill">
@@ -463,9 +437,13 @@ Please check them by pressing the HELP button (top-left) anytime.
     </div>
   </div>
 
+  <div id="log">ready</div>
+
+  <!-- ✅ 인트로/안내 “탭으로 진행” 스테이지 -->
   <div id="stage" class="fade show">
     <div id="stageTap" aria-label="tap to continue"></div>
 
+    <!-- 현재 페이지 텍스트 -->
     <div id="blkTitle" class="stageBlock pos-center" style="display:none;">
       <h1 class="stageTitle" style="margin-bottom:10px;">From Emptiness (空) to Togetherness (共)</h1>
       <p class="stageSub">A Cooking–Memory–Spatial Experiment in Reconstructing Empathy</p>
@@ -489,11 +467,16 @@ Please check them by pressing the HELP button (top-left) anytime.
 
 <script>
 (() => {
+  /* =========================
+     ✅ 업로드 서버 설정
+     ========================= */
   const SLEEP_UPLOAD_SERVER = 'https://172.16.14.60:4443';
   const UPLOAD_TIMEOUT_MS = 12000;
   const UPLOAD_RETRY = 1;
 
-  /* ✅ BGM */
+  /* =========================
+     ✅ 배경 음악 (폴더: ./audio/bgm.mp3)
+     ========================= */
   const BGM_SRC = "audio/bgm.mp3";
   const BGM_VOLUME = 0.55;
   let bgm = null;
@@ -505,14 +488,24 @@ Please check them by pressing the HELP button (top-left) anytime.
         bgm.preload = "auto";
         bgm.volume = BGM_VOLUME;
       }
+      // iOS 정책상 "사용자 제스처" 안에서 play() 해야 함
       bgm.play().catch(()=>{});
     }catch(e){}
   }
 
+  /* =========================
+     기본 유틸
+     ========================= */
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const qs = s => document.querySelector(s);
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
 
+  document.addEventListener('contextmenu', e=>e.preventDefault());
+  document.addEventListener('selectstart', e=>e.preventDefault());
+
+  /* =========================
+     SFX(탭 클릭음 - 아주 얇게)
+     ========================= */
   let audioCtx = null;
   function ensureAudio(){
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -542,9 +535,12 @@ Please check them by pressing the HELP button (top-left) anytime.
     }catch(e){}
   }
 
+  /* =========================
+     DOM
+     ========================= */
   const bg = qs('#bg');
   const view = qs('#view');
-  const vctx = view.getContext('2d', { alpha:false });
+  const freezeLayer = qs('#freezeLayer');
 
   const stage = qs('#stage');
   const stageTap = qs('#stageTap');
@@ -571,6 +567,7 @@ Please check them by pressing the HELP button (top-left) anytime.
 
   const toggleUIBtn = qs('#toggleUI');
   const ui = qs('#ui');
+  const logEl = qs('#log');
 
   const confEl = qs('#conf');
   const confVal = qs('#confVal');
@@ -595,24 +592,7 @@ Please check them by pressing the HELP button (top-left) anytime.
   const fpsEl = qs('#fps');
   const countEl = qs('#count');
 
-  /* HELP */
-  const helpBtn = qs('#helpBtn');
-  const helpPanel = qs('#helpPanel');
-  const helpClose = qs('#helpClose');
-  helpBtn.addEventListener('click', async ()=>{
-    await ensureResumed(); startBgm(); playTap();
-    helpPanel.classList.add('show');
-  }, {passive:true});
-  helpClose.addEventListener('click', async ()=>{
-    await ensureResumed(); playTap();
-    helpPanel.classList.remove('show');
-  }, {passive:true});
-  helpPanel.addEventListener('click', async (e)=>{
-    if(e.target === helpPanel){
-      await ensureResumed(); playTap();
-      helpPanel.classList.remove('show');
-    }
-  }, {passive:true});
+  function log(msg){ logEl.textContent = String(msg); }
 
   toggleUIBtn.addEventListener('click', ()=>{
     const hidden = ui.classList.toggle('hidden');
@@ -620,9 +600,12 @@ Please check them by pressing the HELP button (top-left) anytime.
     playTap();
   }, {passive:true});
 
-  /* BG animation */
+  /* =========================
+     ✅ 배경(점/선) 애니메이션
+     ========================= */
   const bctx = bg.getContext('2d', {alpha:false});
   let B = {w:0,h:0,dpr:1};
+
   function resizeBG(){
     const dpr = window.devicePixelRatio||1;
     const w = innerWidth, h = innerHeight;
@@ -647,12 +630,16 @@ Please check them by pressing the HELP button (top-left) anytime.
       ph: Math.random()*Math.PI*2
     });
   }
+
   function bgLoop(){
     const W = B.w, H = B.h;
     const t = performance.now()*0.001;
+
+    // 바탕
     bctx.fillStyle = '#000';
     bctx.fillRect(0,0,W,H);
 
+    // 은은한 비네팅
     const g = bctx.createRadialGradient(W*0.5,H*0.55, 10, W*0.5,H*0.55, Math.max(W,H)*0.9);
     g.addColorStop(0, 'rgba(255,255,255,0.05)');
     g.addColorStop(0.55,'rgba(0,0,0,0.78)');
@@ -660,6 +647,7 @@ Please check them by pressing the HELP button (top-left) anytime.
     bctx.fillStyle = g;
     bctx.fillRect(0,0,W,H);
 
+    // 이동(꿈틀)
     for(const p of pts){
       const wob = 0.22 * Math.sin(t*0.7 + p.ph);
       p.x += p.vx + wob*0.02;
@@ -671,6 +659,7 @@ Please check them by pressing the HELP button (top-left) anytime.
       if(p.y> H+60) p.y = -60;
     }
 
+    // 링크
     bctx.save();
     bctx.globalAlpha = 0.9;
     for(let i=0;i<pts.length;i++){
@@ -693,6 +682,7 @@ Please check them by pressing the HELP button (top-left) anytime.
     }
     bctx.restore();
 
+    // 점
     bctx.save();
     for(const p of pts){
       const pulse = 0.55 + 0.45*Math.sin(t*1.1 + p.ph);
@@ -707,12 +697,33 @@ Please check them by pressing the HELP button (top-left) anytime.
   }
   requestAnimationFrame(bgLoop);
 
-  /* Stage pages */
-  const PAGES = [
-    { kind:"PERMISSION", lines:["Camera permission is required."], hint:"TAP ANYWHERE TO ALLOW CAMERA" },
-    { kind:"TITLE", hint:"TAP ANYWHERE TO ENTER" },
+  /* =========================
+     ✅ 스테이지(권한 → 타이틀 → 안내 페이지 → 카운트다운)
+     ========================= */
 
-    { kind:"TR", lines:[
+  // 페이지 정의: 위치 + 문장들
+  const PAGES = [
+    {
+      kind:"PERMISSION",
+      showTitle:false,
+      pos:"CENTER",
+      lines:[
+        "Camera permission is required.",
+      ],
+      hint:"TAP ANYWHERE TO ALLOW CAMERA"
+    },
+    {
+      kind:"TITLE",
+      showTitle:true,
+      pos:"CENTER",
+      lines:[],
+      hint:"TAP ANYWHERE TO ENTER"
+    },
+    {
+      kind:"TR",
+      showTitle:false,
+      pos:"TR",
+      lines:[
 `Empathy originally refers to the ability to feel with others (共感).
 In contemporary relational structures, however, this sense of togetherness has weakened,
 shifting toward emptiness, disconnection, and absence (空).`,
@@ -721,24 +732,39 @@ shifting toward emptiness, disconnection, and absence (空).`,
 can be reconstructed through cooking—the oldest bodily gesture of care.`,
 "",
 `Can the oldest gesture of care—cooking—restore emotions that have become empty of togetherness?`
-    ], hint:"TAP ANYWHERE TO READ NEXT" },
-
-    { kind:"BL", lines:[
+      ],
+      hint:"TAP ANYWHERE TO READ NEXT"
+    },
+    {
+      kind:"BL",
+      showTitle:false,
+      pos:"BL",
+      lines:[
 `In contemporary society, empathy is often reduced to superficial reactions within accelerated communication.`,
 "",
 `Emotional connection weakens, leaving growing gaps between individuals.`,
 "",
 `This project treats that gap not as failure,
 but as a starting point for reconstruction.`
-    ], hint:"TAP ANYWHERE TO READ NEXT" },
-
-    { kind:"TR2", lines:[
+      ],
+      hint:"TAP ANYWHERE TO READ NEXT"
+    },
+    {
+      kind:"TR2",
+      showTitle:false,
+      pos:"TR",
+      lines:[
 `This performance-installation involves two artists who build an archive through remote workshops—recipes, memories, writing, and cooking videos—then translate it on-site into a miniature world (cooking table) and a live performance that shares shifting states of empathy (共感) with the audience.`,
 "",
 `The focus is not cooking itself, but the gesture—the subtle bodily vibration that emerges while following unfamiliar recipes, moving from estrangement to understanding and empathy.`
-    ], hint:"TAP ANYWHERE TO READ NEXT" },
-
-    { kind:"CENTER", lines:[
+      ],
+      hint:"TAP ANYWHERE TO READ NEXT"
+    },
+    {
+      kind:"CENTER",
+      showTitle:false,
+      pos:"CENTER",
+      lines:[
 `WHY COOKING / WHY RECIPE`,
 "",
 `Cooking is both survival and a time-intensive gesture of care.
@@ -746,19 +772,18 @@ Recipes inherited from parents often embed personal emotional memory—nostalgia
 This project treats recipes as both an emotional document and a performance score,`,
 "",
 `testing how empathy can be reconstructed through exchanging, transforming, performing, and archiving them.`
-    ], hint:"TAP ANYWHERE TO CONTINUE" },
-
-    /* ✅ 카운트다운 직전 안내 페이지 추가 */
-    { kind:"CENTER2", lines:[
-`Now all explanations about the work are complete.`,
-`Please freely walk through the exhibition space and watch the performance.`,
-"",
-`This program unfolds through taking photos.`,
-`For explanations and participation methods for each performance,`,
-`please press the HELP button at the top-left of the screen.`
-    ], hint:"TAP ANYWHERE TO START COUNTDOWN" },
-
-    { kind:"COUNTDOWN", lines:[`Enjoy the exhibition.`], hint:"STARTING IN 10" }
+      ],
+      hint:"TAP ANYWHERE TO CONTINUE"
+    },
+    {
+      kind:"COUNTDOWN",
+      showTitle:false,
+      pos:"CENTER",
+      lines:[
+        "Enjoy the exhibition."
+      ],
+      hint:"STARTING IN 10"
+    }
   ];
 
   let stageIndex = 0;
@@ -779,6 +804,7 @@ This project treats recipes as both an emotional document and a performance scor
   }
 
   function mountLines(el, lines){
+    // lines: 배열(문단 단위) → 각 항목을 "한 줄"처럼 보여주되, 빈줄은 스페이서로 처리
     el.innerHTML = "";
     const nodes = [];
     for(const s of lines){
@@ -792,6 +818,7 @@ This project treats recipes as both an emotional document and a performance scor
   }
 
   let currentNodes = [];
+
   function showLine(i){
     if(!currentNodes[i]) return;
     currentNodes[i].classList.add("show");
@@ -799,6 +826,7 @@ This project treats recipes as both an emotional document and a performance scor
 
   async function fadeStageOutIn(fn){
     stage.classList.remove("show");
+    stage.classList.add("fade");
     await sleep(450);
     fn && fn();
     await sleep(30);
@@ -807,6 +835,7 @@ This project treats recipes as both an emotional document and a performance scor
 
   function renderStage(){
     clearStageBlocks();
+
     const page = PAGES[stageIndex];
     tapHint.textContent = page.hint || "TAP ANYWHERE";
 
@@ -821,11 +850,12 @@ This project treats recipes as both an emotional document and a performance scor
       blkCenter.style.display = "block";
       currentNodes = mountLines(linesCenter, page.lines);
       lineIndex = 0;
+      // 첫 줄은 자동 페이드
       showLine(0);
       return;
     }
 
-    if(page.kind==="TR" || page.kind==="TR2"){
+    if(page.kind==="TR"){
       blkTR.style.display = "block";
       currentNodes = mountLines(linesTR, page.lines);
       lineIndex = 0;
@@ -841,7 +871,23 @@ This project treats recipes as both an emotional document and a performance scor
       return;
     }
 
-    if(page.kind==="CENTER" || page.kind==="CENTER2" || page.kind==="COUNTDOWN"){
+    if(page.kind==="TR2"){
+      blkTR.style.display = "block";
+      currentNodes = mountLines(linesTR, page.lines);
+      lineIndex = 0;
+      showLine(0);
+      return;
+    }
+
+    if(page.kind==="CENTER"){
+      blkCenter.style.display = "block";
+      currentNodes = mountLines(linesCenter, page.lines);
+      lineIndex = 0;
+      showLine(0);
+      return;
+    }
+
+    if(page.kind==="COUNTDOWN"){
       blkCenter.style.display = "block";
       currentNodes = mountLines(linesCenter, page.lines);
       lineIndex = 0;
@@ -855,31 +901,38 @@ This project treats recipes as both an emotional document and a performance scor
     locked = true;
 
     await ensureResumed();
-    startBgm();
+    startBgm();          // ✅ 첫 탭부터 bgm 시도
     playTap();
 
     const page = PAGES[stageIndex];
 
+    // 1) 권한 페이지: 첫 탭에서 카메라 권한 요청
     if(page.kind==="PERMISSION"){
       if(!cameraPermissionAsked){
         cameraPermissionAsked = true;
         try{
           const s = await navigator.mediaDevices.getUserMedia({ video:true, audio:false });
           s.getTracks().forEach(t=>t.stop());
-        }catch(e){}
+        }catch(e){
+          // 권한 거부여도 “탭 진행”은 가능하게 (다만 본편 시작 때 카메라 실패 뜰 수 있음)
+        }
       }
+      // 다음 탭에서 타이틀로 넘어가도록
       await fadeStageOutIn(()=>{ stageIndex++; renderStage(); });
       locked = false;
       return;
     }
 
+    // 2) 타이틀: 탭하면 안내 문장 시작
     if(page.kind==="TITLE"){
       await fadeStageOutIn(()=>{ stageIndex++; renderStage(); });
       locked = false;
       return;
     }
 
+    // 3) 안내 페이지: 한 줄씩 show → 다 보여주면 다음 페이지로 페이드
     if(page.kind!=="COUNTDOWN"){
+      // 다음 줄 표시
       const next = lineIndex + 1;
       if(next < currentNodes.length){
         lineIndex = next;
@@ -887,15 +940,18 @@ This project treats recipes as both an emotional document and a performance scor
         locked = false;
         return;
       }else{
+        // 페이지 종료 → 다음 페이지
         await fadeStageOutIn(()=>{ stageIndex++; renderStage(); });
         locked = false;
         return;
       }
     }
 
+    // 4) 카운트다운 페이지: 탭하면 10초 카운트다운 시작 후 본편 진입
     if(page.kind==="COUNTDOWN"){
       tapHint.textContent = "STARTING…";
       countdownEl.classList.add("show");
+
       let n = 10;
       countdownEl.textContent = String(n);
       for(let i=0;i<10;i++){
@@ -903,6 +959,8 @@ This project treats recipes as both an emotional document and a performance scor
         n--;
         countdownEl.textContent = String(n);
       }
+
+      // 스테이지 종료 → 본편 시작
       await endStageAndStartExperience();
       locked = false;
       return;
@@ -911,13 +969,20 @@ This project treats recipes as both an emotional document and a performance scor
     locked = false;
   }
 
+  // 탭 이벤트(어디든)
   ['click','touchstart','pointerdown'].forEach(type=>{
     stageTap.addEventListener(type, (e)=>{ e.preventDefault(); advanceStageTap(); }, {passive:false});
   });
 
+  // 최초 렌더
   renderStage();
 
-  /* ===== 본편 ===== */
+  /* =========================
+     ✅ 본편(BOX DETECT) - 기존 코드 유지 + “stage 끝난 뒤” 시작
+     ========================= */
+
+  const vctx = view.getContext('2d', { alpha:false });
+
   let camStream=null;
   let camVideo=null;
   let facingMode='environment';
@@ -931,15 +996,17 @@ This project treats recipes as both an emotional document and a performance scor
   updateZoomLabel();
 
   zoomIn.addEventListener('click', async ()=>{
-    await ensureResumed(); startBgm(); playTap();
+    await ensureResumed();
     ZOOM=Math.min(3.0, ZOOM+0.1);
     updateZoomLabel();
+    playTap();
   }, {passive:true});
 
   zoomOut.addEventListener('click', async ()=>{
-    await ensureResumed(); startBgm(); playTap();
+    await ensureResumed();
     ZOOM=Math.max(1.0, ZOOM-0.1);
     updateZoomLabel();
+    playTap();
   }, {passive:true});
 
   function resizeView(){
@@ -1044,12 +1111,15 @@ This project treats recipes as both an emotional document and a performance scor
     return { vw, vh, dx, dy, dw, dh, fw, fh };
   }
 
-  /* ===== 업로드 ===== */
+  /* =========================
+     ✅ 업로드 (그대로)
+     ========================= */
   function humanErr(e){
     const msg = (e && e.message) ? e.message : String(e);
     if (/aborted/i.test(msg)) return "timeout";
     return msg;
   }
+
   async function canvasToJpegBlobResized(srcCanvas, maxLongSide=1600, quality=0.85){
     const w = srcCanvas.width;
     const h = srcCanvas.height;
@@ -1079,6 +1149,7 @@ This project treats recipes as both an emotional document and a performance scor
 
     return blob;
   }
+
   async function fetchWithTimeout(url, options={}, timeoutMs=UPLOAD_TIMEOUT_MS){
     const controller = new AbortController();
     const id = setTimeout(()=>controller.abort(new Error("aborted")), timeoutMs);
@@ -1089,19 +1160,24 @@ This project treats recipes as both an emotional document and a performance scor
       clearTimeout(id);
     }
   }
+
   async function uploadBlob(blob){
     const formData = new FormData();
     formData.append("image", blob, `sleep_capture_${Date.now()}.jpg`);
+
     const base = (SLEEP_UPLOAD_SERVER && SLEEP_UPLOAD_SERVER.trim()) ? SLEEP_UPLOAD_SERVER.trim() : '';
     const url = base + "/upload";
 
     let res = await fetchWithTimeout(url, { method:"POST", body: formData }, UPLOAD_TIMEOUT_MS);
+
     if ((!res.ok && res.status >= 500) && UPLOAD_RETRY > 0){
       await new Promise(r=>setTimeout(r, 400));
       res = await fetchWithTimeout(url, { method:"POST", body: formData }, UPLOAD_TIMEOUT_MS);
     }
+
     return res;
   }
+
   async function uploadSnapshotCanvas(canvas){
     try{
       setSleepPhotoStatus('Uploading...');
@@ -1110,12 +1186,22 @@ This project treats recipes as both an emotional document and a performance scor
         setSleepPhotoStatus('Upload error: blob null');
         return;
       }
+
       const res = await uploadBlob(blob);
+
       if(!res.ok){
         const txt = await res.text().catch(()=> "");
         setSleepPhotoStatus(`Upload failed: ${res.status}${txt ? " / " + txt.slice(0,80) : ""}`);
         return;
       }
+
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")){
+        await res.json().catch(()=>({}));
+      } else {
+        await res.text().catch(()=> "");
+      }
+
       setSleepPhotoStatus('Uploaded');
       setTimeout(()=>setSleepPhotoStatus(''), 3500);
     }catch(err){
@@ -1125,39 +1211,9 @@ This project treats recipes as both an emotional document and a performance scor
     }
   }
 
-  /* ===== 캡쳐: 트래킹 없이 “흑백 카메라만” 업로드 ===== */
-  function captureRawCameraOnlyCanvas(){
-    const T = getCameraDrawTransform();
-    if(!T) return null;
-
-    const dpr = window.devicePixelRatio||1;
-    const w = Math.round((view.clientWidth||innerWidth) * dpr);
-    const h = Math.round((view.clientHeight||innerHeight) * dpr);
-
-    const c = document.createElement("canvas");
-    c.width = w;
-    c.height = h;
-
-    const ctx = c.getContext("2d");
-    ctx.setTransform(1,0,0,1,0,0);
-
-    // 흑백(브라우저 지원되는 필터)
-    ctx.filter = "grayscale(1)";
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0,0,w,h);
-
-    // drawImage 좌표는 CSS 기준이라 dpr 보정
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    ctx.globalAlpha = 1;
-    ctx.drawImage(camVideo, T.dx, T.dy, T.dw, T.dh);
-    ctx.restore();
-
-    ctx.filter = "none";
-    return c;
-  }
-
-  /* ===== BOX DETECT ===== */
+  /* =========================
+     ✅ BOX DETECT assets/labels (그대로)
+     ========================= */
   const LIMEN_LABELS = ["Mom","Hometown","Son Duk-Geum","GrandFather","Ocean"];
   const CLASS_TO_LIMEN = {
     person: "Mom",
@@ -1183,6 +1239,7 @@ This project treats recipes as both an emotional document and a performance scor
     }
     return a;
   }
+
   const LABEL_COLOR = {
     "Mom": [255,140,140],
     "Hometown": [140,255,180],
@@ -1190,6 +1247,7 @@ This project treats recipes as both an emotional document and a performance scor
     "GrandFather": [190,190,255],
     "Ocean": [140,190,255]
   };
+
   const ASSET_FILES = {
     "Mom": "assets/mom.jpg",
     "Hometown": "assets/hometown.jpg",
@@ -1197,6 +1255,7 @@ This project treats recipes as both an emotional document and a performance scor
     "GrandFather": "assets/grandfather.jpg",
     "Ocean": "assets/ocean.jpg"
   };
+
   const assets = new Map();
   async function loadAssets(){
     assets.clear();
@@ -1212,13 +1271,20 @@ This project treats recipes as both an emotional document and a performance scor
         img.src = path + "?v=" + Date.now();
       });
     }
+    const ok = [...assets.values()].filter(a=>a.ready).length;
+    log(`assets: ${ok}/${entries.length}`);
   }
 
+  /* =========================
+     ✅ coco-ssd model
+     ========================= */
   let model=null;
   async function loadModel(){
     if(model) return model;
     statusEl.textContent = "Loading";
+    log("model loading...");
     model = await cocoSsd.load({ base:"lite_mobilenet_v2" });
+    log("model loaded");
     return model;
   }
 
@@ -1257,6 +1323,7 @@ This project treats recipes as both an emotional document and a performance scor
     const nw = w * s, nh = h * s;
     return [cx - nw/2, cy - nh/2, nw, nh];
   }
+
   function getLinkStyle(aLabel, bLabel, t){
     const pair = [aLabel, bLabel].sort().join("|");
     let widthMul = 1.0, alphaMul = 1.0, jitter = 0.0, dash = null, pulse = 0.0, glow = 0.0;
@@ -1266,6 +1333,7 @@ This project treats recipes as both an emotional document and a performance scor
     if (aLabel==="GrandFather" || bLabel==="GrandFather"){ pulse=Math.max(pulse,0.38); }
     if (aLabel==="Hometown" || bLabel==="Hometown"){ dash = dash || [10,6]; }
     if (aLabel==="Son Duk-Geum" || bLabel==="Son Duk-Geum"){ glow=0.7; }
+
     if (pair === "Hometown|Mom") alphaMul *= 1.10;
     if (pair === "GrandFather|Ocean") jitter *= 1.35;
 
@@ -1273,7 +1341,7 @@ This project treats recipes as both an emotional document and a performance scor
     return { widthMul: widthMul*pulseFactor, alphaMul, jitter, dash, glow };
   }
 
-  function drawFragmentIntoBox(assetRec, bbox, seed, alpha){
+  function drawFragmentIntoBox(assetRec, bbox, seed){
     if (!assetRec || !assetRec.ready) return;
     const [x,y,w,h] = bbox;
     if (w < 8 || h < 8) return;
@@ -1299,10 +1367,10 @@ This project treats recipes as both an emotional document and a performance scor
     const dx = x + (w - dw)/2 + ox;
     const dy = y + (h - dh)/2 + oy;
 
-    vctx.globalAlpha = 0.85 * alpha;
+    vctx.globalAlpha = 0.85;
     vctx.drawImage(el, dx, dy, dw, dh);
 
-    vctx.globalAlpha = 0.32 * alpha;
+    vctx.globalAlpha = 0.32;
     const dw2 = w * (0.85 + r2*0.5);
     const dh2 = h * (0.85 + r3*0.5);
     const dx2 = x + (w - dw2)/2 - ox*0.25;
@@ -1313,7 +1381,7 @@ This project treats recipes as both an emotional document and a performance scor
     vctx.globalAlpha = 1;
   }
 
-  function drawLabelTag(label, cocoClass, x, y, alpha){
+  function drawLabelTag(label, cocoClass, x, y){
     const col = LABEL_COLOR[label] || [255,255,255];
     const text = `${label} · ${cocoClass}`;
     vctx.font = `${Math.max(12, Math.round((view.clientWidth||innerWidth)/95))}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
@@ -1323,10 +1391,10 @@ This project treats recipes as both an emotional document and a performance scor
     const th = Math.max(18, Math.round((view.clientWidth||innerWidth)/75));
 
     const ty = Math.max(0, y - th - 2);
-    vctx.fillStyle = `rgba(0,0,0,${0.65*alpha})`;
+    vctx.fillStyle = "rgba(0,0,0,0.65)";
     vctx.fillRect(x, ty, tw + padX*2, th);
 
-    vctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${0.98*alpha})`;
+    vctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},0.98)`;
     vctx.fillText(text, x + padX, ty + padY);
   }
 
@@ -1491,33 +1559,29 @@ This project treats recipes as both an emotional document and a performance scor
 
     const T = getCameraDrawTransform();
     if(showCamera && T){
-      // 카메라 페이드
       vctx.save();
       vctx.globalAlpha = camFadeAlpha;
       vctx.drawImage(camVideo, T.dx, T.dy, T.dw, T.dh);
       vctx.restore();
-
-      // ✅ 트래킹도 같은 페이드 적용
-      const overlayAlpha = camFadeAlpha;
 
       const boxScale = clamp(+boxScaleEl.value, 0.35, 1.20);
 
       if (linksEl.checked && renderTracks.length >= 2){
         const screenBoxes = renderTracks.map(tr => mapVideoBoxToScreen(tr.bbox, T));
         const scaledBoxes = screenBoxes.map(b => scaleBox(b, boxScale));
-        const pts2 = scaledBoxes.map(b => center(b));
-        const links = makeLinks(pts2, 2);
+        const pts = scaledBoxes.map(b => center(b));
+        const links = makeLinks(pts, 2);
         const tt = performance.now()*0.001;
 
         for (const [i,j,dd] of links){
           const A = renderTracks[i], B = renderTracks[j];
-          const a = pts2[i], b = pts2[j];
+          const a = pts[i], b = pts[j];
           const dist = Math.sqrt(dd);
           const norm = Math.min(1, dist / Math.max(W, H));
 
           const style = getLinkStyle(A.label, B.label, tt);
           const baseAlpha = (0.70*(1-norm) + 0.10) * style.alphaMul;
-          const alpha = clamp(baseAlpha, 0.05, 0.95) * overlayAlpha;
+          const alpha = clamp(baseAlpha, 0.05, 0.95);
 
           vctx.save();
           if (style.dash) vctx.setLineDash(style.dash);
@@ -1527,6 +1591,7 @@ This project treats recipes as both an emotional document and a performance scor
           const jy = style.jitter ? (Math.cos((j+1)*9.7  + tt*3.4) * style.jitter) : 0;
 
           const baseW = Math.max(1.2, W/1100) * style.widthMul;
+
           vctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
           vctx.lineWidth = baseW;
 
@@ -1536,7 +1601,7 @@ This project treats recipes as both an emotional document and a performance scor
           vctx.stroke();
 
           if (style.glow > 0){
-            const glowA = clamp(alpha + (0.12 + 0.18*Math.sin(tt*6.0 + i))*style.glow*overlayAlpha, 0.02, 0.95);
+            const glowA = clamp(alpha + (0.12 + 0.18*Math.sin(tt*6.0 + i))*style.glow, 0.08, 0.95);
             vctx.setLineDash([]);
             vctx.strokeStyle = `rgba(255,255,255,${glowA.toFixed(3)})`;
             vctx.lineWidth = baseW * 1.6;
@@ -1545,6 +1610,7 @@ This project treats recipes as both an emotional document and a performance scor
             vctx.lineTo(b.x + jx*0.6, b.y + jy*0.6);
             vctx.stroke();
           }
+
           vctx.restore();
         }
       }
@@ -1562,15 +1628,15 @@ This project treats recipes as both an emotional document and a performance scor
 
         if (fillFragEl.checked){
           const asset = assets.get(label);
-          drawFragmentIntoBox(asset, b, (tr.seed + idx*77) >>> 0, overlayAlpha);
+          drawFragmentIntoBox(asset, b, (tr.seed + idx*77) >>> 0);
         }
 
-        vctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${0.98*overlayAlpha})`;
+        vctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},0.98)`;
         vctx.strokeRect(x,y,w,h);
 
-        drawLabelTag(label, tr.cls, x, y, overlayAlpha);
+        drawLabelTag(label, tr.cls, x, y);
 
-        vctx.fillStyle = `rgba(255,255,255,${0.9*overlayAlpha})`;
+        vctx.fillStyle = "rgba(255,255,255,0.9)";
         vctx.beginPath();
         vctx.arc(x+w/2, y+h/2, Math.max(2, W/750), 0, Math.PI*2);
         vctx.fill();
@@ -1582,13 +1648,15 @@ This project treats recipes as both an emotional document and a performance scor
 
   let lastT = performance.now();
   let emaFps = 0;
+
   async function tick(){
     if(!runningDetect) return;
 
     const now = performance.now();
-    if ((now - lastDetectAt) > 240){
+    if ((now - lastDetectAt) > DETECT_INTERVAL_MS){
       lastDetectAt = now;
-      try{ await stepDetect(); }catch(e){}
+      try{ await stepDetect(); }
+      catch(e){ log("DETECT ERROR: " + (e?.message || e)); }
     }
 
     const dt = (now - lastT) / 1000;
@@ -1608,99 +1676,124 @@ This project treats recipes as both an emotional document and a performance scor
   }
   requestAnimationFrame(renderLoop);
 
+  /* CAPTURE */
   let capturing=false;
   async function captureCurrentView(){
     if(capturing) return;
     capturing = true;
     try{
-      await ensureResumed(); startBgm();
-
       setSleepPhotoStatus('Capturing...');
-      const c = captureRawCameraOnlyCanvas();
-      if(!c){
-        setSleepPhotoStatus('Capture error: camera not ready');
-        setTimeout(()=>setSleepPhotoStatus(''), 4000);
-        capturing=false;
-        return;
-      }
-      await uploadSnapshotCanvas(c);
+      const w = view.width;
+      const h = view.height;
+
+      freezeLayer.width = w;
+      freezeLayer.height = h;
+
+      const ctx = freezeLayer.getContext('2d');
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(view, 0,0, w, h);
+
+      await uploadSnapshotCanvas(freezeLayer);
     }catch(e){
       setSleepPhotoStatus('Capture error: ' + (e?.message || e));
       setTimeout(()=>setSleepPhotoStatus(''), 6000);
     }finally{
+      freezeLayer.style.display = 'none';
       capturing = false;
     }
   }
 
   captureBtn.addEventListener('click', async (e)=>{
     e.preventDefault();
-    await ensureResumed(); startBgm(); playTap();
+    await ensureResumed();
+    playTap();
     captureCurrentView();
   }, {passive:false});
 
+  /* UI 동작 */
   flipBtn.addEventListener('click', async ()=>{
     try{
-      await ensureResumed(); startBgm(); playTap();
       facingMode = (facingMode === "environment") ? "user" : "environment";
       if(!usingUploadVideo){
         await startCameraFresh();
         fadeInCamera(500);
       }
-    }catch(e){}
+      log("flip: " + facingMode);
+      playTap();
+    }catch(e){
+      log("flip error: " + (e?.message || e));
+    }
   }, {passive:true});
 
-  restartBtn.addEventListener('click', async ()=>{
-    await ensureResumed(); startBgm(); playTap();
+  restartBtn.addEventListener('click', ()=>{
     objectTracks = [];
     renderTracks = [];
     lastDetectAt = 0;
+    log("restart");
+    playTap();
   }, {passive:true});
 
   useCamBtn.addEventListener('click', async ()=>{
     try{
-      await ensureResumed(); startBgm(); playTap();
       await startCameraFresh();
       fadeInCamera(500);
       objectTracks = [];
       renderTracks = [];
-    }catch(e){}
+      log("source: camera");
+      playTap();
+    }catch(e){
+      log("camera error: " + (e?.message || e));
+    }
   }, {passive:true});
 
   videoFileEl.addEventListener('change', async ()=>{
     const file = videoFileEl.files?.[0];
     if(!file) return;
     try{
-      await ensureResumed(); startBgm(); playTap();
       await useUploadedVideo(file);
       fadeInCamera(500);
       objectTracks = [];
       renderTracks = [];
-    }catch(e){}
+      log("uploaded: " + file.name);
+      playTap();
+    }catch(e){
+      log("upload error: " + (e?.message || e));
+    }
   }, {passive:true});
 
-  let runningDetect = false;
-
+  /* =========================
+     ✅ 스테이지 끝나면 본편 시작
+     ========================= */
   async function endStageAndStartExperience(){
+    // stage fade out
     stage.classList.add("hidden");
     await sleep(650);
 
+    // 본편 UI 표시
+    logEl.classList.add('show');
     controls.classList.add('show');
     captureBtn.classList.add('show');
 
+    // view show
     view.classList.add("show");
     view.style.pointerEvents = "auto";
 
     try{
       await startCameraFresh();
-      fadeInCamera(1100);
-    }catch(e){}
+      fadeInCamera(900);
+    }catch(e){
+      log("camera start failed: " + (e?.message || e));
+    }
 
     try{
       statusEl.textContent = "Loading";
       await loadModel();
       await loadAssets();
       statusEl.textContent = "Camera";
-    }catch(e){}
+    }catch(e){
+      log("load error: " + (e?.message || e));
+    }
 
     runningDetect = true;
     lastT = performance.now();
