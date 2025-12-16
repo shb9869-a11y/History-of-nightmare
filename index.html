@@ -1,253 +1,1164 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>BOX DETECT – Object Boxes + Relational Aesthetics</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,interactive-widget=resizes-content">
+<title>From Emptiness (空) to Togetherness (共)</title>
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="BOX DETECT">
+<meta name="apple-mobile-web-app-title" content="EMPTINESS→TOGETHERNESS">
 <meta name="theme-color" content="#000000">
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 
 <style>
-  html,body{margin:0;height:100%;background:#000;color:#ddd;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;}
-  #wrap{position:fixed;inset:0; pointer-events:none;}
-  video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover; pointer-events:none;}
-  #srcVideo{filter: grayscale(1) contrast(1.15) brightness(1.05);}
+:root{
+  --frame: clamp(16px, 4vmin, 40px);
+  --ui-gap: 8px;
+  --fs-strong: clamp(14px, 2.8vmin, 18px);
+  --fs-small: clamp(11px, 1.8vmin, 13px);
+  --pad-btn-y: clamp(8px, 1.1vmin, 12px);
+  --pad-btn-x: clamp(12px, 1.8vmin, 20px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
 
-  #ui{
-    position:fixed; top:12px; left:12px; right:12px;
-    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
-    z-index:10;
-    background:rgba(0,0,0,.45);
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:14px;
-    padding:10px 12px;
-    backdrop-filter: blur(8px);
-    transition:.2s;
-    pointer-events:auto;
-  }
-  #ui.hidden{opacity:0; pointer-events:none; transform:translateY(-10px);}
-  .pill{
-    display:flex; gap:8px; align-items:center;
-    background:rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.10);
-    border-radius:999px;
-    padding:8px 10px;
-  }
-  button{
-    appearance:none;border:1px solid rgba(255,255,255,.18);
-    background:rgba(255,255,255,.08); color:#fff;
-    padding:10px 14px; border-radius:14px; font-weight:800;
-    touch-action: manipulation;
-    pointer-events:auto;
-  }
-  button:active{transform:translateY(1px);}
-  input, label{pointer-events:auto;}
-  input[type=range]{width:120px}
+  --ink: #c9cfab;
+  --ink-dim: rgba(201,207,171,.78);
+  --red: #b3342b;
+  --white: #f5f5f5;
+}
 
-  #toggleUI{
-    position:fixed; top:12px; right:12px;
-    z-index:11;
-    border-radius:999px;
-    background:rgba(0,0,0,.45);
-    border:1px solid rgba(255,255,255,.12);
-    padding:10px 12px;
-    backdrop-filter: blur(8px);
-    pointer-events:auto;
-  }
+html,body{
+  margin:0; padding:0; width:100%; height:100%;
+  background:#000; overflow:hidden;
+  touch-action:manipulation;
+}
+body{
+  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", Times, serif;
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+  color:var(--ink);
+}
+*{
+  box-sizing:border-box;
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color: transparent;
+}
 
-  #gate{
-    position:fixed; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.78);
-    z-index:20;
-    padding:20px;
-    pointer-events:auto;
-  }
-  #gate .box{
-    width:min(860px,94vw);
-    background:rgba(0,0,0,.55);
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:18px;
-    padding:16px;
-    pointer-events:auto;
-  }
-  #gate h1{margin:0 0 6px; font-size:18px;}
-  #gate p{margin:6px 0; font-size:14px; color:#ccc;}
-  #gate .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
-  #start{padding:14px 18px;border-radius:16px;font-size:16px;}
+.fade{opacity:0; transition:opacity 900ms ease}
+.fade.show{opacity:1}
 
-  #log{
-    position:fixed; left:12px; bottom:12px;
-    z-index:10;
-    font-size:12px;
-    background:rgba(0,0,0,.45);
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:12px;
-    padding:8px 10px;
-    backdrop-filter: blur(8px);
-    max-width:min(86vw,820px);
-    white-space:pre-wrap;
-    pointer-events:none;
-  }
+#bg{
+  position:fixed; inset:0;
+  width:100vw; height:100vh;
+  z-index:0;
+  display:block;
+}
+#view{
+  position:fixed; inset:0;
+  width:100vw; height:100vh;
+  z-index:1;
+  display:block;
+  filter:grayscale(1);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 900ms ease;
+}
+#view.show{ opacity:1; }
+
+.frameBox{
+  position:fixed;
+  left:calc(var(--frame) + var(--safe-l));
+  top:calc(var(--frame) + var(--safe-t));
+  right:calc(var(--frame) + var(--safe-r));
+  bottom:calc(var(--frame) + var(--safe-b));
+  border:2px solid rgba(245,245,245,.65);
+  pointer-events:none;
+  z-index:50;
+}
+
+.uiBtn{
+  background:transparent;
+  color:var(--white);
+  border:none;
+  font-size:var(--fs-strong);
+  padding:var(--pad-btn-y) var(--pad-btn-x);
+  font-family: inherit;
+  letter-spacing: .08em;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.uiBtn.small{
+  font-size:var(--fs-small);
+  padding:calc(var(--pad-btn-y)*0.75) calc(var(--pad-btn-x)*0.75);
+}
+.uiBtn[disabled]{ opacity:.35; pointer-events:none; filter:grayscale(1); }
+
+/* 좌측 상단 HELP */
+#helpBtn{
+  position:fixed;
+  left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
+  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
+  z-index:930;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:14px;
+  background:rgba(0,0,0,.22);
+  backdrop-filter: blur(10px);
+  color:rgba(245,245,245,.92);
+  padding:8px 12px;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  letter-spacing:.18em;
+  font-size:12px;
+  opacity:.9;
+}
+#helpBtn:active{transform:translateY(1px);}
+#helpPanel{
+  position:fixed; inset:0;
+  z-index:940;
+  display:none;
+  background:rgba(0,0,0,.72);
+  backdrop-filter: blur(12px);
+}
+#helpPanel.show{display:block;}
+#helpPanel .box{
+  position:absolute;
+  left:calc(var(--frame) + var(--safe-l));
+  right:calc(var(--frame) + var(--safe-r));
+  top:calc(var(--frame) + 56px + var(--safe-t));
+  max-width:920px;
+  margin:0 auto;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:18px;
+  background:rgba(0,0,0,.55);
+  padding:16px 16px 18px 16px;
+  color:var(--ink);
+  line-height:1.55;
+}
+#helpPanel .close{
+  position:absolute;
+  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
+  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
+  z-index:941;
+  border:none;
+  background:transparent;
+  color:#fff;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  letter-spacing:.18em;
+  font-size:12px;
+  opacity:.9;
+  padding:10px 12px;
+}
+#helpPanel .close:active{transform:translateY(1px);}
+
+.controls{
+  position:fixed;
+  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
+  bottom:calc(var(--frame) + var(--ui-gap) + var(--safe-b));
+  z-index:400;
+  display:flex;
+  gap:6px;
+  align-items:center;
+  opacity:0;
+  transition:opacity 900ms ease;
+}
+.controls.show{opacity:1}
+.readout{
+  min-width:64px;
+  text-align:center;
+  opacity:.9;
+  font-size:var(--fs-small);
+  color:var(--white);
+  font-family: inherit;
+}
+
+.btn-capture{
+  position:fixed;
+  left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
+  bottom:calc(var(--frame) + var(--ui-gap) + var(--safe-b));
+  z-index:450;
+  opacity:0;
+  transition:opacity 900ms ease;
+}
+.btn-capture.show{opacity:1}
+
+.sleep-status-text{
+  position:fixed;
+  left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
+  bottom:calc(var(--frame) + var(--ui-gap) + var(--safe-b) + 34px);
+  z-index:451;
+  font-size:var(--fs-small);
+  color:#f7f7f7;
+  text-shadow:0 0 4px rgba(0,0,0,0.85);
+  max-width:min(76vw, 720px);
+}
+
+/* 메뉴 버튼(흰 라운드 틀 X) */
+#toggleUI{
+  position:fixed;
+  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
+  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t));
+  z-index:920;
+  background:transparent;
+  border:none;
+  padding:8px 10px;
+  pointer-events:auto;
+  color:rgba(245,245,245,.92);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  letter-spacing:.18em;
+  font-size:12px;
+  opacity:.85;
+}
+#toggleUI:active{transform:translateY(1px);}
+
+#ui{
+  position:fixed;
+  right:calc(var(--frame) + var(--ui-gap) + var(--safe-r));
+  top:calc(var(--frame) + var(--ui-gap) + var(--safe-t) + 34px);
+  z-index:910;
+
+  width:min(320px, calc(100vw - (var(--frame)*2) - 24px));
+  max-height:calc(100vh - (var(--frame)*2) - 120px);
+  overflow:auto;
+
+  background:rgba(0,0,0,.42);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:16px;
+  padding:12px;
+  backdrop-filter: blur(10px);
+
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  pointer-events:auto;
+  transition:.2s;
+
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+#ui.hidden{opacity:0; pointer-events:none; transform:translateY(-10px);}
+
+.pill{
+  display:grid;
+  grid-template-columns: 92px 1fr auto;
+  gap:10px;
+  align-items:center;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:14px;
+  padding:10px 12px;
+  color:#ddd;
+}
+.pill b{color:#fff; font-weight:800; letter-spacing:.02em;}
+.pill input[type=range]{width:100%;}
+.pill label{
+  grid-column: 1 / -1;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+#ui button{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  padding:10px 12px;
+  border-radius:14px;
+  font-weight:800;
+  pointer-events:auto;
+}
+#ui button:active{transform:translateY(1px);}
+
+/* (기존 log) — “ready 버튼”로 보이는 거면 아예 숨김 */
+#log{display:none;}
+
+/* =========================
+   인트로/안내 스테이지
+   ========================= */
+#stage{
+  position:fixed; inset:0;
+  z-index:300;
+  display:flex;
+  align-items:stretch;
+  justify-content:stretch;
+  background: radial-gradient(1200px 700px at 50% 55%, rgba(255,255,255,.06), rgba(0,0,0,.92) 65%, rgba(0,0,0,.98));
+}
+#stage.hidden{
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 900ms ease;
+}
+#stageTap{ position:absolute; inset:0; cursor:pointer; }
+
+.stageBlock{
+  position:absolute;
+  max-width:min(88vw, 980px);
+  line-height:1.55;
+  letter-spacing:.01em;
+  text-shadow:0 0 10px rgba(0,0,0,.35);
+}
+.stageTitle{
+  font-size:clamp(22px, 4.4vmin, 54px);
+  letter-spacing:.01em;
+  margin:0 0 10px 0;
+  color:var(--ink);
+}
+.stageSub{
+  font-size:clamp(14px, 2.2vmin, 20px);
+  color:var(--ink-dim);
+  margin:0;
+}
+.pos-top-right{
+  top:calc(var(--frame) + 10px + var(--safe-t));
+  right:calc(var(--frame) + 10px + var(--safe-r));
+  text-align:left;
+}
+.pos-bottom-left{
+  left:calc(var(--frame) + 10px + var(--safe-l));
+  bottom:calc(var(--frame) + 62px + var(--safe-b));
+  text-align:left;
+}
+.pos-center{
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  text-align:center;
+}
+.stageLines{
+  font-size:clamp(16px, 2.8vmin, 28px);
+  color:var(--ink);
+  white-space:pre-wrap;
+}
+.stageLines.small{
+  font-size:clamp(14px, 2.2vmin, 20px);
+  color:var(--ink);
+}
+.line{
+  opacity:0;
+  transform: translateY(6px);
+  transition: opacity 700ms ease, transform 700ms ease;
+}
+.line.show{
+  opacity:1;
+  transform: translateY(0px);
+}
+.tapHint{
+  position:absolute;
+  left:50%;
+  bottom:calc(var(--frame) + 14px + var(--safe-b));
+  transform:translateX(-50%);
+  font-size:clamp(12px, 2.0vmin, 16px);
+  letter-spacing:.08em;
+  color:rgba(179,52,43,.92);
+  text-shadow:0 0 12px rgba(0,0,0,.55);
+  opacity:.95;
+}
+#countdown{
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  font-size:clamp(42px, 9vmin, 92px);
+  color:var(--ink);
+  letter-spacing:.02em;
+  opacity:0;
+  transition:opacity 400ms ease;
+}
+#countdown.show{opacity:1}
 </style>
 </head>
 
 <body>
-<div id="wrap">
-  <video id="srcVideo" autoplay playsinline muted></video>
-  <canvas id="out"></canvas>
-</div>
+  <canvas id="bg"></canvas>
+  <canvas id="view"></canvas>
 
-<button id="toggleUI">☰ 메뉴</button>
+  <div class="frameBox" aria-hidden="true"></div>
 
-<div id="ui">
-  <!-- ✅ COARSE(덩어리 감도): 기존 conf를 그대로 사용 -->
-  <div class="pill">
-    <b>COARSE</b>
-    <input id="conf" type="range" min="0.01" max="0.95" step="0.01" value="0.12">
-    <span id="confVal">0.12</span>
-  </div>
+  <button id="helpBtn" aria-label="help">HELP</button>
+  <div id="helpPanel" aria-hidden="true">
+    <button class="close" id="helpClose" aria-label="close help">CLOSE</button>
+    <div class="box">
+      <div style="font-size:clamp(18px,2.8vmin,26px); margin-bottom:10px; color:var(--ink);">
+        HELP
+      </div>
+      <div style="color:var(--ink); font-size:clamp(13px,2.1vmin,18px); white-space:pre-wrap;">
+This program unfolds through taking photos.
+Tap “Capture” to record your view.
 
-  <!-- ✅ FINE(미세 감도): 최소 박스 면적 필터 -->
-  <div class="pill">
-    <b>FINE</b>
-    <input id="fine" type="range" min="0.00" max="1.00" step="0.01" value="0.40">
-    <span id="fineVal">0.40</span>
-  </div>
-
-  <div class="pill">
-    <b>N(물체)</b>
-    <input id="topN" type="range" min="3" max="8" step="1" value="4">
-    <span id="topNVal">4</span>
-  </div>
-
-  <div class="pill">
-    <b>HOLD</b>
-    <input id="holdSec" type="range" min="1" max="10" step="0.5" value="3.0">
-    <span id="holdVal">3.0s</span>
-  </div>
-
-  <!-- ✅ BOX 범위 확장: 0.35~1.20 -->
-  <div class="pill">
-    <b>BOX</b>
-    <input id="boxScale" type="range" min="0.35" max="1.20" step="0.01" value="0.88">
-    <span id="boxScaleVal">0.88</span>
-  </div>
-
-  <div class="pill">
-    <label style="display:flex;align-items:center;gap:6px;">
-      <input id="links" type="checkbox" checked> 선 연결
-    </label>
-    <label style="display:flex;align-items:center;gap:6px;">
-      <input id="fillFrag" type="checkbox" checked> 박스 파편 채우기
-    </label>
-  </div>
-
-  <div class="pill">
-    <button id="fullscreen">전체화면</button>
-    <button id="flip">전/후면</button>
-    <button id="restart">재시작</button>
-  </div>
-
-  <div class="pill">
-    <b>소스</b>
-    <button id="useCam">카메라</button>
-    <label style="display:flex;align-items:center;gap:6px;">
-      <input id="videoFile" type="file" accept="video/*" style="max-width:220px;">
-      <span style="opacity:.9">업로드 영상</span>
-    </label>
-  </div>
-
-  <div class="pill">
-    <b>녹화</b>
-    <button id="recStart">시작</button>
-    <button id="recStop">정지</button>
-    <label style="display:flex;align-items:center;gap:6px;">
-      <span>자동정지</span>
-      <input id="recSec" type="range" min="3" max="120" step="1" value="12">
-      <span id="recSecVal">12s</span>
-    </label>
-    <span style="opacity:.85;font-size:12px">※ mp4 우선 저장(미지원 시 webm)</span>
-  </div>
-
-  <div class="pill">
-    <span id="status">대기</span>
-    <span id="fps">FPS -</span>
-    <span id="count">Boxes 0</span>
-  </div>
-</div>
-
-<div id="log">ready</div>
-
-<div id="gate">
-  <div class="box">
-    <h1>OBJECT BOXES + RELATION AESTHETICS</h1>
-    <p>
-      실제 물체를 “있는 크기 그대로” 잡고, 최소 3개 이상 포착 + 라벨 3종 이상(중복 금지) 유지.<br>
-      COARSE(덩어리/점수) + FINE(미세/최소면적)로 “탐지 성격”을 조절하고, BOX로 “표현 크기”를 조절.
-    </p>
-    <div class="row">
-      <button id="start">시작</button>
-      <button id="preloadAssets">assets 다시 로드</button>
+Each performance has its own interpretation and participation method.
+Please check them by pressing the HELP button (top-left) anytime.
+      </div>
     </div>
   </div>
-</div>
+
+  <div class="controls" id="controls">
+    <button class="uiBtn small" id="zoomOut">–</button>
+    <div class="readout"><span id="zoomVal">1.0×</span></div>
+    <button class="uiBtn small" id="zoomIn">+</button>
+  </div>
+
+  <button id="captureBtn" class="uiBtn small btn-capture">Capture</button>
+  <div id="sleepPhotoStatus" class="sleep-status-text"></div>
+
+  <button id="toggleUI" aria-label="menu">MENU</button>
+  <div id="ui" class="hidden">
+    <div class="pill">
+      <b>COARSE</b>
+      <input id="conf" type="range" min="0.01" max="0.95" step="0.01" value="0.12">
+      <span id="confVal">0.12</span>
+    </div>
+
+    <div class="pill">
+      <b>FINE</b>
+      <input id="fine" type="range" min="0.00" max="1.00" step="0.01" value="0.40">
+      <span id="fineVal">0.40</span>
+    </div>
+
+    <div class="pill">
+      <b>N</b>
+      <input id="topN" type="range" min="3" max="8" step="1" value="4">
+      <span id="topNVal">4</span>
+    </div>
+
+    <div class="pill">
+      <b>HOLD</b>
+      <input id="holdSec" type="range" min="1" max="10" step="0.5" value="3.0">
+      <span id="holdVal">3.0s</span>
+    </div>
+
+    <div class="pill">
+      <b>BOX</b>
+      <!-- ✅ 기본 시작 0.40 -->
+      <input id="boxScale" type="range" min="0.35" max="1.20" step="0.01" value="0.40">
+      <span id="boxScaleVal">0.40</span>
+    </div>
+
+    <div class="pill">
+      <label><input id="links" type="checkbox" checked> Links</label>
+      <label><input id="fillFrag" type="checkbox" checked> Fragments</label>
+    </div>
+
+    <div class="pill" style="grid-template-columns: 1fr 1fr; gap:10px;">
+      <button id="flip">Flip</button>
+      <button id="restart">Restart</button>
+    </div>
+
+    <div class="pill" style="grid-template-columns: 92px 1fr; gap:10px;">
+      <b>Source</b>
+      <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end;">
+        <label style="display:flex; align-items:center; gap:8px;">
+          <input id="videoFile" type="file" accept="video/*" style="max-width:160px;">
+          <span style="opacity:.9">Upload</span>
+        </label>
+        <button id="useCam">Camera</button>
+      </div>
+    </div>
+
+    <div class="pill" style="grid-template-columns: 1fr; gap:6px;">
+      <span id="status">Idle</span>
+      <span id="fps">FPS -</span>
+      <span id="count">Boxes 0</span>
+    </div>
+  </div>
+
+  <div id="stage" class="fade show">
+    <div id="stageTap" aria-label="tap to continue"></div>
+
+    <div id="blkTitle" class="stageBlock pos-center" style="display:none;">
+      <h1 class="stageTitle" style="margin-bottom:10px;">From Emptiness (空) to Togetherness (共)</h1>
+      <p class="stageSub">A Cooking–Memory–Spatial Experiment in Reconstructing Empathy</p>
+    </div>
+
+    <div id="blkTR" class="stageBlock pos-top-right" style="display:none;">
+      <div id="linesTR" class="stageLines small"></div>
+    </div>
+
+    <div id="blkBL" class="stageBlock pos-bottom-left" style="display:none;">
+      <div id="linesBL" class="stageLines small"></div>
+    </div>
+
+    <div id="blkCenter" class="stageBlock pos-center" style="display:none;">
+      <div id="linesCenter" class="stageLines"></div>
+    </div>
+
+    <div id="countdown">10</div>
+    <div id="tapHint" class="tapHint">TAP ANYWHERE TO CONTINUE</div>
+  </div>
 
 <script>
 (() => {
-  const srcV = document.getElementById("srcVideo");
-  const out = document.getElementById("out");
-  const ctx = out.getContext("2d");
+  const SLEEP_UPLOAD_SERVER = 'https://172.16.14.60:4443';
+  const UPLOAD_TIMEOUT_MS = 12000;
+  const UPLOAD_RETRY = 1;
 
-  const gate = document.getElementById("gate");
-  const logEl = document.getElementById("log");
+  /* ✅ BGM */
+  const BGM_SRC = "audio/bgm.mp3";
+  const BGM_VOLUME = 0.55;
+  let bgm = null;
+  function startBgm(){
+    try{
+      if(!bgm){
+        bgm = new Audio(BGM_SRC);
+        bgm.loop = true;
+        bgm.preload = "auto";
+        bgm.volume = BGM_VOLUME;
+      }
+      bgm.play().catch(()=>{});
+    }catch(e){}
+  }
 
-  const confEl = document.getElementById("conf");
-  const confVal = document.getElementById("confVal");
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  const qs = s => document.querySelector(s);
+  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
 
-  const fineEl = document.getElementById("fine");
-  const fineVal = document.getElementById("fineVal");
+  let audioCtx = null;
+  function ensureAudio(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  async function ensureResumed(){
+    ensureAudio();
+    if(audioCtx.state === 'suspended'){
+      try{ await audioCtx.resume(); }catch(e){}
+    }
+  }
+  const MASTER_SFX_GAIN = 0.08;
+  async function playTap(){
+    try{
+      await ensureResumed();
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type='sine';
+      o.frequency.setValueAtTime(190, now);
+      o.frequency.exponentialRampToValueAtTime(130, now+0.10);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(MASTER_SFX_GAIN, now+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now+0.14);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(now);
+      o.stop(now+0.16);
+    }catch(e){}
+  }
 
-  const topNEl = document.getElementById("topN");
-  const topNVal = document.getElementById("topNVal");
-  const holdSecEl = document.getElementById("holdSec");
-  const holdValEl = document.getElementById("holdVal");
-  const boxScaleEl = document.getElementById("boxScale");
-  const boxScaleValEl = document.getElementById("boxScaleVal");
+  const bg = qs('#bg');
+  const view = qs('#view');
+  const vctx = view.getContext('2d', { alpha:false });
 
-  const linksEl = document.getElementById("links");
-  const fillFragEl = document.getElementById("fillFrag");
+  const stage = qs('#stage');
+  const stageTap = qs('#stageTap');
+  const tapHint = qs('#tapHint');
 
-  const toggleUIBtn = document.getElementById("toggleUI");
-  const ui = document.getElementById("ui");
+  const blkTitle = qs('#blkTitle');
+  const blkTR = qs('#blkTR');
+  const blkBL = qs('#blkBL');
+  const blkCenter = qs('#blkCenter');
 
-  const startBtn = document.getElementById("start");
-  const preloadAssetsBtn = document.getElementById("preloadAssets");
-  const fullscreenBtn = document.getElementById("fullscreen");
-  const flipBtn = document.getElementById("flip");
-  const restartBtn = document.getElementById("restart");
+  const linesTR = qs('#linesTR');
+  const linesBL = qs('#linesBL');
+  const linesCenter = qs('#linesCenter');
+  const countdownEl = qs('#countdown');
 
-  const useCamBtn = document.getElementById("useCam");
-  const videoFileEl = document.getElementById("videoFile");
+  const controls = qs('#controls');
+  const zoomIn = qs('#zoomIn');
+  const zoomOut = qs('#zoomOut');
+  const zoomVal = qs('#zoomVal');
+  const captureBtn = qs('#captureBtn');
 
-  const recStartBtn = document.getElementById("recStart");
-  const recStopBtn = document.getElementById("recStop");
-  const recSecEl = document.getElementById("recSec");
-  const recSecVal = document.getElementById("recSecVal");
+  const sleepPhotoStatus = qs('#sleepPhotoStatus');
+  function setSleepPhotoStatus(msg){ sleepPhotoStatus.textContent = msg || ''; }
 
-  const statusEl = document.getElementById("status");
-  const fpsEl = document.getElementById("fps");
-  const countEl = document.getElementById("count");
+  const toggleUIBtn = qs('#toggleUI');
+  const ui = qs('#ui');
 
-  function log(msg){ logEl.textContent = String(msg); }
+  const confEl = qs('#conf');
+  const confVal = qs('#confVal');
+  const fineEl = qs('#fine');
+  const fineVal = qs('#fineVal');
+  const topNEl = qs('#topN');
+  const topNVal = qs('#topNVal');
+  const holdSecEl = qs('#holdSec');
+  const holdValEl = qs('#holdVal');
+  const boxScaleEl = qs('#boxScale');
+  const boxScaleValEl = qs('#boxScaleVal');
 
-  const LIMEN_LABELS = ["Mom", "Hometown", "Son Duk-Geum", "GrandFather", "Ocean"];
+  const linksEl = qs('#links');
+  const fillFragEl = qs('#fillFrag');
+
+  const flipBtn = qs('#flip');
+  const restartBtn = qs('#restart');
+  const useCamBtn = qs('#useCam');
+  const videoFileEl = qs('#videoFile');
+
+  const statusEl = qs('#status');
+  const fpsEl = qs('#fps');
+  const countEl = qs('#count');
+
+  /* HELP */
+  const helpBtn = qs('#helpBtn');
+  const helpPanel = qs('#helpPanel');
+  const helpClose = qs('#helpClose');
+  helpBtn.addEventListener('click', async ()=>{
+    await ensureResumed(); startBgm(); playTap();
+    helpPanel.classList.add('show');
+  }, {passive:true});
+  helpClose.addEventListener('click', async ()=>{
+    await ensureResumed(); playTap();
+    helpPanel.classList.remove('show');
+  }, {passive:true});
+  helpPanel.addEventListener('click', async (e)=>{
+    if(e.target === helpPanel){
+      await ensureResumed(); playTap();
+      helpPanel.classList.remove('show');
+    }
+  }, {passive:true});
+
+  toggleUIBtn.addEventListener('click', ()=>{
+    const hidden = ui.classList.toggle('hidden');
+    toggleUIBtn.textContent = hidden ? 'MENU' : 'CLOSE';
+    playTap();
+  }, {passive:true});
+
+  /* BG animation */
+  const bctx = bg.getContext('2d', {alpha:false});
+  let B = {w:0,h:0,dpr:1};
+  function resizeBG(){
+    const dpr = window.devicePixelRatio||1;
+    const w = innerWidth, h = innerHeight;
+    bg.width = Math.round(w*dpr);
+    bg.height = Math.round(h*dpr);
+    bctx.setTransform(dpr,0,0,dpr,0,0);
+    B = {w,h,dpr};
+  }
+  window.addEventListener('resize', resizeBG, {passive:true});
+  window.addEventListener('orientationchange', resizeBG, {passive:true});
+  resizeBG();
+
+  const PNUM = 62;
+  const pts = [];
+  for(let i=0;i<PNUM;i++){
+    pts.push({
+      x: Math.random()*innerWidth,
+      y: Math.random()*innerHeight,
+      vx: (Math.random()-0.5)*0.18,
+      vy: (Math.random()-0.5)*0.18,
+      r: 1.2 + Math.random()*1.8,
+      ph: Math.random()*Math.PI*2
+    });
+  }
+  function bgLoop(){
+    const W = B.w, H = B.h;
+    const t = performance.now()*0.001;
+    bctx.fillStyle = '#000';
+    bctx.fillRect(0,0,W,H);
+
+    const g = bctx.createRadialGradient(W*0.5,H*0.55, 10, W*0.5,H*0.55, Math.max(W,H)*0.9);
+    g.addColorStop(0, 'rgba(255,255,255,0.05)');
+    g.addColorStop(0.55,'rgba(0,0,0,0.78)');
+    g.addColorStop(1, 'rgba(0,0,0,0.98)');
+    bctx.fillStyle = g;
+    bctx.fillRect(0,0,W,H);
+
+    for(const p of pts){
+      const wob = 0.22 * Math.sin(t*0.7 + p.ph);
+      p.x += p.vx + wob*0.02;
+      p.y += p.vy + wob*0.02;
+
+      if(p.x< -60) p.x = W+60;
+      if(p.x> W+60) p.x = -60;
+      if(p.y< -60) p.y = H+60;
+      if(p.y> H+60) p.y = -60;
+    }
+
+    bctx.save();
+    bctx.globalAlpha = 0.9;
+    for(let i=0;i<pts.length;i++){
+      for(let j=i+1;j<pts.length;j++){
+        const a=pts[i], b=pts[j];
+        const dx=a.x-b.x, dy=a.y-b.y;
+        const d2=dx*dx+dy*dy;
+        const maxD = Math.min(W,H)*0.22;
+        if(d2 < maxD*maxD){
+          const d = Math.sqrt(d2);
+          const alpha = 0.22*(1 - d/maxD) + 0.02;
+          bctx.strokeStyle = `rgba(245,245,245,${alpha.toFixed(3)})`;
+          bctx.lineWidth = 1.0 + 0.6*Math.sin(t*0.9 + i*0.3);
+          bctx.beginPath();
+          bctx.moveTo(a.x,a.y);
+          bctx.lineTo(b.x,b.y);
+          bctx.stroke();
+        }
+      }
+    }
+    bctx.restore();
+
+    bctx.save();
+    for(const p of pts){
+      const pulse = 0.55 + 0.45*Math.sin(t*1.1 + p.ph);
+      bctx.fillStyle = `rgba(245,245,245,${(0.35 + 0.35*pulse).toFixed(3)})`;
+      bctx.beginPath();
+      bctx.arc(p.x,p.y,p.r*(0.85+0.25*pulse),0,Math.PI*2);
+      bctx.fill();
+    }
+    bctx.restore();
+
+    requestAnimationFrame(bgLoop);
+  }
+  requestAnimationFrame(bgLoop);
+
+  /* Stage pages */
+  const PAGES = [
+    { kind:"PERMISSION", lines:["Camera permission is required."], hint:"TAP ANYWHERE TO ALLOW CAMERA" },
+    { kind:"TITLE", hint:"TAP ANYWHERE TO ENTER" },
+
+    { kind:"TR", lines:[
+`Empathy originally refers to the ability to feel with others (共感).
+In contemporary relational structures, however, this sense of togetherness has weakened,
+shifting toward emptiness, disconnection, and absence (空).`,
+"",
+`This project begins at that point of rupture and explores whether emotions emptied of togetherness
+can be reconstructed through cooking—the oldest bodily gesture of care.`,
+"",
+`Can the oldest gesture of care—cooking—restore emotions that have become empty of togetherness?`
+    ], hint:"TAP ANYWHERE TO READ NEXT" },
+
+    { kind:"BL", lines:[
+`In contemporary society, empathy is often reduced to superficial reactions within accelerated communication.`,
+"",
+`Emotional connection weakens, leaving growing gaps between individuals.`,
+"",
+`This project treats that gap not as failure,
+but as a starting point for reconstruction.`
+    ], hint:"TAP ANYWHERE TO READ NEXT" },
+
+    { kind:"TR2", lines:[
+`This performance-installation involves two artists who build an archive through remote workshops—recipes, memories, writing, and cooking videos—then translate it on-site into a miniature world (cooking table) and a live performance that shares shifting states of empathy (共感) with the audience.`,
+"",
+`The focus is not cooking itself, but the gesture—the subtle bodily vibration that emerges while following unfamiliar recipes, moving from estrangement to understanding and empathy.`
+    ], hint:"TAP ANYWHERE TO READ NEXT" },
+
+    { kind:"CENTER", lines:[
+`WHY COOKING / WHY RECIPE`,
+"",
+`Cooking is both survival and a time-intensive gesture of care.
+Recipes inherited from parents often embed personal emotional memory—nostalgia, longing, loss, attachment.
+This project treats recipes as both an emotional document and a performance score,`,
+"",
+`testing how empathy can be reconstructed through exchanging, transforming, performing, and archiving them.`
+    ], hint:"TAP ANYWHERE TO CONTINUE" },
+
+    /* ✅ 카운트다운 직전 안내 페이지 추가 */
+    { kind:"CENTER2", lines:[
+`Now all explanations about the work are complete.`,
+`Please freely walk through the exhibition space and watch the performance.`,
+"",
+`This program unfolds through taking photos.`,
+`For explanations and participation methods for each performance,`,
+`please press the HELP button at the top-left of the screen.`
+    ], hint:"TAP ANYWHERE TO START COUNTDOWN" },
+
+    { kind:"COUNTDOWN", lines:[`Enjoy the exhibition.`], hint:"STARTING IN 10" }
+  ];
+
+  let stageIndex = 0;
+  let lineIndex = 0;
+  let locked = false;
+  let cameraPermissionAsked = false;
+
+  function clearStageBlocks(){
+    blkTitle.style.display = "none";
+    blkTR.style.display = "none";
+    blkBL.style.display = "none";
+    blkCenter.style.display = "none";
+    linesTR.innerHTML = "";
+    linesBL.innerHTML = "";
+    linesCenter.innerHTML = "";
+    countdownEl.classList.remove("show");
+    countdownEl.textContent = "10";
+  }
+
+  function mountLines(el, lines){
+    el.innerHTML = "";
+    const nodes = [];
+    for(const s of lines){
+      const div = document.createElement("div");
+      div.className = "line";
+      div.textContent = s === "" ? " " : s;
+      el.appendChild(div);
+      nodes.push(div);
+    }
+    return nodes;
+  }
+
+  let currentNodes = [];
+  function showLine(i){
+    if(!currentNodes[i]) return;
+    currentNodes[i].classList.add("show");
+  }
+
+  async function fadeStageOutIn(fn){
+    stage.classList.remove("show");
+    await sleep(450);
+    fn && fn();
+    await sleep(30);
+    stage.classList.add("show");
+  }
+
+  function renderStage(){
+    clearStageBlocks();
+    const page = PAGES[stageIndex];
+    tapHint.textContent = page.hint || "TAP ANYWHERE";
+
+    if(page.kind==="TITLE"){
+      blkTitle.style.display = "block";
+      currentNodes = [];
+      lineIndex = 0;
+      return;
+    }
+
+    if(page.kind==="PERMISSION"){
+      blkCenter.style.display = "block";
+      currentNodes = mountLines(linesCenter, page.lines);
+      lineIndex = 0;
+      showLine(0);
+      return;
+    }
+
+    if(page.kind==="TR" || page.kind==="TR2"){
+      blkTR.style.display = "block";
+      currentNodes = mountLines(linesTR, page.lines);
+      lineIndex = 0;
+      showLine(0);
+      return;
+    }
+
+    if(page.kind==="BL"){
+      blkBL.style.display = "block";
+      currentNodes = mountLines(linesBL, page.lines);
+      lineIndex = 0;
+      showLine(0);
+      return;
+    }
+
+    if(page.kind==="CENTER" || page.kind==="CENTER2" || page.kind==="COUNTDOWN"){
+      blkCenter.style.display = "block";
+      currentNodes = mountLines(linesCenter, page.lines);
+      lineIndex = 0;
+      showLine(0);
+      return;
+    }
+  }
+
+  async function advanceStageTap(){
+    if(locked) return;
+    locked = true;
+
+    await ensureResumed();
+    startBgm();
+    playTap();
+
+    const page = PAGES[stageIndex];
+
+    if(page.kind==="PERMISSION"){
+      if(!cameraPermissionAsked){
+        cameraPermissionAsked = true;
+        try{
+          const s = await navigator.mediaDevices.getUserMedia({ video:true, audio:false });
+          s.getTracks().forEach(t=>t.stop());
+        }catch(e){}
+      }
+      await fadeStageOutIn(()=>{ stageIndex++; renderStage(); });
+      locked = false;
+      return;
+    }
+
+    if(page.kind==="TITLE"){
+      await fadeStageOutIn(()=>{ stageIndex++; renderStage(); });
+      locked = false;
+      return;
+    }
+
+    if(page.kind!=="COUNTDOWN"){
+      const next = lineIndex + 1;
+      if(next < currentNodes.length){
+        lineIndex = next;
+        showLine(lineIndex);
+        locked = false;
+        return;
+      }else{
+        await fadeStageOutIn(()=>{ stageIndex++; renderStage(); });
+        locked = false;
+        return;
+      }
+    }
+
+    if(page.kind==="COUNTDOWN"){
+      tapHint.textContent = "STARTING…";
+      countdownEl.classList.add("show");
+      let n = 10;
+      countdownEl.textContent = String(n);
+      for(let i=0;i<10;i++){
+        await sleep(1000);
+        n--;
+        countdownEl.textContent = String(n);
+      }
+      await endStageAndStartExperience();
+      locked = false;
+      return;
+    }
+
+    locked = false;
+  }
+
+  ['click','touchstart','pointerdown'].forEach(type=>{
+    stageTap.addEventListener(type, (e)=>{ e.preventDefault(); advanceStageTap(); }, {passive:false});
+  });
+
+  renderStage();
+
+  /* ===== 본편 ===== */
+  let camStream=null;
+  let camVideo=null;
+  let facingMode='environment';
+  let usingUploadVideo=false;
+
+  let ZOOM=1.0;
+  let showCamera=false;
+  let camFadeAlpha=0;
+
+  function updateZoomLabel(){ zoomVal.textContent = ZOOM.toFixed(1)+'×'; }
+  updateZoomLabel();
+
+  zoomIn.addEventListener('click', async ()=>{
+    await ensureResumed(); startBgm(); playTap();
+    ZOOM=Math.min(3.0, ZOOM+0.1);
+    updateZoomLabel();
+  }, {passive:true});
+
+  zoomOut.addEventListener('click', async ()=>{
+    await ensureResumed(); startBgm(); playTap();
+    ZOOM=Math.max(1.0, ZOOM-0.1);
+    updateZoomLabel();
+  }, {passive:true});
+
+  function resizeView(){
+    const dpr=window.devicePixelRatio||1;
+    const w=window.innerWidth;
+    const h=window.innerHeight;
+    view.width=w*dpr;
+    view.height=h*dpr;
+    vctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resizeView, {passive:true});
+  window.addEventListener('orientationchange', resizeView, {passive:true});
+  resizeView();
+
+  async function startCameraFresh(){
+    usingUploadVideo=false;
+    if (camStream){
+      camStream.getTracks().forEach(t=>t.stop());
+      camStream=null;
+    }
+    const s = await navigator.mediaDevices.getUserMedia({
+      video:{
+        facingMode:{ideal:facingMode},
+        width:{min:1280,ideal:1920},
+        height:{min:720,ideal:1080},
+        aspectRatio:{ideal:16/9}
+      },
+      audio:false
+    });
+    camStream = s;
+
+    if(!camVideo){
+      camVideo=document.createElement('video');
+      camVideo.setAttribute('playsinline','');
+      camVideo.autoplay=true;
+      camVideo.playsInline=true;
+      camVideo.muted=true;
+    }
+    camVideo.srcObject=camStream;
+    camVideo.src = '';
+    await camVideo.play().catch(()=>{});
+    if (camVideo.readyState < 1){
+      await new Promise(res=>camVideo.addEventListener('loadedmetadata', res, {once:true}));
+    }
+  }
+
+  async function useUploadedVideo(file){
+    usingUploadVideo=true;
+    if (camStream){
+      camStream.getTracks().forEach(t=>t.stop());
+      camStream=null;
+    }
+    if(!camVideo){
+      camVideo=document.createElement('video');
+      camVideo.setAttribute('playsinline','');
+      camVideo.autoplay=true;
+      camVideo.playsInline=true;
+      camVideo.muted=true;
+    }
+    camVideo.srcObject=null;
+    camVideo.loop=true;
+    camVideo.muted=true;
+    camVideo.src = URL.createObjectURL(file);
+    await camVideo.play().catch(()=>{});
+    if (camVideo.readyState < 1){
+      await new Promise(res=>camVideo.addEventListener('loadedmetadata', res, {once:true}));
+    }
+  }
+
+  function fadeInCamera(dur=900){
+    showCamera = true;
+    const start = performance.now();
+    camFadeAlpha = 0;
+    function step(){
+      const t = (performance.now() - start) / dur;
+      camFadeAlpha = clamp(t, 0, 1);
+      if(t < 1 && showCamera) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function getCameraDrawTransform(){
+    const w = view.clientWidth || innerWidth;
+    const h = view.clientHeight || innerHeight;
+
+    if(!camVideo || camVideo.readyState < 2) return null;
+    const vw = camVideo.videoWidth, vh = camVideo.videoHeight;
+    if(!vw || !vh) return null;
+
+    const fw = w, fh = h;
+    const videoRatio = vw / vh;
+    const frameRatio = fw / fh;
+
+    let dw, dh;
+    if(videoRatio > frameRatio){ dh = fh; dw = dh * videoRatio; }
+    else { dw = fw; dh = dw / videoRatio; }
+
+    dw *= ZOOM; dh *= ZOOM;
+    const dx = (fw - dw)/2;
+    const dy = (fh - dh)/2;
+
+    return { vw, vh, dx, dy, dw, dh, fw, fh };
+  }
+
+  /* ===== 업로드 ===== */
+  function humanErr(e){
+    const msg = (e && e.message) ? e.message : String(e);
+    if (/aborted/i.test(msg)) return "timeout";
+    return msg;
+  }
+  async function canvasToJpegBlobResized(srcCanvas, maxLongSide=1600, quality=0.85){
+    const w = srcCanvas.width;
+    const h = srcCanvas.height;
+    if (!w || !h) return null;
+
+    const longSide = Math.max(w,h);
+    const scale = Math.min(1, maxLongSide / longSide);
+
+    const tw = Math.max(1, Math.round(w * scale));
+    const th = Math.max(1, Math.round(h * scale));
+
+    let target = srcCanvas;
+    if (scale < 0.999){
+      const c = document.createElement("canvas");
+      c.width = tw;
+      c.height = th;
+      const cctx = c.getContext("2d");
+      cctx.imageSmoothingEnabled = true;
+      cctx.imageSmoothingQuality = "high";
+      cctx.drawImage(srcCanvas, 0,0,w,h, 0,0,tw,th);
+      target = c;
+    }
+
+    const blob = await new Promise((resolve) => {
+      target.toBlob((b)=>resolve(b), "image/jpeg", quality);
+    });
+
+    return blob;
+  }
+  async function fetchWithTimeout(url, options={}, timeoutMs=UPLOAD_TIMEOUT_MS){
+    const controller = new AbortController();
+    const id = setTimeout(()=>controller.abort(new Error("aborted")), timeoutMs);
+    try{
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(id);
+    }
+  }
+  async function uploadBlob(blob){
+    const formData = new FormData();
+    formData.append("image", blob, `sleep_capture_${Date.now()}.jpg`);
+    const base = (SLEEP_UPLOAD_SERVER && SLEEP_UPLOAD_SERVER.trim()) ? SLEEP_UPLOAD_SERVER.trim() : '';
+    const url = base + "/upload";
+
+    let res = await fetchWithTimeout(url, { method:"POST", body: formData }, UPLOAD_TIMEOUT_MS);
+    if ((!res.ok && res.status >= 500) && UPLOAD_RETRY > 0){
+      await new Promise(r=>setTimeout(r, 400));
+      res = await fetchWithTimeout(url, { method:"POST", body: formData }, UPLOAD_TIMEOUT_MS);
+    }
+    return res;
+  }
+  async function uploadSnapshotCanvas(canvas){
+    try{
+      setSleepPhotoStatus('Uploading...');
+      const blob = await canvasToJpegBlobResized(canvas, 1600, 0.85);
+      if(!blob){
+        setSleepPhotoStatus('Upload error: blob null');
+        return;
+      }
+      const res = await uploadBlob(blob);
+      if(!res.ok){
+        const txt = await res.text().catch(()=> "");
+        setSleepPhotoStatus(`Upload failed: ${res.status}${txt ? " / " + txt.slice(0,80) : ""}`);
+        return;
+      }
+      setSleepPhotoStatus('Uploaded');
+      setTimeout(()=>setSleepPhotoStatus(''), 3500);
+    }catch(err){
+      console.error("UPLOAD ERROR RAW:", err);
+      setSleepPhotoStatus('Upload error: ' + humanErr(err));
+      setTimeout(()=>setSleepPhotoStatus(''), 6000);
+    }
+  }
+
+  /* ===== 캡쳐: 트래킹 없이 “흑백 카메라만” 업로드 ===== */
+  function captureRawCameraOnlyCanvas(){
+    const T = getCameraDrawTransform();
+    if(!T) return null;
+
+    const dpr = window.devicePixelRatio||1;
+    const w = Math.round((view.clientWidth||innerWidth) * dpr);
+    const h = Math.round((view.clientHeight||innerHeight) * dpr);
+
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+
+    const ctx = c.getContext("2d");
+    ctx.setTransform(1,0,0,1,0,0);
+
+    // 흑백(브라우저 지원되는 필터)
+    ctx.filter = "grayscale(1)";
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0,0,w,h);
+
+    // drawImage 좌표는 CSS 기준이라 dpr 보정
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.globalAlpha = 1;
+    ctx.drawImage(camVideo, T.dx, T.dy, T.dw, T.dh);
+    ctx.restore();
+
+    ctx.filter = "none";
+    return c;
+  }
+
+  /* ===== BOX DETECT ===== */
+  const LIMEN_LABELS = ["Mom","Hometown","Son Duk-Geum","GrandFather","Ocean"];
   const CLASS_TO_LIMEN = {
     person: "Mom",
     diningtable: "Hometown",
@@ -272,7 +1183,6 @@
     }
     return a;
   }
-
   const LABEL_COLOR = {
     "Mom": [255,140,140],
     "Hometown": [140,255,180],
@@ -280,7 +1190,6 @@
     "GrandFather": [190,190,255],
     "Ocean": [140,190,255]
   };
-
   const ASSET_FILES = {
     "Mom": "assets/mom.jpg",
     "Hometown": "assets/hometown.jpg",
@@ -288,98 +1197,31 @@
     "GrandFather": "assets/grandfather.jpg",
     "Ocean": "assets/ocean.jpg"
   };
-
   const assets = new Map();
-  function guessTypeByPath(p){
-    const low = p.toLowerCase();
-    if (low.endsWith(".mp4") || low.endsWith(".webm") || low.endsWith(".mov")) return "vid";
-    return "img";
-  }
-
   async function loadAssets(){
     assets.clear();
     const entries = Object.entries(ASSET_FILES);
     for (const [label, path] of entries){
-      const type = guessTypeByPath(path);
-      if (type === "img"){
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        const rec = { type:"img", el:img, ready:false, path };
-        assets.set(label, rec);
-        await new Promise((res) => {
-          img.onload = () => { rec.ready = true; res(); };
-          img.onerror = () => { rec.ready = false; res(); };
-          img.src = path + "?v=" + Date.now();
-        });
-      } else {
-        const vid = document.createElement("video");
-        vid.crossOrigin = "anonymous";
-        vid.muted = true; vid.loop = true; vid.playsInline = true;
-        const rec = { type:"vid", el:vid, ready:false, path };
-        assets.set(label, rec);
-        await new Promise((res) => {
-          vid.onloadeddata = async () => { try { await vid.play(); } catch(e) {} rec.ready=true; res(); };
-          vid.onerror = () => { rec.ready = false; res(); };
-          vid.src = path + "?v=" + Date.now();
-        });
-      }
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      const rec = { el:img, ready:false, path };
+      assets.set(label, rec);
+      await new Promise((res) => {
+        img.onload = () => { rec.ready = true; res(); };
+        img.onerror = () => { rec.ready = false; res(); };
+        img.src = path + "?v=" + Date.now();
+      });
     }
-    const ok = [...assets.values()].filter(a=>a.ready).length;
-    log(`assets loaded: ${ok}/${entries.length} (없어도 동작함)`);
   }
 
-  let stream = null;
-  let facingMode = "environment";
-  let usingUploadVideo = false;
-
-  async function startCamera(){
-    usingUploadVideo = false;
-    if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-    statusEl.textContent = "카메라 요청";
-    log("camera requesting...");
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio:false,
-      video:{ facingMode:{ ideal:facingMode }, width:{ideal:1280}, height:{ideal:720} }
-    });
-    srcV.srcObject = stream;
-    await srcV.play();
-    resize();
-    log("camera started: " + facingMode);
-  }
-
-  async function useUploadedVideo(file){
-    usingUploadVideo = true;
-    if (stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-    const url = URL.createObjectURL(file);
-    srcV.srcObject = null;
-    srcV.src = url;
-    srcV.loop = true;
-    srcV.muted = true;
-    await srcV.play();
-    resize();
-    log("uploaded video: " + file.name);
-  }
-
-  function resize(){
-    const w = srcV.videoWidth || innerWidth;
-    const h = srcV.videoHeight || innerHeight;
-    if (out.width !== w) out.width = w;
-    if (out.height !== h) out.height = h;
-  }
-  window.addEventListener("resize", resize);
-
-  let model = null;
+  let model=null;
   async function loadModel(){
-    if (model) return model;
-    statusEl.textContent = "모델 로딩";
-    log("model loading...");
+    if(model) return model;
+    statusEl.textContent = "Loading";
     model = await cocoSsd.load({ base:"lite_mobilenet_v2" });
-    log("model loaded");
     return model;
   }
 
-  // ====== utils ======
-  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
   function iou(a,b){
     const ax1=a[0], ay1=a[1], ax2=a[0]+a[2], ay2=a[1]+a[3];
     const bx1=b[0], by1=b[1], bx2=b[0]+b[2], by2=b[1]+b[3];
@@ -389,10 +1231,6 @@
     const inter=iw*ih;
     const ua=a[2]*a[3] + b[2]*b[3] - inter;
     return ua>0 ? inter/ua : 0;
-  }
-  function lerp(a,b,t){ return a + (b-a)*t; }
-  function lerpBox(cur, target, t){
-    return [lerp(cur[0], target[0], t), lerp(cur[1], target[1], t), lerp(cur[2], target[2], t), lerp(cur[3], target[3], t)];
   }
   function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
   function makeLinks(points, k=2){
@@ -413,16 +1251,12 @@
     return links;
   }
   function fract(x){ return x - Math.floor(x); }
-
-  // ✅ “그려지는 박스만” 축소/확대
   function scaleBox(bbox, s){
     const [x,y,w,h]=bbox;
     const cx = x + w/2, cy = y + h/2;
     const nw = w * s, nh = h * s;
     return [cx - nw/2, cy - nh/2, nw, nh];
   }
-
-  // ====== 관계의 미학 ======
   function getLinkStyle(aLabel, bLabel, t){
     const pair = [aLabel, bLabel].sort().join("|");
     let widthMul = 1.0, alphaMul = 1.0, jitter = 0.0, dash = null, pulse = 0.0, glow = 0.0;
@@ -432,7 +1266,6 @@
     if (aLabel==="GrandFather" || bLabel==="GrandFather"){ pulse=Math.max(pulse,0.38); }
     if (aLabel==="Hometown" || bLabel==="Hometown"){ dash = dash || [10,6]; }
     if (aLabel==="Son Duk-Geum" || bLabel==="Son Duk-Geum"){ glow=0.7; }
-
     if (pair === "Hometown|Mom") alphaMul *= 1.10;
     if (pair === "GrandFather|Ocean") jitter *= 1.35;
 
@@ -440,8 +1273,7 @@
     return { widthMul: widthMul*pulseFactor, alphaMul, jitter, dash, glow };
   }
 
-  // ====== 파편 채우기 ======
-  function drawFragmentIntoBox(assetRec, bbox, seed){
+  function drawFragmentIntoBox(assetRec, bbox, seed, alpha){
     if (!assetRec || !assetRec.ready) return;
     const [x,y,w,h] = bbox;
     if (w < 8 || h < 8) return;
@@ -451,58 +1283,69 @@
     const r2 = fract(Math.sin(seed*78.233  + t*0.9) * 12345.6789);
     const r3 = fract(Math.sin(seed*41.77   + t*1.7) * 98765.4321);
 
-    ctx.save();
-    ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+    vctx.save();
+    vctx.beginPath(); vctx.rect(x,y,w,h); vctx.clip();
 
     const scale = 1.05 + r1 * 1.25;
     const ox = (r2 - 0.5) * w * 0.35;
     const oy = (r3 - 0.5) * h * 0.35;
 
     const el = assetRec.el;
-    let sw=0, sh=0;
-    if (assetRec.type === "img"){ sw = el.naturalWidth||0; sh = el.naturalHeight||0; }
-    else { sw = el.videoWidth||0; sh = el.videoHeight||0; }
-    if (sw < 2 || sh < 2){ ctx.restore(); return; }
+    const sw = el.naturalWidth||0;
+    const sh = el.naturalHeight||0;
+    if (sw < 2 || sh < 2){ vctx.restore(); return; }
 
     const dw = w * scale, dh = h * scale;
     const dx = x + (w - dw)/2 + ox;
     const dy = y + (h - dh)/2 + oy;
 
-    ctx.globalAlpha = 0.85;
-    ctx.drawImage(el, dx, dy, dw, dh);
+    vctx.globalAlpha = 0.85 * alpha;
+    vctx.drawImage(el, dx, dy, dw, dh);
 
-    ctx.globalAlpha = 0.32;
+    vctx.globalAlpha = 0.32 * alpha;
     const dw2 = w * (0.85 + r2*0.5);
     const dh2 = h * (0.85 + r3*0.5);
     const dx2 = x + (w - dw2)/2 - ox*0.25;
     const dy2 = y + (h - dh2)/2 - oy*0.25;
-    ctx.drawImage(el, dx2, dy2, dw2, dh2);
+    vctx.drawImage(el, dx2, dy2, dw2, dh2);
 
-    ctx.restore();
-    ctx.globalAlpha = 1;
+    vctx.restore();
+    vctx.globalAlpha = 1;
   }
 
-  function drawLabelTag(label, cocoClass, x, y){
+  function drawLabelTag(label, cocoClass, x, y, alpha){
     const col = LABEL_COLOR[label] || [255,255,255];
     const text = `${label} · ${cocoClass}`;
-    ctx.font = `${Math.max(12, Math.round(out.width/95))}px system-ui,-apple-system,sans-serif`;
-    ctx.textBaseline = "top";
+    vctx.font = `${Math.max(12, Math.round((view.clientWidth||innerWidth)/95))}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
+    vctx.textBaseline = "top";
     const padX = 7, padY = 4;
-    const tw = ctx.measureText(text).width;
-    const th = Math.max(18, Math.round(out.width/75));
+    const tw = vctx.measureText(text).width;
+    const th = Math.max(18, Math.round((view.clientWidth||innerWidth)/75));
 
     const ty = Math.max(0, y - th - 2);
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(x, ty, tw + padX*2, th);
+    vctx.fillStyle = `rgba(0,0,0,${0.65*alpha})`;
+    vctx.fillRect(x, ty, tw + padX*2, th);
 
-    ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},0.98)`;
-    ctx.fillText(text, x + padX, ty + padY);
+    vctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${0.98*alpha})`;
+    vctx.fillText(text, x + padX, ty + padY);
   }
 
-  // ====== object tracks ======
+  function computeMinAreaFromFine(fine, vw, vh){
+    const base = vw * vh;
+    const minRatio = 0.0015;
+    const maxRatio = 0.12;
+    const r = minRatio + (1 - fine) * (maxRatio - minRatio);
+    return base * r;
+  }
+
   let objectTracks = [];
   let renderTracks = [];
   let nextId = 1;
+
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function lerpBox(cur,target,t){
+    return [lerp(cur[0],target[0],t),lerp(cur[1],target[1],t),lerp(cur[2],target[2],t),lerp(cur[3],target[3],t)];
+  }
 
   function ensureDistinctLabelsForTopN(objs, nowMs){
     const holdMs = (+holdSecEl.value) * 1000;
@@ -545,26 +1388,16 @@
     }
   }
 
-  // ====== detection loop ======
   const DETECT_INTERVAL_MS = 240;
   let lastDetectAt = 0;
-
-  // ✅ FINE -> 최소 박스 면적(화면 대비 비율)로 변환
-  // fine=1.0 : 아주 작은 것까지 허용(최소면적 매우 작음)
-  // fine=0.0 : 작은 것은 걸러지고 큰 것 위주(최소면적 큼)
-  function computeMinAreaFromFine(fine){
-    const W = out.width || innerWidth;
-    const H = out.height || innerHeight;
-    const base = W * H;
-    const minRatio = 0.0015; // fine=1일 때 최소 면적 비율
-    const maxRatio = 0.12;   // fine=0일 때 최소 면적 비율
-    const r = minRatio + (1 - fine) * (maxRatio - minRatio);
-    return base * r;
-  }
+  let runningDetect = false;
 
   async function stepDetect(){
-    const coarse = +confEl.value;     // ✅ COARSE(덩어리)
-    const fine = +fineEl.value;       // ✅ FINE(미세)
+    if(!model) await loadModel();
+    if(!camVideo || camVideo.readyState < 2) return;
+
+    const coarse = +confEl.value;
+    const fine = +fineEl.value;
     confVal.textContent = coarse.toFixed(2);
     fineVal.textContent = fine.toFixed(2);
 
@@ -575,13 +1408,12 @@
     holdValEl.textContent = (+holdSecEl.value).toFixed(1) + "s";
     boxScaleValEl.textContent = (+boxScaleEl.value).toFixed(2);
 
-    const minArea = computeMinAreaFromFine(fine);
+    const vw = camVideo.videoWidth || 0;
+    const vh = camVideo.videoHeight || 0;
+    const minArea = computeMinAreaFromFine(fine, vw||1280, vh||720);
 
-    let preds = await model.detect(srcV);
+    let preds = await model.detect(camVideo);
 
-    // ✅ COARSE + FINE 동시 적용:
-    // - COARSE: score 기준
-    // - FINE: bbox 면적 기준
     preds = preds
       .filter(p => (p.score >= coarse) && ((p.bbox[2]*p.bbox[3]) >= minArea))
       .sort((a,b) => b.score - a.score);
@@ -634,271 +1466,248 @@
     renderTracks = active;
     ensureDistinctLabelsForTopN(renderTracks, nowMs);
 
-    if (renderTracks.length < 3) {
-      statusEl.textContent = (usingUploadVideo ? "업로드" : "카메라") + " · 물체 3개 필요";
-    } else {
-      statusEl.textContent = usingUploadVideo ? "업로드 영상" : "카메라";
-    }
+    statusEl.textContent = (renderTracks.length < 3)
+      ? ((usingUploadVideo ? "Upload" : "Camera") + " · need 3 objects")
+      : (usingUploadVideo ? "Upload" : "Camera");
   }
 
-  function render(){
-    ctx.clearRect(0,0,out.width,out.height);
+  function mapVideoBoxToScreen(bbox, T){
+    const [x,y,w,h] = bbox;
+    const sx = T.dx + (x / T.vw) * T.dw;
+    const sy = T.dy + (y / T.vh) * T.dh;
+    const sw = (w / T.vw) * T.dw;
+    const sh = (h / T.vh) * T.dh;
+    return [sx, sy, sw, sh];
+  }
 
-    // ✅ BOX 범위 확장 반영
-    const boxScale = clamp(+boxScaleEl.value, 0.35, 1.20);
+  function drawCameraAndDetect(){
+    const W = view.clientWidth || innerWidth;
+    const H = view.clientHeight || innerHeight;
 
-    if (linksEl.checked && renderTracks.length >= 2){
-      const scaledBoxes = renderTracks.map(t => scaleBox(t.bbox, boxScale));
-      const pts = scaledBoxes.map(b => center(b));
-      const links = makeLinks(pts, 2);
-      const t = performance.now()*0.001;
+    vctx.save();
+    vctx.fillStyle = '#000';
+    vctx.fillRect(0,0,W,H);
+    vctx.restore();
 
-      for (const [i,j,dd] of links){
-        const A = renderTracks[i], B = renderTracks[j];
-        const a = pts[i], b = pts[j];
+    const T = getCameraDrawTransform();
+    if(showCamera && T){
+      // 카메라 페이드
+      vctx.save();
+      vctx.globalAlpha = camFadeAlpha;
+      vctx.drawImage(camVideo, T.dx, T.dy, T.dw, T.dh);
+      vctx.restore();
 
-        const dist = Math.sqrt(dd);
-        const norm = Math.min(1, dist / Math.max(out.width, out.height));
+      // ✅ 트래킹도 같은 페이드 적용
+      const overlayAlpha = camFadeAlpha;
 
-        const style = getLinkStyle(A.label, B.label, t);
-        const baseAlpha = (0.70*(1-norm) + 0.10) * style.alphaMul;
-        const alpha = clamp(baseAlpha, 0.05, 0.95);
+      const boxScale = clamp(+boxScaleEl.value, 0.35, 1.20);
 
-        ctx.save();
-        if (style.dash) ctx.setLineDash(style.dash);
-        else ctx.setLineDash([]);
+      if (linksEl.checked && renderTracks.length >= 2){
+        const screenBoxes = renderTracks.map(tr => mapVideoBoxToScreen(tr.bbox, T));
+        const scaledBoxes = screenBoxes.map(b => scaleBox(b, boxScale));
+        const pts2 = scaledBoxes.map(b => center(b));
+        const links = makeLinks(pts2, 2);
+        const tt = performance.now()*0.001;
 
-        const jx = style.jitter ? (Math.sin((i+1)*13.1 + t*4.0) * style.jitter) : 0;
-        const jy = style.jitter ? (Math.cos((j+1)*9.7  + t*3.4) * style.jitter) : 0;
+        for (const [i,j,dd] of links){
+          const A = renderTracks[i], B = renderTracks[j];
+          const a = pts2[i], b = pts2[j];
+          const dist = Math.sqrt(dd);
+          const norm = Math.min(1, dist / Math.max(W, H));
 
-        const baseW = Math.max(1.2, out.width/1100) * style.widthMul;
+          const style = getLinkStyle(A.label, B.label, tt);
+          const baseAlpha = (0.70*(1-norm) + 0.10) * style.alphaMul;
+          const alpha = clamp(baseAlpha, 0.05, 0.95) * overlayAlpha;
 
-        ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
-        ctx.lineWidth = baseW;
+          vctx.save();
+          if (style.dash) vctx.setLineDash(style.dash);
+          else vctx.setLineDash([]);
 
-        ctx.beginPath();
-        ctx.moveTo(a.x + jx, a.y + jy);
-        ctx.lineTo(b.x - jx, b.y - jy);
-        ctx.stroke();
+          const jx = style.jitter ? (Math.sin((i+1)*13.1 + tt*4.0) * style.jitter) : 0;
+          const jy = style.jitter ? (Math.cos((j+1)*9.7  + tt*3.4) * style.jitter) : 0;
 
-        if (style.glow > 0){
-          const glowA = clamp(alpha + (0.12 + 0.18*Math.sin(t*6.0 + i))*style.glow, 0.08, 0.95);
-          ctx.setLineDash([]);
-          ctx.strokeStyle = `rgba(255,255,255,${glowA.toFixed(3)})`;
-          ctx.lineWidth = baseW * 1.6;
-          ctx.beginPath();
-          ctx.moveTo(a.x - jx*0.6, a.y - jy*0.6);
-          ctx.lineTo(b.x + jx*0.6, b.y + jy*0.6);
-          ctx.stroke();
+          const baseW = Math.max(1.2, W/1100) * style.widthMul;
+          vctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+          vctx.lineWidth = baseW;
+
+          vctx.beginPath();
+          vctx.moveTo(a.x + jx, a.y + jy);
+          vctx.lineTo(b.x - jx, b.y - jy);
+          vctx.stroke();
+
+          if (style.glow > 0){
+            const glowA = clamp(alpha + (0.12 + 0.18*Math.sin(tt*6.0 + i))*style.glow*overlayAlpha, 0.02, 0.95);
+            vctx.setLineDash([]);
+            vctx.strokeStyle = `rgba(255,255,255,${glowA.toFixed(3)})`;
+            vctx.lineWidth = baseW * 1.6;
+            vctx.beginPath();
+            vctx.moveTo(a.x - jx*0.6, a.y - jy*0.6);
+            vctx.lineTo(b.x + jx*0.6, b.y + jy*0.6);
+            vctx.stroke();
+          }
+          vctx.restore();
+        }
+      }
+
+      vctx.lineWidth = Math.max(2, W/900);
+
+      for (let idx=0; idx<renderTracks.length; idx++){
+        const tr = renderTracks[idx];
+        const label = tr.label || "—";
+        const col = LABEL_COLOR[label] || [255,255,255];
+
+        const screenBox = mapVideoBoxToScreen(tr.bbox, T);
+        const b = scaleBox(screenBox, boxScale);
+        const [x,y,w,h] = b;
+
+        if (fillFragEl.checked){
+          const asset = assets.get(label);
+          drawFragmentIntoBox(asset, b, (tr.seed + idx*77) >>> 0, overlayAlpha);
         }
 
-        ctx.restore();
-      }
-    }
+        vctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${0.98*overlayAlpha})`;
+        vctx.strokeRect(x,y,w,h);
 
-    ctx.lineWidth = Math.max(2, out.width/900);
+        drawLabelTag(label, tr.cls, x, y, overlayAlpha);
 
-    for (let idx=0; idx<renderTracks.length; idx++){
-      const tr = renderTracks[idx];
-      const label = tr.label || "—";
-      const col = LABEL_COLOR[label] || [255,255,255];
-
-      const b = scaleBox(tr.bbox, boxScale);
-      const [x,y,w,h] = b;
-
-      if (fillFragEl.checked){
-        const asset = assets.get(label);
-        drawFragmentIntoBox(asset, b, (tr.seed + idx*77) >>> 0);
+        vctx.fillStyle = `rgba(255,255,255,${0.9*overlayAlpha})`;
+        vctx.beginPath();
+        vctx.arc(x+w/2, y+h/2, Math.max(2, W/750), 0, Math.PI*2);
+        vctx.fill();
       }
 
-      ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},0.98)`;
-      ctx.strokeRect(x,y,w,h);
-
-      drawLabelTag(label, tr.cls, x, y);
-
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.beginPath();
-      ctx.arc(x+w/2, y+h/2, Math.max(2, out.width/750), 0, Math.PI*2);
-      ctx.fill();
+      countEl.textContent = "Boxes " + renderTracks.length;
     }
-
-    countEl.textContent = "Boxes " + renderTracks.length;
   }
 
-  // ====== main loop ======
-  let running = false;
   let lastT = performance.now();
   let emaFps = 0;
-
   async function tick(){
-    if (!running) return;
+    if(!runningDetect) return;
+
+    const now = performance.now();
+    if ((now - lastDetectAt) > 240){
+      lastDetectAt = now;
+      try{ await stepDetect(); }catch(e){}
+    }
+
+    const dt = (now - lastT) / 1000;
+    lastT = now;
+    const inst = dt>0 ? (1/dt) : 0;
+    emaFps = emaFps ? (emaFps*0.9 + inst*0.1) : inst;
+    fpsEl.textContent = "FPS " + emaFps.toFixed(1);
+
+    requestAnimationFrame(tick);
+  }
+
+  function renderLoop(){
+    if(view.classList.contains("show")){
+      drawCameraAndDetect();
+    }
+    requestAnimationFrame(renderLoop);
+  }
+  requestAnimationFrame(renderLoop);
+
+  let capturing=false;
+  async function captureCurrentView(){
+    if(capturing) return;
+    capturing = true;
     try{
-      if (!model) await loadModel();
-      if (srcV.readyState < 2){ requestAnimationFrame(tick); return; }
-      resize();
+      await ensureResumed(); startBgm();
 
-      const now = performance.now();
-      if ((now - lastDetectAt) > DETECT_INTERVAL_MS){
-        lastDetectAt = now;
-        await stepDetect();
+      setSleepPhotoStatus('Capturing...');
+      const c = captureRawCameraOnlyCanvas();
+      if(!c){
+        setSleepPhotoStatus('Capture error: camera not ready');
+        setTimeout(()=>setSleepPhotoStatus(''), 4000);
+        capturing=false;
+        return;
       }
-
-      render();
-
-      const dt = (now - lastT) / 1000;
-      lastT = now;
-      const inst = dt>0 ? (1/dt) : 0;
-      emaFps = emaFps ? (emaFps*0.9 + inst*0.1) : inst;
-      fpsEl.textContent = "FPS " + emaFps.toFixed(1);
-
-      requestAnimationFrame(tick);
+      await uploadSnapshotCanvas(c);
     }catch(e){
-      running = false;
-      statusEl.textContent = "오류";
-      log("ERROR: " + (e?.message || e));
-      console.error(e);
+      setSleepPhotoStatus('Capture error: ' + (e?.message || e));
+      setTimeout(()=>setSleepPhotoStatus(''), 6000);
+    }finally{
+      capturing = false;
     }
   }
 
-  // ====== UI ======
-  toggleUIBtn.onclick = ()=>{
-    ui.classList.toggle("hidden");
-    toggleUIBtn.textContent = ui.classList.contains("hidden") ? "☰ 메뉴" : "✕ 닫기";
-  };
+  captureBtn.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    await ensureResumed(); startBgm(); playTap();
+    captureCurrentView();
+  }, {passive:false});
 
-  fullscreenBtn.onclick = async ()=>{
+  flipBtn.addEventListener('click', async ()=>{
     try{
-      const el = document.documentElement;
-      if (!document.fullscreenElement) await el.requestFullscreen?.();
-      else await document.exitFullscreen?.();
-    }catch(e){ log("fullscreen error: " + (e?.message || e)); }
-  };
-
-  useCamBtn.onclick = async ()=>{
-    try{ await startCamera(); log("source: camera"); }catch(e){ log("camera error: " + (e?.message || e)); }
-  };
-
-  videoFileEl.onchange = async ()=>{
-    const file = videoFileEl.files?.[0];
-    if (!file) return;
-    try{ await useUploadedVideo(file); }catch(e){ log("upload video error: " + (e?.message || e)); }
-  };
-
-  flipBtn.onclick = async ()=>{
-    try{
+      await ensureResumed(); startBgm(); playTap();
       facingMode = (facingMode === "environment") ? "user" : "environment";
-      if (!usingUploadVideo) await startCamera();
-      log("flip: " + facingMode);
-    }catch(e){ log("flip error: " + (e?.message || e)); }
-  };
+      if(!usingUploadVideo){
+        await startCameraFresh();
+        fadeInCamera(500);
+      }
+    }catch(e){}
+  }, {passive:true});
 
-  restartBtn.onclick = ()=>{
-    if (!model) { log("not started"); return; }
-    running = false;
+  restartBtn.addEventListener('click', async ()=>{
+    await ensureResumed(); startBgm(); playTap();
     objectTracks = [];
     renderTracks = [];
-    ctx.clearRect(0,0,out.width,out.height);
-    running = true;
+    lastDetectAt = 0;
+  }, {passive:true});
+
+  useCamBtn.addEventListener('click', async ()=>{
+    try{
+      await ensureResumed(); startBgm(); playTap();
+      await startCameraFresh();
+      fadeInCamera(500);
+      objectTracks = [];
+      renderTracks = [];
+    }catch(e){}
+  }, {passive:true});
+
+  videoFileEl.addEventListener('change', async ()=>{
+    const file = videoFileEl.files?.[0];
+    if(!file) return;
+    try{
+      await ensureResumed(); startBgm(); playTap();
+      await useUploadedVideo(file);
+      fadeInCamera(500);
+      objectTracks = [];
+      renderTracks = [];
+    }catch(e){}
+  }, {passive:true});
+
+  let runningDetect = false;
+
+  async function endStageAndStartExperience(){
+    stage.classList.add("hidden");
+    await sleep(650);
+
+    controls.classList.add('show');
+    captureBtn.classList.add('show');
+
+    view.classList.add("show");
+    view.style.pointerEvents = "auto";
+
+    try{
+      await startCameraFresh();
+      fadeInCamera(1100);
+    }catch(e){}
+
+    try{
+      statusEl.textContent = "Loading";
+      await loadModel();
+      await loadAssets();
+      statusEl.textContent = "Camera";
+    }catch(e){}
+
+    runningDetect = true;
     lastT = performance.now();
     lastDetectAt = 0;
     tick();
-    log("restart");
-  };
-
-  boxScaleEl.oninput = ()=> boxScaleValEl.textContent = (+boxScaleEl.value).toFixed(2);
-  fineEl.oninput = ()=> fineVal.textContent = (+fineEl.value).toFixed(2);
-  confEl.oninput = ()=> confVal.textContent = (+confEl.value).toFixed(2);
-  recSecEl.oninput = ()=> recSecVal.textContent = recSecEl.value + "s";
-
-  preloadAssetsBtn.onclick = async ()=>{ await loadAssets(); };
-
-  // ====== recording: mp4 우선, 미지원이면 webm ======
-  let recorder=null, recChunks=[], recTimer=null;
-  function downloadBlob(blob, filename){
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 2000);
   }
 
-  function pickRecorderMime(){
-    const cand = [
-      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
-      "video/mp4;codecs=avc1.42E01E",
-      "video/mp4",
-      "video/webm;codecs=vp9",
-      "video/webm;codecs=vp8",
-      "video/webm"
-    ];
-    for (const m of cand){
-      if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
-    }
-    return "";
-  }
-
-  recStartBtn.onclick = ()=>{
-    if (!window.MediaRecorder){ log("MediaRecorder not supported"); return; }
-    try{
-      const s = out.captureStream(30);
-      recChunks = [];
-
-      const mime = pickRecorderMime();
-      if (!mime){ log("no supported recorder mime"); return; }
-
-      const isMp4 = mime.startsWith("video/mp4");
-      recorder = new MediaRecorder(s, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
-
-      recorder.ondataavailable = (e)=>{ if (e.data && e.data.size) recChunks.push(e.data); };
-      recorder.onstop = ()=>{
-        const blob = new Blob(recChunks, { type: recorder.mimeType || (isMp4 ? "video/mp4" : "video/webm") });
-        const ts = new Date().toISOString().replaceAll(":","-").replaceAll(".","-");
-        const ext = isMp4 ? "mp4" : "webm";
-        downloadBlob(blob, `BOX-DETECT-${ts}.${ext}`);
-        log("record saved (" + ext + ")");
-      };
-
-      recorder.start(250);
-
-      const sec = +recSecEl.value;
-      clearTimeout(recTimer);
-      recTimer = setTimeout(()=>{ try{ recorder?.stop(); }catch(e){} }, sec*1000);
-
-      log("recording... mime=" + mime);
-    }catch(e){
-      log("record error: " + (e?.message || e));
-    }
-  };
-
-  recStopBtn.onclick = ()=>{
-    try{
-      clearTimeout(recTimer);
-      if (recorder && recorder.state !== "inactive") recorder.stop();
-    }catch(e){ log("stop error: " + (e?.message || e)); }
-  };
-
-  async function doStart(){
-    try{
-      gate.style.display = "none";
-      statusEl.textContent = "준비";
-      await loadModel();
-      await loadAssets();
-      await startCamera();
-      running = true;
-      lastT = performance.now();
-      lastDetectAt = 0;
-      tick();
-      log("running");
-    }catch(e){
-      statusEl.textContent = "오류";
-      log("START ERROR: " + (e?.message || e));
-      gate.style.display = "";
-      console.error(e);
-    }
-  }
-
-  startBtn.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); doStart(); }, {passive:false});
-  startBtn.addEventListener("touchend", (e)=>{ e.preventDefault(); e.stopPropagation(); doStart(); }, {passive:false});
 })();
 </script>
 </body>
