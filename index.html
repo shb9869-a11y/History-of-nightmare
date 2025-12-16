@@ -27,15 +27,10 @@
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
 
-  /* ✅ palette */
-  --ink: #0a0a0a;
   --paper: #e7e2c9;
   --paper-dim: rgba(231,226,201,.72);
-  --line: rgba(231,226,201,.62);
-  --line-2: rgba(231,226,201,.26);
-  --accent-red: rgba(180,60,50,.75);
 
-  --fade: 2500ms; /* ✅ 요청: 2.5초 */
+  --fade: 2500ms; /* ✅ 2.5초 */
 }
 
 html,body{
@@ -169,51 +164,68 @@ body{
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:0;
   background:#000;
 }
 .scene.hidden{display:none;}
 
-#scenePerm{
-  cursor:pointer;
-}
-#matrix{
-  position:absolute; inset:0;
-  width:100%; height:100%;
-  display:block;
-}
-
-/* scene 2: typing only */
-#sceneTitle{
-  cursor:pointer;
-}
-#typeLineWrap{
-  position:absolute;
-  left:calc(var(--frame) + var(--safe-l));
-  right:calc(var(--frame) + var(--safe-r));
-  bottom:calc(var(--frame) + var(--safe-b));
-  padding:0;
-  z-index:10;
-  pointer-events:none;
-}
-#typeLine{
-  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", Times, serif;
-  font-size:clamp(15px, 2.8vmin, 22px);
-  letter-spacing:.08em;
-  color:rgba(231,226,201,.92);
-  text-shadow:0 0 14px rgba(0,0,0,.75);
-  min-height:1.4em;
-  white-space:pre-wrap;
-}
-
-/* fade helper */
 .overlayFadeOut{
   opacity:0;
   transition:opacity var(--fade) ease;
 }
 
+/* ✅ Scene 1: STATIC HORIZONTAL BINARY (no effects) */
+#scenePerm{ cursor:pointer; }
+#binaryFill{
+  position:absolute; inset:0;
+  padding:0;
+  margin:0;
+  white-space:pre;
+  overflow:hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: clamp(12px, 2.1vmin, 18px);
+  line-height: 1.15;
+  letter-spacing: .18em;
+  color: rgba(231,226,201,.28);
+}
+
+/* ✅ Scene 2: full text area (fills frame, scrollable) */
+#sceneTitle{ cursor:pointer; }
+#textPane{
+  position:absolute;
+  left:calc(var(--frame) + var(--safe-l));
+  right:calc(var(--frame) + var(--safe-r));
+  top:calc(var(--frame) + var(--safe-t));
+  bottom:calc(var(--frame) + var(--safe-b));
+  padding: clamp(14px, 2.6vmin, 26px);
+  overflow:auto;
+  -webkit-overflow-scrolling: touch;
+
+  background: rgba(0,0,0,.06);
+}
+
+#typedText{
+  white-space:pre-wrap;
+  word-break:break-word;
+  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino,
+               "Times New Roman", Times, serif;
+  font-size: clamp(13px, 2.0vmin, 17px);
+  line-height: 1.55;
+  letter-spacing: .02em;
+  color: rgba(231,226,201,.92);
+  text-shadow: 0 0 14px rgba(0,0,0,.68);
+}
+
+/* subtle section headings */
+#typedText .h{
+  display:block;
+  margin-top: 18px;
+  margin-bottom: 8px;
+  letter-spacing:.12em;
+  color: rgba(231,226,201,.78);
+}
+
 /* =========================
-   ✅ BOX DETECT UI - right vertical panel
+   ✅ BOX DETECT UI
    ========================= */
 #toggleUI{
   position:fixed;
@@ -288,7 +300,7 @@ body{
 }
 #ui button:active{transform:translateY(1px);}
 
-/* ✅ 시스템 상태: 좌측 상단 작게(항상) */
+/* ✅ 시스템 상태: 좌측 상단 작게 */
 #log{
   position:fixed;
   left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
@@ -311,10 +323,7 @@ body{
 </head>
 
 <body>
-  <!-- dreamy background -->
   <canvas id="bg"></canvas>
-
-  <!-- main output -->
   <canvas id="view"></canvas>
   <canvas id="freezeLayer"></canvas>
 
@@ -358,6 +367,7 @@ body{
 
     <div class="pill">
       <b>BOX</b>
+      <!-- ✅ 시작 0.40 -->
       <input id="boxScale" type="range" min="0.35" max="1.20" step="0.01" value="0.40">
       <span id="boxScaleVal">0.40</span>
     </div>
@@ -384,25 +394,25 @@ body{
     </div>
 
     <div class="pill" style="grid-template-columns: 1fr; gap:6px;">
-      <span id="status"> </span>
-      <span id="fps"> </span>
-      <span id="count"> </span>
+      <span id="status"></span>
+      <span id="fps"></span>
+      <span id="count"></span>
     </div>
   </div>
 
-  <div id="log"> </div>
+  <div id="log"></div>
 
   <!-- ✅ overlay stack -->
   <div id="overlayStack">
-    <!-- scene 1: matrix only -->
+    <!-- scene 1: static binary fill -->
     <div id="scenePerm" class="scene">
-      <canvas id="matrix"></canvas>
+      <pre id="binaryFill"></pre>
     </div>
 
-    <!-- scene 2: typing line only -->
+    <!-- scene 2: typing full text -->
     <div id="sceneTitle" class="scene hidden">
-      <div id="typeLineWrap">
-        <div id="typeLine"></div>
+      <div id="textPane">
+        <div id="typedText"></div>
       </div>
     </div>
   </div>
@@ -410,15 +420,49 @@ body{
 <script>
 (() => {
   /* =========================
-     ✅ 업로드 서버 설정
+     ✅ 서버 / 타이밍
      ========================= */
   const SLEEP_UPLOAD_SERVER = 'https://172.16.14.60:4443';
   const UPLOAD_TIMEOUT_MS = 12000;
   const UPLOAD_RETRY = 1;
 
-  const FADE_MS = 2500; // ✅ 요청: 2.5초
-  const TYPE_LINE = "탭하면 카메라가 시작되고, 박스가 화면에 떠오릅니다."; // ✅ 여기만 문구 바꾸면 됨
-  const TYPE_SPEED_MS = 48; // 타이핑 속도
+  const FADE_MS = 2500;          // ✅ 2.5초
+  const TYPE_SPEED_MS = 10;      // ✅ 긴 텍스트라 조금 빠르게(원하면 18~30으로 느리게)
+
+  // ✅ 네가 준 “꽉 채울 텍스트”
+  const FULL_TEXT =
+`From Emptiness (空) to Togetherness (共)
+A Cooking–Memory–Spatial Experiment in Reconstructing Empathy
+
+Empathy originally refers to the ability to feel with others (共感).
+In contemporary relational structures, however, this sense of togetherness has weakened,
+shifting toward emptiness, disconnection, and absence (空).
+
+This project begins at that point of rupture and explores whether emotions emptied of togetherness
+can be reconstructed through cooking—the oldest bodily gesture of care.
+
+Can the oldest gesture of care—cooking—restore emotions that have become empty of togetherness?
+
+BACKGROUND
+In contemporary society, empathy is often reduced to superficial reactions within accelerated communication.
+
+Emotional connection weakens, leaving growing gaps between individuals.
+
+This project treats that gap not as failure,
+but as a starting point for reconstructionㅁ
+
+PROJECT OVERVIEW
+This performance-installation involves two artists who build an archive through remote workshops—recipes, memories, writing, and cooking videos—then translate it on-site into a miniature world (cooking table) and a live performance that shares shifting states of empathy (共感) with the audience.
+
+The focus is not cooking itself, but the gesture—the subtle bodily vibration that emerges while following unfamiliar recipes, moving from estrangement to understanding and empathy.
+
+WHY COOKING / WHY RECIPE
+
+Cooking is both survival and a time-intensive gesture of care.
+Recipes inherited from parents often embed personal emotional memory—nostalgia, longing, loss, attachment.
+This project treats recipes as both an emotional document and a performance score,
+
+testing how empathy can be reconstructed through exchanging, transforming, performing, and archiving them.`;
 
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const qs = s => document.querySelector(s);
@@ -429,7 +473,7 @@ body{
   document.addEventListener('selectstart', e=>e.preventDefault());
 
   /* =========================
-     subtle click sfx
+     click sfx
      ========================= */
   let audioCtx = null;
   function ensureAudio(){
@@ -467,7 +511,8 @@ body{
   const sceneTitle = qs('#sceneTitle');
   const overlayStack = qs('#overlayStack');
 
-  const typeLineEl = qs('#typeLine');
+  const binaryFill = qs('#binaryFill');
+  const typedTextEl = qs('#typedText');
 
   const controls = qs('#controls');
   const zoomIn = qs('#zoomIn');
@@ -509,13 +554,8 @@ body{
   const fpsEl = qs('#fps');
   const countEl = qs('#count');
 
-  function log(msg){
-    logEl.textContent = String(msg ?? '');
-  }
+  function log(msg){ logEl.textContent = String(msg ?? ''); }
 
-  /* =========================
-     ✅ MENU
-     ========================= */
   toggleUIBtn.addEventListener('click', ()=>{
     const hidden = ui.classList.toggle('hidden');
     toggleUIBtn.textContent = hidden ? 'MENU' : 'CLOSE';
@@ -523,10 +563,36 @@ body{
   }, {passive:true});
 
   /* =========================
-     ✅ Background: points & lines (dream)
+     ✅ Scene1 binary fill (static, no effects)
+     ========================= */
+  function buildBinaryLine(chars){
+    // "01001010" 반복 (가로로)
+    const unit = "01001010";
+    let s = "";
+    while(s.length < chars) s += unit;
+    return s.slice(0, chars);
+  }
+  function buildBinaryScreen(){
+    const fs = parseFloat(getComputedStyle(binaryFill).fontSize) || 16;
+    const lh = (parseFloat(getComputedStyle(binaryFill).lineHeight) || (fs*1.15));
+    const cols = Math.ceil(innerWidth / (fs * 0.62));   // 대략 monospace 폭
+    const rows = Math.ceil(innerHeight / lh) + 2;
+
+    const line = buildBinaryLine(cols);
+    let out = "";
+    for(let r=0;r<rows;r++){
+      out += line + "\n";
+    }
+    binaryFill.textContent = out;
+  }
+  window.addEventListener('resize', buildBinaryScreen, {passive:true});
+  window.addEventListener('orientationchange', buildBinaryScreen, {passive:true});
+  buildBinaryScreen();
+
+  /* =========================
+     ✅ Background: dreamy points
      ========================= */
   const bctx = bg.getContext('2d', { alpha:false });
-
   const bgState = { pts: [], t0: performance.now(), swirl: 0, pulse: 0 };
 
   function resizeCanvas(c){
@@ -590,11 +656,8 @@ body{
       p.vx += 0.03*Math.sin(t*0.9 + p.k) * 0.02;
       p.vy += 0.03*Math.cos(t*0.8 + p.k) * 0.02;
 
-      p.vx *= 0.985;
-      p.vy *= 0.985;
-
-      p.x += p.vx;
-      p.y += p.vy;
+      p.vx *= 0.985; p.vy *= 0.985;
+      p.x += p.vx; p.y += p.vy;
 
       if(p.x < -20) p.x = W+20;
       if(p.x > W+20) p.x = -20;
@@ -643,78 +706,7 @@ body{
   requestAnimationFrame(bgLoop);
 
   /* =========================
-     ✅ Matrix 0/1 rain
-     ========================= */
-  const matrixCanvas = qs('#matrix');
-  const mctx = matrixCanvas.getContext('2d', { alpha:false });
-
-  const mState = {
-    cols: [],
-    fontSize: 16,
-    dpr: window.devicePixelRatio || 1,
-    last: performance.now()
-  };
-
-  function resizeMatrix(){
-    const dpr = window.devicePixelRatio || 1;
-    mState.dpr = dpr;
-    matrixCanvas.width = Math.round(innerWidth * dpr);
-    matrixCanvas.height = Math.round(innerHeight * dpr);
-    mctx.setTransform(dpr,0,0,dpr,0,0);
-
-    mState.fontSize = clamp(Math.round(innerWidth/52), 14, 22);
-    const cols = Math.ceil(innerWidth / (mState.fontSize * 0.78));
-    mState.cols = [];
-    for(let i=0;i<cols;i++){
-      mState.cols.push({
-        x: i * (mState.fontSize * 0.78),
-        y: Math.random() * innerHeight,
-        v: 40 + Math.random()*140,
-        phase: Math.random()*999
-      });
-    }
-  }
-  resizeMatrix();
-  window.addEventListener('resize', resizeMatrix, {passive:true});
-  window.addEventListener('orientationchange', resizeMatrix, {passive:true});
-
-  function matrixLoop(){
-    const W = innerWidth, H = innerHeight;
-    const now = performance.now();
-    const dt = (now - mState.last) / 1000;
-    mState.last = now;
-
-    // fade trail
-    mctx.fillStyle = 'rgba(0,0,0,0.20)';
-    mctx.fillRect(0,0,W,H);
-
-    mctx.font = `${mState.fontSize}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
-    mctx.textBaseline = 'top';
-
-    for(const c of mState.cols){
-      c.y += c.v * dt;
-      if(c.y > H + 40) c.y = -Math.random()*200;
-
-      // draw a short vertical stack
-      const stack = 10;
-      for(let k=0;k<stack;k++){
-        const yy = c.y - k*(mState.fontSize*1.15);
-        if(yy < -40 || yy > H+40) continue;
-        const bit = ((Math.sin((c.phase + yy*0.02) * 2.1) > 0) ? '1' : '0');
-
-        // warm paper-ish matrix (not green), but still "matrix" feel
-        const a = clamp(0.08 + (k===0 ? 0.35 : 0.18) - k*0.012, 0.03, 0.38);
-        mctx.fillStyle = `rgba(231,226,201,${a.toFixed(3)})`;
-        mctx.fillText(bit, c.x, yy);
-      }
-    }
-
-    requestAnimationFrame(matrixLoop);
-  }
-  requestAnimationFrame(matrixLoop);
-
-  /* =========================
-     캔버스/카메라
+     카메라/검출
      ========================= */
   const vctx = view.getContext('2d', { alpha:false });
 
@@ -842,7 +834,6 @@ body{
     if (/aborted/i.test(msg)) return "timeout";
     return msg;
   }
-
   async function canvasToJpegBlobResized(srcCanvas, maxLongSide=1600, quality=0.85){
     const w = srcCanvas.width;
     const h = srcCanvas.height;
@@ -869,10 +860,8 @@ body{
     const blob = await new Promise((resolve) => {
       target.toBlob((b)=>resolve(b), "image/jpeg", quality);
     });
-
     return blob;
   }
-
   async function fetchWithTimeout(url, options={}, timeoutMs=UPLOAD_TIMEOUT_MS){
     const controller = new AbortController();
     const id = setTimeout(()=>controller.abort(new Error("aborted")), timeoutMs);
@@ -883,7 +872,6 @@ body{
       clearTimeout(id);
     }
   }
-
   async function uploadBlob(blob){
     const formData = new FormData();
     formData.append("image", blob, `sleep_capture_${Date.now()}.jpg`);
@@ -897,31 +885,18 @@ body{
     }
     return res;
   }
-
   async function uploadSnapshotCanvas(canvas){
     try{
       setSleepPhotoStatus('Uploading...');
       const blob = await canvasToJpegBlobResized(canvas, 1600, 0.85);
-      if(!blob){
-        setSleepPhotoStatus('Upload error');
-        return;
-      }
+      if(!blob){ setSleepPhotoStatus('Upload error'); return; }
 
       const res = await uploadBlob(blob);
-
       if(!res.ok){
         const txt = await res.text().catch(()=> "");
         setSleepPhotoStatus(`Upload failed: ${res.status}${txt ? " / " + txt.slice(0,80) : ""}`);
         return;
       }
-
-      const ct = res.headers.get("content-type") || "";
-      if (ct.includes("application/json")){
-        await res.json().catch(()=>({}));
-      } else {
-        await res.text().catch(()=> "");
-      }
-
       setSleepPhotoStatus('Uploaded');
       setTimeout(()=>setSleepPhotoStatus(''), 2600);
     }catch(err){
@@ -1023,7 +998,6 @@ body{
     }
     return links;
   }
-  function fract(x){ return x - Math.floor(x); }
   function scaleBox(bbox, s){
     const [x,y,w,h]=bbox;
     const cx = x + w/2, cy = y + h/2;
@@ -1037,14 +1011,14 @@ body{
     if (w < 8 || h < 8) return;
 
     const t = performance.now() * 0.001;
-    const r1 = fract(Math.sin(seed*12.9898 + t*1.3) * 43758.5453);
-    const r2 = fract(Math.sin(seed*78.233  + t*0.9) * 12345.6789);
-    const r3 = fract(Math.sin(seed*41.77   + t*1.7) * 98765.4321);
+    const r1 = (Math.sin(seed*12.9898 + t*1.3) * 43758.5453) % 1;
+    const r2 = (Math.sin(seed*78.233  + t*0.9) * 12345.6789) % 1;
+    const r3 = (Math.sin(seed*41.77   + t*1.7) * 98765.4321) % 1;
 
     vctx.save();
     vctx.beginPath(); vctx.rect(x,y,w,h); vctx.clip();
 
-    const scale = 1.05 + r1 * 1.25;
+    const scale = 1.05 + Math.abs(r1) * 1.25;
     const ox = (r2 - 0.5) * w * 0.35;
     const oy = (r3 - 0.5) * h * 0.35;
 
@@ -1061,8 +1035,8 @@ body{
     vctx.drawImage(el, dx, dy, dw, dh);
 
     vctx.globalAlpha = 0.32 * alphaMul;
-    const dw2 = w * (0.85 + r2*0.5);
-    const dh2 = h * (0.85 + r3*0.5);
+    const dw2 = w * (0.85 + Math.abs(r2)*0.5);
+    const dh2 = h * (0.85 + Math.abs(r3)*0.5);
     const dx2 = x + (w - dw2)/2 - ox*0.25;
     const dy2 = y + (h - dh2)/2 - oy*0.25;
     vctx.drawImage(el, dx2, dy2, dw2, dh2);
@@ -1101,11 +1075,9 @@ body{
 
   function ensureDistinctLabelsForTopN(objs, nowMs){
     const holdMs = (+holdSecEl.value) * 1000;
-
     for (const o of objs){
       if (!o.label || nowMs > o.labelUntil) o.label = null;
     }
-
     const used = new Set(objs.filter(o=>o.label).map(o=>o.label));
     for (let i=0;i<objs.length;i++){
       const o = objs[i];
@@ -1141,7 +1113,6 @@ body{
 
     holdValEl.textContent = (+holdSecEl.value).toFixed(1) + "s";
 
-    // ✅ boxScale 시작값 0.40 유지
     const bs = clamp(+boxScaleEl.value, 0.35, 1.20);
     boxScaleValEl.textContent = bs.toFixed(2);
 
@@ -1195,11 +1166,6 @@ body{
     objectTracks.sort((a,b)=>b.score-a.score);
     renderTracks = objectTracks.slice(0, wantN);
     ensureDistinctLabelsForTopN(renderTracks, nowMs);
-
-    // ✅ 큰 안내 문구는 안 띄움(필요 시 log에만)
-    if(usingUploadVideo){
-      // no-op
-    }
   }
 
   function mapVideoBoxToScreen(bbox, T){
@@ -1222,19 +1188,18 @@ body{
 
     const T = getCameraDrawTransform();
     if(showCamera && T){
-      // camera
       vctx.save();
       vctx.globalAlpha = camFadeAlpha;
       vctx.drawImage(camVideo, T.dx, T.dy, T.dw, T.dh);
       vctx.restore();
 
-      const alphaMul = camFadeAlpha; // ✅ 박스/라인/라벨도 같이 페이드인
+      const alphaMul = camFadeAlpha;
       const boxScale = clamp(+boxScaleEl.value, 0.35, 1.20);
 
       if (linksEl.checked && renderTracks.length >= 2){
         const screenBoxes = renderTracks.map(tr => mapVideoBoxToScreen(tr.bbox, T));
         const scaledBoxes = screenBoxes.map(b => scaleBox(b, boxScale));
-        const pts = scaledBoxes.map(b => center(b));
+        const pts = scaledBoxes.map(b => ({x:b[0]+b[2]/2, y:b[1]+b[3]/2}));
         const links = makeLinks(pts, 2);
 
         for (const [i,j,dd] of links){
@@ -1244,7 +1209,6 @@ body{
           const alpha = clamp((0.62*(1-norm) + 0.10), 0.05, 0.85) * alphaMul;
 
           vctx.save();
-          vctx.setLineDash([]);
           vctx.strokeStyle = `rgba(231,226,201,${alpha.toFixed(3)})`;
           vctx.lineWidth = Math.max(1.1, W/1150);
           vctx.beginPath();
@@ -1301,9 +1265,7 @@ body{
     const inst = dt>0 ? (1/dt) : 0;
     emaFps = emaFps ? (emaFps*0.9 + inst*0.1) : inst;
 
-    // ✅ log에만 아주 작게 상태 표시
     log(`FPS ${emaFps.toFixed(1)}   |   Boxes ${renderTracks.length}`);
-
     requestAnimationFrame(tick);
   }
 
@@ -1314,7 +1276,7 @@ body{
   requestAnimationFrame(renderLoop);
 
   /* =========================
-     CAPTURE → 업로드
+     CAPTURE
      ========================= */
   let capturing=false;
   async function captureCurrentView(){
@@ -1351,7 +1313,7 @@ body{
   }, {passive:false});
 
   /* =========================
-     UI 동작
+     UI
      ========================= */
   flipBtn.addEventListener('click', async ()=>{
     try{
@@ -1400,15 +1362,13 @@ body{
   }, {passive:true});
 
   /* =========================
-     ✅ New flow
-     1) Scene1(매트릭스) 탭 → (권한요청+워밍업) + 오버레이 페이드아웃(2.5s) → Scene2로 전환
-     2) Scene2(타이핑) 시작 → 아래 글자 타이핑
-     3) Scene2 탭 → 오버레이 페이드아웃(2.5s) + 카메라/박스 페이드인(2.5s) + 디텍트 시작
+     ✅ Flow
      ========================= */
   let warmed = false;
   let typing = false;
+  let typingDone = false;
 
-  // ✅ 시작 박스 스케일 0.40 고정 스타트
+  // ✅ 시작 boxScale 0.40 고정
   boxScaleEl.value = "0.40";
   boxScaleValEl.textContent = "0.40";
 
@@ -1416,7 +1376,6 @@ body{
     if (warmed) return;
     warmed = true;
     try{
-      // 조용히 로드(큰 안내 없음)
       await loadModel();
       await loadAssets();
     }catch(e){
@@ -1438,29 +1397,38 @@ body{
   }
 
   function fadeToTitle(){
-    // Scene1 -> Scene2 전환 자체는 즉시, 대신 overlayStack 자체를 2.5초로 한번 숨겼다가 다시 보이게
     overlayStack.classList.add('overlayFadeOut');
     setTimeout(()=>{
       scenePerm.classList.add('hidden');
       sceneTitle.classList.remove('hidden');
       overlayStack.classList.remove('overlayFadeOut');
-      startTypingLine();
+      startTypingFullText();
     }, Math.round(FADE_MS));
   }
 
-  function startTypingLine(){
+  function startTypingFullText(){
     if(typing) return;
     typing = true;
-    typeLineEl.textContent = "";
+    typingDone = false;
+    typedTextEl.textContent = "";
+
+    // (긴 텍스트) 속도/부하 줄이기 위해 chunk 단위로 타이핑
+    const s = FULL_TEXT;
     let i = 0;
-    const s = TYPE_LINE;
-    const timer = setInterval(()=>{
-      i++;
-      typeLineEl.textContent = s.slice(0,i);
-      if(i >= s.length){
-        clearInterval(timer);
+
+    const step = () => {
+      // 프레임당 여러 글자 찍어서 “한 글자씩” 느낌은 유지하면서 너무 오래 안 걸리게
+      const chunk = 3;
+      i = Math.min(s.length, i + chunk);
+      typedTextEl.textContent = s.slice(0, i);
+
+      if(i < s.length){
+        setTimeout(step, TYPE_SPEED_MS);
+      } else {
+        typingDone = true;
       }
-    }, TYPE_SPEED_MS);
+    };
+    step();
   }
 
   async function onPermTap(e){
@@ -1468,8 +1436,7 @@ body{
     await ensureResumed();
     playClick();
 
-    // 권한 요청 + 워밍업 (권한 거절해도 다음 씬은 진행)
-    await requestCameraPermission();
+    await requestCameraPermission(); // 거절해도 진행
     await warmUp();
 
     fadeToTitle();
@@ -1487,7 +1454,6 @@ body{
     await ensureResumed();
     playClick();
 
-    // 오버레이 페이드아웃(2.5s) + 카메라 페이드인(2.5s)
     fadeOutOverlay();
 
     try{
@@ -1506,12 +1472,10 @@ body{
     tick();
   }
 
-  // Scene 1 tap
   ['click','touchstart','pointerdown'].forEach(type=>{
     scenePerm.addEventListener(type, onPermTap, {passive:false});
   });
 
-  // Scene 2 tap
   ['click','touchstart','pointerdown'].forEach(type=>{
     sceneTitle.addEventListener(type, enterProgram, {passive:false});
   });
