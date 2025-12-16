@@ -107,10 +107,18 @@
 <button id="toggleUI">☰ 메뉴</button>
 
 <div id="ui">
+  <!-- ✅ COARSE(덩어리 감도): 기존 conf를 그대로 사용 -->
   <div class="pill">
-    <b>감도</b>
-    <input id="conf" type="range" min="0.01" max="0.80" step="0.01" value="0.12">
+    <b>COARSE</b>
+    <input id="conf" type="range" min="0.01" max="0.95" step="0.01" value="0.12">
     <span id="confVal">0.12</span>
+  </div>
+
+  <!-- ✅ FINE(미세 감도): 최소 박스 면적 필터 -->
+  <div class="pill">
+    <b>FINE</b>
+    <input id="fine" type="range" min="0.00" max="1.00" step="0.01" value="0.40">
+    <span id="fineVal">0.40</span>
   </div>
 
   <div class="pill">
@@ -125,10 +133,10 @@
     <span id="holdVal">3.0s</span>
   </div>
 
-  <!-- ✅ 추가: 박스 스케일(그려지는 크기만 줄임) -->
+  <!-- ✅ BOX 범위 확장: 0.35~1.20 -->
   <div class="pill">
     <b>BOX</b>
-    <input id="boxScale" type="range" min="0.60" max="1.00" step="0.01" value="0.88">
+    <input id="boxScale" type="range" min="0.35" max="1.20" step="0.01" value="0.88">
     <span id="boxScaleVal">0.88</span>
   </div>
 
@@ -182,7 +190,7 @@
     <h1>OBJECT BOXES + RELATION AESTHETICS</h1>
     <p>
       실제 물체를 “있는 크기 그대로” 잡고, 최소 3개 이상 포착 + 라벨 3종 이상(중복 금지) 유지.<br>
-      BOX 슬라이더로 “그려지는 박스 크기만” 줄일 수 있음(탐지 자체는 유지).
+      COARSE(덩어리/점수) + FINE(미세/최소면적)로 “탐지 성격”을 조절하고, BOX로 “표현 크기”를 조절.
     </p>
     <div class="row">
       <button id="start">시작</button>
@@ -202,6 +210,10 @@
 
   const confEl = document.getElementById("conf");
   const confVal = document.getElementById("confVal");
+
+  const fineEl = document.getElementById("fine");
+  const fineVal = document.getElementById("fineVal");
+
   const topNEl = document.getElementById("topN");
   const topNVal = document.getElementById("topNVal");
   const holdSecEl = document.getElementById("holdSec");
@@ -402,7 +414,7 @@
   }
   function fract(x){ return x - Math.floor(x); }
 
-  // ✅ “그려지는 박스만” 축소
+  // ✅ “그려지는 박스만” 축소/확대
   function scaleBox(bbox, s){
     const [x,y,w,h]=bbox;
     const cx = x + w/2, cy = y + h/2;
@@ -537,9 +549,24 @@
   const DETECT_INTERVAL_MS = 240;
   let lastDetectAt = 0;
 
+  // ✅ FINE -> 최소 박스 면적(화면 대비 비율)로 변환
+  // fine=1.0 : 아주 작은 것까지 허용(최소면적 매우 작음)
+  // fine=0.0 : 작은 것은 걸러지고 큰 것 위주(최소면적 큼)
+  function computeMinAreaFromFine(fine){
+    const W = out.width || innerWidth;
+    const H = out.height || innerHeight;
+    const base = W * H;
+    const minRatio = 0.0015; // fine=1일 때 최소 면적 비율
+    const maxRatio = 0.12;   // fine=0일 때 최소 면적 비율
+    const r = minRatio + (1 - fine) * (maxRatio - minRatio);
+    return base * r;
+  }
+
   async function stepDetect(){
-    const conf = +confEl.value;
-    confVal.textContent = conf.toFixed(2);
+    const coarse = +confEl.value;     // ✅ COARSE(덩어리)
+    const fine = +fineEl.value;       // ✅ FINE(미세)
+    confVal.textContent = coarse.toFixed(2);
+    fineVal.textContent = fine.toFixed(2);
 
     let wantN = +topNEl.value;
     wantN = clamp(wantN, 3, 8);
@@ -548,10 +575,18 @@
     holdValEl.textContent = (+holdSecEl.value).toFixed(1) + "s";
     boxScaleValEl.textContent = (+boxScaleEl.value).toFixed(2);
 
-    let preds = await model.detect(srcV);
-    preds = preds.filter(p => p.score >= conf).sort((a,b) => b.score - a.score);
+    const minArea = computeMinAreaFromFine(fine);
 
-    const candidates = preds.slice(0, 10);
+    let preds = await model.detect(srcV);
+
+    // ✅ COARSE + FINE 동시 적용:
+    // - COARSE: score 기준
+    // - FINE: bbox 면적 기준
+    preds = preds
+      .filter(p => (p.score >= coarse) && ((p.bbox[2]*p.bbox[3]) >= minArea))
+      .sort((a,b) => b.score - a.score);
+
+    const candidates = preds.slice(0, 12);
     const nowMs = performance.now();
 
     const used = new Set();
@@ -609,9 +644,9 @@
   function render(){
     ctx.clearRect(0,0,out.width,out.height);
 
-    const boxScale = clamp(+boxScaleEl.value, 0.60, 1.00);
+    // ✅ BOX 범위 확장 반영
+    const boxScale = clamp(+boxScaleEl.value, 0.35, 1.20);
 
-    // 링크(스케일된 박스 중심 기준)
     if (linksEl.checked && renderTracks.length >= 2){
       const scaledBoxes = renderTracks.map(t => scaleBox(t.bbox, boxScale));
       const pts = scaledBoxes.map(b => center(b));
@@ -661,7 +696,6 @@
       }
     }
 
-    // 박스 + 파편 + 라벨 (스케일 적용)
     ctx.lineWidth = Math.max(2, out.width/900);
 
     for (let idx=0; idx<renderTracks.length; idx++){
@@ -747,7 +781,7 @@
   videoFileEl.onchange = async ()=>{
     const file = videoFileEl.files?.[0];
     if (!file) return;
-    try{ await useUploadedVideo(file); log("source: upload video"); }catch(e){ log("upload video error: " + (e?.message || e)); }
+    try{ await useUploadedVideo(file); }catch(e){ log("upload video error: " + (e?.message || e)); }
   };
 
   flipBtn.onclick = async ()=>{
@@ -772,6 +806,8 @@
   };
 
   boxScaleEl.oninput = ()=> boxScaleValEl.textContent = (+boxScaleEl.value).toFixed(2);
+  fineEl.oninput = ()=> fineVal.textContent = (+fineEl.value).toFixed(2);
+  confEl.oninput = ()=> confVal.textContent = (+confEl.value).toFixed(2);
   recSecEl.oninput = ()=> recSecVal.textContent = recSecEl.value + "s";
 
   preloadAssetsBtn.onclick = async ()=>{ await loadAssets(); };
