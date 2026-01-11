@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,interactive-widget=resizes-content">
-<title>From Emptiness (空) to Togetherness (共)</title>
+<title>LIMEN</title>
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,7 +18,7 @@
 :root{
   --frame: clamp(16px, 4vmin, 40px);
   --ui-gap: 8px;
-  --fs-strong: clamp(14px, 2.8vmin, 18px);
+  --fs-strong: clamp(14px, 2.6vmin, 18px);
   --fs-small: clamp(11px, 1.8vmin, 13px);
   --pad-btn-y: clamp(8px, 1.1vmin, 12px);
   --pad-btn-x: clamp(12px, 1.8vmin, 20px);
@@ -27,10 +27,7 @@
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
 
-  --paper: #e7e2c9;
-  --paper-dim: rgba(231,226,201,.72);
-
-  --fade: 2500ms; /* ✅ 2.5초 */
+  --fade: 2500ms;
 }
 
 html,body{
@@ -39,11 +36,14 @@ html,body{
   touch-action:manipulation;
 }
 body{
-  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino,
-               "Times New Roman", Times, serif;
+  font-family: -apple-system, BlinkMacSystemFont,
+               "SF Pro Display", "SF Pro Text",
+               "Apple SD Gothic Neo", "Noto Sans",
+               "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 300;
   -webkit-user-select:none; user-select:none;
   -webkit-touch-callout:none;
-  color:var(--paper);
+  color:#fff;
 }
 *{
   box-sizing:border-box;
@@ -80,19 +80,20 @@ body{
   top:calc(var(--frame) + var(--safe-t));
   right:calc(var(--frame) + var(--safe-r));
   bottom:calc(var(--frame) + var(--safe-b));
-  border:1.5px solid rgba(231,226,201,.68);
+  border:1.5px solid rgba(255,255,255,.62);
   pointer-events:none;
   z-index:50;
 }
 
-/* capture / status */
+/* bottom controls */
 .uiBtn{
   background:transparent;
-  color:var(--paper);
+  color:#fff;
   border:none;
   font-size:var(--fs-strong);
   padding:var(--pad-btn-y) var(--pad-btn-x);
   font-family: inherit;
+  font-weight: 300;
   letter-spacing: .10em;
   white-space:nowrap;
   cursor:pointer;
@@ -122,8 +123,9 @@ body{
   text-align:center;
   opacity:.85;
   font-size:var(--fs-small);
-  color:var(--paper);
+  color:#fff;
   font-family: inherit;
+  font-weight: 300;
 }
 
 .btn-capture{
@@ -142,90 +144,15 @@ body{
   bottom:calc(var(--frame) + var(--ui-gap) + var(--safe-b) + 34px);
   z-index:451;
   font-size:var(--fs-small);
-  color:var(--paper-dim);
+  font-weight: 300;
+  color:rgba(255,255,255,.65);
   text-shadow:0 0 6px rgba(0,0,0,0.7);
   max-width:min(76vw, 720px);
-  letter-spacing:.08em;
+  letter-spacing:.04em;
 }
 
 /* =========================
-   ✅ Overlays
-   ========================= */
-#overlayStack{
-  position:fixed; inset:0;
-  z-index:300;
-  display:block;
-  pointer-events:auto;
-  background:#000;
-}
-
-.scene{
-  position:absolute; inset:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background:#000;
-}
-.scene.hidden{display:none;}
-
-.overlayFadeOut{
-  opacity:0;
-  transition:opacity var(--fade) ease;
-}
-
-/* ✅ Scene 1: STATIC HORIZONTAL BINARY (no effects) */
-#scenePerm{ cursor:pointer; }
-#binaryFill{
-  position:absolute; inset:0;
-  padding:0;
-  margin:0;
-  white-space:pre;
-  overflow:hidden;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: clamp(12px, 2.1vmin, 18px);
-  line-height: 1.15;
-  letter-spacing: .18em;
-  color: rgba(231,226,201,.28);
-}
-
-/* ✅ Scene 2: full text area (fills frame, scrollable) */
-#sceneTitle{ cursor:pointer; }
-#textPane{
-  position:absolute;
-  left:calc(var(--frame) + var(--safe-l));
-  right:calc(var(--frame) + var(--safe-r));
-  top:calc(var(--frame) + var(--safe-t));
-  bottom:calc(var(--frame) + var(--safe-b));
-  padding: clamp(14px, 2.6vmin, 26px);
-  overflow:auto;
-  -webkit-overflow-scrolling: touch;
-
-  background: rgba(0,0,0,.06);
-}
-
-#typedText{
-  white-space:pre-wrap;
-  word-break:break-word;
-  font-family: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino,
-               "Times New Roman", Times, serif;
-  font-size: clamp(13px, 2.0vmin, 17px);
-  line-height: 1.55;
-  letter-spacing: .02em;
-  color: rgba(231,226,201,.92);
-  text-shadow: 0 0 14px rgba(0,0,0,.68);
-}
-
-/* subtle section headings */
-#typedText .h{
-  display:block;
-  margin-top: 18px;
-  margin-bottom: 8px;
-  letter-spacing:.12em;
-  color: rgba(231,226,201,.78);
-}
-
-/* =========================
-   ✅ BOX DETECT UI
+   ✅ BOX DETECT UI (kept)
    ========================= */
 #toggleUI{
   position:fixed;
@@ -235,9 +162,10 @@ body{
   background:transparent;
   border:none;
   padding:0;
-  color:var(--paper);
+  color:#fff;
   letter-spacing:.16em;
   font-family: inherit;
+  font-weight: 300;
   opacity:.85;
   cursor:pointer;
 }
@@ -254,7 +182,7 @@ body{
   overflow:auto;
 
   background:rgba(0,0,0,.38);
-  border:1px solid rgba(231,226,201,.12);
+  border:1px solid rgba(255,255,255,.12);
   border-radius:18px;
   padding:12px;
   backdrop-filter: blur(10px);
@@ -265,7 +193,8 @@ body{
   pointer-events:auto;
   transition:.2s;
 
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: inherit;
+  font-weight: 300;
 }
 #ui.hidden{opacity:0; pointer-events:none; transform:translateY(-10px);}
 
@@ -275,12 +204,16 @@ body{
   gap:10px;
   align-items:center;
   background:rgba(255,255,255,.045);
-  border:1px solid rgba(231,226,201,.10);
+  border:1px solid rgba(255,255,255,.10);
   border-radius:16px;
   padding:10px 12px;
-  color:#ddd;
+  color:rgba(255,255,255,.85);
 }
-.pill b{color:#fff; font-weight:800; letter-spacing:.12em;}
+.pill b{
+  color:#fff;
+  font-weight: 500;
+  letter-spacing:.12em;
+}
 .pill input[type=range]{width:100%;}
 .pill label{
   grid-column: 1 / -1;
@@ -290,17 +223,17 @@ body{
 }
 #ui button{
   appearance:none;
-  border:1px solid rgba(231,226,201,.14);
+  border:1px solid rgba(255,255,255,.14);
   background:rgba(255,255,255,.06);
   color:#fff;
   padding:10px 12px;
   border-radius:14px;
-  font-weight:800;
+  font-weight: 300;
   pointer-events:auto;
 }
 #ui button:active{transform:translateY(1px);}
 
-/* ✅ 시스템 상태: 좌측 상단 작게 */
+/* status */
 #log{
   position:fixed;
   left:calc(var(--frame) + var(--ui-gap) + var(--safe-l));
@@ -308,16 +241,68 @@ body{
   z-index:905;
   font-size:10px;
   background:rgba(0,0,0,.12);
-  border:1px solid rgba(231,226,201,.08);
+  border:1px solid rgba(255,255,255,.08);
   border-radius:12px;
   padding:6px 10px;
   backdrop-filter: blur(10px);
   max-width:min(86vw,820px);
   white-space:pre-wrap;
   pointer-events:none;
-  color:rgba(231,226,201,.60);
+  color:rgba(255,255,255,.55);
   opacity:.35;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: inherit;
+  font-weight: 300;
+}
+
+/* =========================
+   ✅ INTRO overlay (morphing white circle + text)
+   ========================= */
+#intro{
+  position:fixed; inset:0;
+  z-index:800;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#000;
+  pointer-events:auto;
+  opacity:1;
+  transition:opacity var(--fade) ease;
+}
+#intro.hidden{
+  opacity:0;
+  pointer-events:none;
+}
+#introCanvas{
+  position:absolute; inset:0;
+  width:100vw; height:100vh;
+  display:block;
+}
+#introTextWrap{
+  position:absolute;
+  left:calc(var(--frame) + var(--safe-l));
+  right:calc(var(--frame) + var(--safe-r));
+  top:50%;
+  transform:translateY(-50%);
+  text-align:center;
+  padding: 0 10px;
+  pointer-events:none;
+}
+#introTitle{
+  font-size: clamp(16px, 3.4vmin, 22px);
+  letter-spacing:.06em;
+  color:rgba(255,255,255,.92);
+  text-shadow:0 0 18px rgba(0,0,0,.75);
+  margin:0 0 10px 0;
+  font-weight: 300;
+}
+#introSub{
+  font-size: clamp(12px, 2.2vmin, 15px);
+  letter-spacing:.06em;
+  color:rgba(255,255,255,.72);
+  text-shadow:0 0 18px rgba(0,0,0,.75);
+  margin:0;
+  font-weight: 300;
+  line-height:1.45;
 }
 </style>
 </head>
@@ -367,7 +352,6 @@ body{
 
     <div class="pill">
       <b>BOX</b>
-      <!-- ✅ 시작 0.40 -->
       <input id="boxScale" type="range" min="0.35" max="1.20" step="0.01" value="0.40">
       <span id="boxScaleVal">0.40</span>
     </div>
@@ -402,67 +386,25 @@ body{
 
   <div id="log"></div>
 
-  <!-- ✅ overlay stack -->
-  <div id="overlayStack">
-    <!-- scene 1: static binary fill -->
-    <div id="scenePerm" class="scene">
-      <pre id="binaryFill"></pre>
-    </div>
-
-    <!-- scene 2: typing full text -->
-    <div id="sceneTitle" class="scene hidden">
-      <div id="textPane">
-        <div id="typedText"></div>
-      </div>
+  <!-- ✅ INTRO -->
+  <div id="intro">
+    <canvas id="introCanvas"></canvas>
+    <div id="introTextWrap">
+      <p id="introTitle">Welcome. Thank you for participating in the program.</p>
+      <p id="introSub">Tap anywhere to allow the camera.</p>
     </div>
   </div>
 
 <script>
 (() => {
   /* =========================
-     ✅ 서버 / 타이밍
+     ✅ server / timing
      ========================= */
-  const SLEEP_UPLOAD_SERVER = 'https://172.16.14.60:4443';
+  const SLEEP_UPLOAD_SERVER = 'https://172.20.10.7:4443';
   const UPLOAD_TIMEOUT_MS = 12000;
   const UPLOAD_RETRY = 1;
 
-  const FADE_MS = 2500;          // ✅ 2.5초
-  const TYPE_SPEED_MS = 10;      // ✅ 긴 텍스트라 조금 빠르게(원하면 18~30으로 느리게)
-
-  // ✅ 네가 준 “꽉 채울 텍스트”
-  const FULL_TEXT =
-`From Emptiness (空) to Togetherness (共)
-A Cooking–Memory–Spatial Experiment in Reconstructing Empathy
-
-Empathy originally refers to the ability to feel with others (共感).
-In contemporary relational structures, however, this sense of togetherness has weakened,
-shifting toward emptiness, disconnection, and absence (空).
-
-This project begins at that point of rupture and explores whether emotions emptied of togetherness
-can be reconstructed through cooking—the oldest bodily gesture of care.
-
-Can the oldest gesture of care—cooking—restore emotions that have become empty of togetherness?
-
-BACKGROUND
-In contemporary society, empathy is often reduced to superficial reactions within accelerated communication.
-
-Emotional connection weakens, leaving growing gaps between individuals.
-
-This project treats that gap not as failure,
-but as a starting point for reconstructionㅁ
-
-PROJECT OVERVIEW
-This performance-installation involves two artists who build an archive through remote workshops—recipes, memories, writing, and cooking videos—then translate it on-site into a miniature world (cooking table) and a live performance that shares shifting states of empathy (共感) with the audience.
-
-The focus is not cooking itself, but the gesture—the subtle bodily vibration that emerges while following unfamiliar recipes, moving from estrangement to understanding and empathy.
-
-WHY COOKING / WHY RECIPE
-
-Cooking is both survival and a time-intensive gesture of care.
-Recipes inherited from parents often embed personal emotional memory—nostalgia, longing, loss, attachment.
-This project treats recipes as both an emotional document and a performance score,
-
-testing how empathy can be reconstructed through exchanging, transforming, performing, and archiving them.`;
+  const FADE_MS = 2500;
 
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const qs = s => document.querySelector(s);
@@ -507,13 +449,6 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   /* =========================
      DOM
      ========================= */
-  const scenePerm = qs('#scenePerm');
-  const sceneTitle = qs('#sceneTitle');
-  const overlayStack = qs('#overlayStack');
-
-  const binaryFill = qs('#binaryFill');
-  const typedTextEl = qs('#typedText');
-
   const controls = qs('#controls');
   const zoomIn = qs('#zoomIn');
   const zoomOut = qs('#zoomOut');
@@ -554,6 +489,13 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   const fpsEl = qs('#fps');
   const countEl = qs('#count');
 
+  // intro
+  const intro = qs('#intro');
+  const introTitle = qs('#introTitle');
+  const introSub = qs('#introSub');
+  const introCanvas = qs('#introCanvas');
+  const ictx = introCanvas.getContext('2d', { alpha:false });
+
   function log(msg){ logEl.textContent = String(msg ?? ''); }
 
   toggleUIBtn.addEventListener('click', ()=>{
@@ -563,34 +505,139 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   }, {passive:true});
 
   /* =========================
-     ✅ Scene1 binary fill (static, no effects)
+     ✅ INTRO: morphing white circle (plane -> sphere -> cone -> ...
      ========================= */
-  function buildBinaryLine(chars){
-    // "01001010" 반복 (가로로)
-    const unit = "01001010";
-    let s = "";
-    while(s.length < chars) s += unit;
-    return s.slice(0, chars);
+  function resizeIntroCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    introCanvas.width = Math.round(innerWidth * dpr);
+    introCanvas.height = Math.round(innerHeight * dpr);
+    ictx.setTransform(dpr,0,0,dpr,0,0);
   }
-  function buildBinaryScreen(){
-    const fs = parseFloat(getComputedStyle(binaryFill).fontSize) || 16;
-    const lh = (parseFloat(getComputedStyle(binaryFill).lineHeight) || (fs*1.15));
-    const cols = Math.ceil(innerWidth / (fs * 0.62));   // 대략 monospace 폭
-    const rows = Math.ceil(innerHeight / lh) + 2;
+  window.addEventListener('resize', resizeIntroCanvas, {passive:true});
+  window.addEventListener('orientationchange', resizeIntroCanvas, {passive:true});
+  resizeIntroCanvas();
 
-    const line = buildBinaryLine(cols);
-    let out = "";
-    for(let r=0;r<rows;r++){
-      out += line + "\n";
+  // Simple faux-3D shading using radial gradient + deform outline
+  function drawMorph(t){
+    const W = innerWidth, H = innerHeight;
+    ictx.fillStyle = '#000';
+    ictx.fillRect(0,0,W,H);
+
+    const cx = W*0.5;
+    const cy = H*0.46;
+
+    // slow cycle across states
+    const s = (Math.sin(t*0.17)+1)*0.5; // 0..1
+    const u = (Math.sin(t*0.11 + 1.7)+1)*0.5;
+
+    const baseR = Math.min(W,H) * (0.14 + 0.03*Math.sin(t*0.23));
+    const wob = 0.10 + 0.10*Math.sin(t*0.47); // jelly amount
+    const ripple = 0.22*Math.sin(t*0.58);
+
+    // mode weights: plane, sphere, cone (blend)
+    const wPlane = clamp(1.25 - 2.0*s, 0, 1);        // early
+    const wSphere = 1.0 - Math.abs(s-0.5)*2.0;       // mid peak
+    const wCone  = clamp(2.0*s - 0.25, 0, 1) * (1.0 - clamp(2.0*s - 1.75, 0, 1)); // late-mid
+    const wCone2 = clamp(2.0*s - 1.1, 0, 1);         // later
+
+    // outline deformation parameters
+    const tilt = (u-0.5) * 0.8;
+    const squash = 1.0 + 0.35*wPlane - 0.12*wSphere + 0.18*wCone;
+    const stretchY = 1.0 + 0.05*wSphere + 0.45*wCone2; // cone grows taller
+
+    // draw "surface" with points
+    const N = 220;
+    const pts = [];
+    for(let i=0;i<=N;i++){
+      const a = (i/N) * Math.PI*2;
+
+      // base circle with jelly
+      let r = baseR * (1 + wob*Math.sin(a*3 + t*0.9) + 0.04*Math.sin(a*7 + t*0.7));
+      r *= (1 + 0.03*Math.sin(t*0.6 + a*2.0));
+
+      // plane: flatten into ellipse
+      const planeYScale = 0.35 + 0.25*Math.sin(t*0.2);
+      const sy = lerp(1.0, planeYScale, wPlane);
+
+      // cone: taper top (simulated by angle-dependent radial)
+      const coneTaper = 1.0 - 0.55*wCone2 * (0.5 + 0.5*Math.sin(a + t*0.15));
+      r *= lerp(1.0, coneTaper, wCone2);
+
+      // extra “cone apex” illusion: pull top edge inward and upward
+      const apexPull = wCone2 * Math.pow(Math.max(0, Math.sin(a - Math.PI/2)), 2.2);
+      const r2 = r * (1.0 - 0.72*apexPull);
+
+      // coordinates
+      let x = Math.cos(a) * r2;
+      let y = Math.sin(a) * r2 * sy;
+
+      // general squash/stretch
+      x *= squash;
+      y *= stretchY;
+
+      // subtle drift
+      x += ripple * baseR * 0.08 * Math.sin(t*0.9 + a*4);
+      y += ripple * baseR * 0.08 * Math.cos(t*0.8 + a*3);
+
+      pts.push({x: cx + x, y: cy + y});
     }
-    binaryFill.textContent = out;
+
+    // faux shading: sphere uses radial gradient; plane uses thin highlight; cone uses vertical gradient
+    ictx.save();
+
+    // fill shape with gradient
+    ictx.beginPath();
+    ictx.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<pts.length;i++) ictx.lineTo(pts[i].x, pts[i].y);
+    ictx.closePath();
+
+    const gx = cx + tilt*baseR*0.35;
+    const gy = cy - baseR*0.15;
+    const grad = ictx.createRadialGradient(gx, gy, baseR*0.12, cx, cy, baseR*1.35);
+
+    // all white, but with alpha layers
+    const a0 = 0.06 + 0.10*wPlane;
+    const a1 = 0.18 + 0.22*wSphere;
+    const a2 = 0.10 + 0.18*wCone2;
+
+    grad.addColorStop(0.0, `rgba(255,255,255,${(0.65*a1 + 0.35*a2).toFixed(3)})`);
+    grad.addColorStop(0.45, `rgba(255,255,255,${(0.22*a1 + 0.55*a2 + 0.15*a0).toFixed(3)})`);
+    grad.addColorStop(1.0, `rgba(255,255,255,${(0.02 + 0.06*a0).toFixed(3)})`);
+
+    ictx.fillStyle = grad;
+    ictx.fill();
+
+    // outline (pure white)
+    ictx.strokeStyle = 'rgba(255,255,255,0.92)';
+    ictx.lineWidth = Math.max(1.2, W/1200);
+    ictx.stroke();
+
+    // subtle inner rings for "3D"
+    const rings = 3;
+    for(let r=1;r<=rings;r++){
+      const rr = r/(rings+1);
+      const alpha = 0.08 + 0.10*wSphere + 0.10*wCone2;
+      ictx.strokeStyle = `rgba(255,255,255,${(alpha*(1-rr)).toFixed(3)})`;
+      ictx.beginPath();
+      for(let i=0;i<pts.length;i++){
+        const p = pts[i];
+        const ix = lerp(cx, p.x, 1 - rr*0.55);
+        const iy = lerp(cy, p.y, 1 - rr*0.55);
+        if(i===0) ictx.moveTo(ix, iy);
+        else ictx.lineTo(ix, iy);
+      }
+      ictx.closePath();
+      ictx.stroke();
+    }
+
+    ictx.restore();
+
+    requestAnimationFrame(()=>drawMorph(performance.now()*0.001));
   }
-  window.addEventListener('resize', buildBinaryScreen, {passive:true});
-  window.addEventListener('orientationchange', buildBinaryScreen, {passive:true});
-  buildBinaryScreen();
+  requestAnimationFrame(()=>drawMorph(performance.now()*0.001));
 
   /* =========================
-     ✅ Background: dreamy points
+     ✅ Background: dreamy points (white)
      ========================= */
   const bctx = bg.getContext('2d', { alpha:false });
   const bgState = { pts: [], t0: performance.now(), swirl: 0, pulse: 0 };
@@ -684,7 +731,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
         const w = 0.6 + alpha*0.9;
 
         bctx.lineWidth = w;
-        bctx.strokeStyle = `rgba(231,226,201,${(0.05 + 0.18*alpha).toFixed(3)})`;
+        bctx.strokeStyle = `rgba(255,255,255,${(0.03 + 0.20*alpha).toFixed(3)})`;
         bctx.beginPath();
         bctx.moveTo(a.x, a.y);
         bctx.lineTo(b.x, b.y);
@@ -694,7 +741,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
 
     for(const p of bgState.pts){
       const glow = 0.22 + 0.55*bgState.pulse;
-      bctx.fillStyle = `rgba(231,226,201,${(0.18*glow).toFixed(3)})`;
+      bctx.fillStyle = `rgba(255,255,255,${(0.16*glow).toFixed(3)})`;
       bctx.beginPath();
       bctx.arc(p.x, p.y, p.r*(0.9+0.35*bgState.pulse), 0, Math.PI*2);
       bctx.fill();
@@ -706,7 +753,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   requestAnimationFrame(bgLoop);
 
   /* =========================
-     카메라/검출
+     Camera / detect
      ========================= */
   const vctx = view.getContext('2d', { alpha:false });
 
@@ -827,7 +874,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   }
 
   /* =========================
-     ✅ 업로드
+     Upload
      ========================= */
   function humanErr(e){
     const msg = (e && e.message) ? e.message : String(e);
@@ -907,7 +954,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   }
 
   /* =========================
-     ✅ BOX DETECT assets
+     Box detect assets
      ========================= */
   const LIMEN_LABELS = ["Mom","Hometown","Son Duk-Geum","GrandFather","Ocean"];
   const CLASS_TO_LIMEN = {
@@ -961,7 +1008,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   }
 
   /* =========================
-     ✅ coco-ssd model
+     coco-ssd model
      ========================= */
   let model=null;
   async function loadModel(){
@@ -980,7 +1027,6 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
     const ua=a[2]*a[3] + b[2]*b[3] - inter;
     return ua>0 ? inter/ua : 0;
   }
-  function center(b){ return {x:b[0]+b[2]/2, y:b[1]+b[3]/2}; }
   function makeLinks(points, k=2){
     const links=[];
     for(let i=0;i<points.length;i++){
@@ -1045,9 +1091,10 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
     vctx.globalAlpha = 1;
   }
 
+  // ✅ labels in white
   function drawLabelTag(label, cocoClass, x, y, alphaMul=1){
     const text = `${label} · ${cocoClass}`;
-    vctx.font = `${Math.max(12, Math.round((view.clientWidth||innerWidth)/95))}px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
+    vctx.font = `${Math.max(12, Math.round((view.clientWidth||innerWidth)/95))}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Noto Sans", Arial, sans-serif`;
     vctx.textBaseline = "top";
     const padX = 7, padY = 4;
     const tw = vctx.measureText(text).width;
@@ -1057,7 +1104,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
     vctx.fillStyle = `rgba(0,0,0,${(0.60*alphaMul).toFixed(3)})`;
     vctx.fillRect(x, ty, tw + padX*2, th);
 
-    vctx.fillStyle = `rgba(231,226,201,${(0.95*alphaMul).toFixed(3)})`;
+    vctx.fillStyle = `rgba(255,255,255,${(0.95*alphaMul).toFixed(3)})`;
     vctx.fillText(text, x + padX, ty + padY);
   }
 
@@ -1196,6 +1243,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
       const alphaMul = camFadeAlpha;
       const boxScale = clamp(+boxScaleEl.value, 0.35, 1.20);
 
+      // ✅ links: pure white
       if (linksEl.checked && renderTracks.length >= 2){
         const screenBoxes = renderTracks.map(tr => mapVideoBoxToScreen(tr.bbox, T));
         const scaledBoxes = screenBoxes.map(b => scaleBox(b, boxScale));
@@ -1206,10 +1254,10 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
           const a = pts[i], b = pts[j];
           const dist = Math.sqrt(dd);
           const norm = Math.min(1, dist / Math.max(W, H));
-          const alpha = clamp((0.62*(1-norm) + 0.10), 0.05, 0.85) * alphaMul;
+          const alpha = clamp((0.62*(1-norm) + 0.10), 0.05, 0.92) * alphaMul;
 
           vctx.save();
-          vctx.strokeStyle = `rgba(231,226,201,${alpha.toFixed(3)})`;
+          vctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
           vctx.lineWidth = Math.max(1.1, W/1150);
           vctx.beginPath();
           vctx.moveTo(a.x, a.y);
@@ -1236,7 +1284,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
 
         vctx.save();
         vctx.globalAlpha = alphaMul;
-        vctx.strokeStyle = `rgba(231,226,201,0.92)`;
+        vctx.strokeStyle = `rgba(255,255,255,0.95)`;
         vctx.strokeRect(x,y,w,h);
         vctx.restore();
 
@@ -1313,7 +1361,7 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   }, {passive:false});
 
   /* =========================
-     UI
+     UI actions
      ========================= */
   flipBtn.addEventListener('click', async ()=>{
     try{
@@ -1362,19 +1410,21 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
   }, {passive:true});
 
   /* =========================
-     ✅ Flow
+     ✅ FLOW: intro -> allow camera -> wait -> tap to join -> camera view
      ========================= */
-  let warmed = false;
-  let typing = false;
-  let typingDone = false;
+  // Steps:
+  // 0: welcome + tap to allow camera
+  // 1: camera allowed (or attempted) -> show "Please open the camera. The performance will begin shortly."
+  // 2: show "Tap anywhere to join the program." (tap starts camera + detection + fades intro)
 
-  // ✅ 시작 boxScale 0.40 고정
+  let stage = 0;
+  let joined = false;
+
+  // start values
   boxScaleEl.value = "0.40";
   boxScaleValEl.textContent = "0.40";
 
   async function warmUp(){
-    if (warmed) return;
-    warmed = true;
     try{
       await loadModel();
       await loadAssets();
@@ -1383,7 +1433,17 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
     }
   }
 
-  async function requestCameraPermission(){
+  function setIntroText(title, sub){
+    introTitle.textContent = title || '';
+    introSub.textContent = sub || '';
+  }
+
+  function fadeOutIntro(){
+    intro.classList.add('hidden');
+    setTimeout(()=>{ intro.style.display = 'none'; }, Math.round(FADE_MS));
+  }
+
+  async function requestCameraPermissionOnly(){
     try{
       const s = await navigator.mediaDevices.getUserMedia({
         video:{ facingMode:{ideal:facingMode} },
@@ -1396,88 +1456,83 @@ testing how empathy can be reconstructed through exchanging, transforming, perfo
     }
   }
 
-  function fadeToTitle(){
-    overlayStack.classList.add('overlayFadeOut');
-    setTimeout(()=>{
-      scenePerm.classList.add('hidden');
-      sceneTitle.classList.remove('hidden');
-      overlayStack.classList.remove('overlayFadeOut');
-      startTypingFullText();
-    }, Math.round(FADE_MS));
-  }
+  async function joinProgram(){
+    if(joined) return;
+    joined = true;
 
-  function startTypingFullText(){
-    if(typing) return;
-    typing = true;
-    typingDone = false;
-    typedTextEl.textContent = "";
+    fadeOutIntro();
 
-    // (긴 텍스트) 속도/부하 줄이기 위해 chunk 단위로 타이핑
-    const s = FULL_TEXT;
-    let i = 0;
-
-    const step = () => {
-      // 프레임당 여러 글자 찍어서 “한 글자씩” 느낌은 유지하면서 너무 오래 안 걸리게
-      const chunk = 3;
-      i = Math.min(s.length, i + chunk);
-      typedTextEl.textContent = s.slice(0, i);
-
-      if(i < s.length){
-        setTimeout(step, TYPE_SPEED_MS);
-      } else {
-        typingDone = true;
-      }
-    };
-    step();
-  }
-
-  async function onPermTap(e){
-    if(e && e.preventDefault) e.preventDefault();
-    await ensureResumed();
-    playClick();
-
-    await requestCameraPermission(); // 거절해도 진행
-    await warmUp();
-
-    fadeToTitle();
-  }
-
-  function fadeOutOverlay(){
-    overlayStack.classList.add('overlayFadeOut');
-    setTimeout(()=>{
-      overlayStack.style.display = "none";
-    }, Math.round(FADE_MS));
-  }
-
-  async function enterProgram(e){
-    if(e && e.preventDefault) e.preventDefault();
-    await ensureResumed();
-    playClick();
-
-    fadeOutOverlay();
-
-    try{
-      await startCameraFresh();
-      fadeInCamera(FADE_MS);
-    }catch(err){
-      log("camera start failed");
-    }
-
+    // show controls
     controls.classList.add('show');
     captureBtn.classList.add('show');
 
+    // start actual camera + fade in camera
+    try{
+      await startCameraFresh();
+      fadeInCamera(FADE_MS);
+    }catch(e){
+      log("camera start failed");
+    }
+
+    // start detection loop
     runningDetect = true;
     lastT = performance.now();
     lastDetectAt = 0;
     tick();
   }
 
-  ['click','touchstart','pointerdown'].forEach(type=>{
-    scenePerm.addEventListener(type, onPermTap, {passive:false});
-  });
+  async function onIntroTap(e){
+    if(e && e.preventDefault) e.preventDefault();
 
+    await ensureResumed();
+    playClick();
+
+    if(stage === 0){
+      // Ask for camera permission (iOS requirement)
+      const ok = await requestCameraPermissionOnly(); // even if false, proceed to next stage
+      await warmUp();
+
+      // After allowing camera (or attempting), show "performance will begin shortly" and "open the camera"
+      setIntroText(
+        "Welcome. Thank you for participating in the program.",
+        "Please open the camera. The performance will begin shortly."
+      );
+
+      stage = 1;
+
+      // after a moment, prompt user to join (tap)
+      setTimeout(()=>{
+        if(stage !== 1 || joined) return;
+        setIntroText(
+          "Welcome. Thank you for participating in the program.",
+          "Tap anywhere to join the program."
+        );
+        stage = 2;
+      }, 1800);
+
+      return;
+    }
+
+    if(stage === 1){
+      // if user taps early, just fast-forward to join prompt
+      setIntroText(
+        "Welcome. Thank you for participating in the program.",
+        "Tap anywhere to join the program."
+      );
+      stage = 2;
+      return;
+    }
+
+    if(stage === 2){
+      // join
+      await joinProgram();
+      return;
+    }
+  }
+
+  // Intro overlay handles taps
   ['click','touchstart','pointerdown'].forEach(type=>{
-    sceneTitle.addEventListener(type, enterProgram, {passive:false});
+    intro.addEventListener(type, onIntroTap, {passive:false});
   });
 
 })();
